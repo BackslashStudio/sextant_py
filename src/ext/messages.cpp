@@ -1,6 +1,7 @@
 // sextant's diagnostics as Python warnings, or a Python handler.
 #include "state.h"
 
+#include <nanobind/stl/optional.h>
 #include <nanobind/stl/string.h>
 
 #include <cstdio>
@@ -9,6 +10,11 @@
 
 namespace sextant_py {
     namespace {
+        // handler(message: str), for the stubs; None is taken and returned too.
+        using HandlerFn = nb::typed<nb::callable, void(std::string)>;
+        using Handler = nb::typed<nb::object, HandlerFn>;
+        using OptionalHandler = nb::typed<nb::object, std::optional<HandlerFn>>;
+
         // The user's handler; None = warnings.warn. Heap-allocated and never
         // freed, so no Python object is released after the interpreter is gone.
         // GIL-protected.
@@ -43,7 +49,7 @@ namespace sextant_py {
         sextant::Figure::set_message_handler(deliver);
 
         m.def("set_message_handler",
-              [](nb::object handler) {
+              [](Handler handler) -> OptionalHandler {
                   if (!handler.is_none() && !PyCallable_Check(handler.ptr()))
                       throw nb::type_error("handler must be callable or None");
                   nb::object prev = user_handler();

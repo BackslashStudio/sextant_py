@@ -54,7 +54,7 @@ namespace sextant_py {
     // Run a graph call on the object and return the same Python object, for
     // chaining. Arguments are converted before, with the GIL.
     template <class T, class F>
-    nb::object chain(SelfOf<T> self, F&& f) {
+    nb::typed<nb::object, Wrapped<T>> chain(SelfOf<T> self, F&& f) {
         Wrapped<T>& w = *self.p;
         locked(*w.st, [&] { f(*w.obj); });
         return nb::borrow(self.h);
@@ -96,26 +96,31 @@ namespace sextant_py {
     };
 
     // Read-back: numpy arrays that own the copies sextant returned (None for an
-    // empty optional part). Also what set_*_data() takes back.
-    struct PyLineData { nb::object x, y; };
-    struct PyScatterData { nb::object x, y; };
-    struct PyScatterZData { nb::object x, y, z; };
-    struct PyBarData { nb::object x, height; };
+    // empty optional part). Also what set_*_data() takes back. Any object is
+    // stored; the types only name them for the stubs.
+    using F64 = NumpyObject<double>;
+    using F64OrNone = NumpyObject<double, true>;
+    using U32 = NumpyObject<std::uint32_t>;
+    struct PyLineData { F64 x, y; };
+    struct PyScatterData { F64 x, y; };
+    struct PyScatterZData { F64 x, y, z; };
+    struct PyBarData { F64 x, height; };
     struct PyHeatmapData {
-        nb::object data; // (rows, cols)
+        F64 data; // (rows, cols)
         sextant::Range xrange, yrange;
     };
     struct PyBar3DData {
         sextant::PlaneOrientation orient;
-        nb::object u, v, heights, bottoms; // heights/bottoms (len(u), len(v)); bottoms may be None
+        F64 u, v, heights; // heights/bottoms (len(u), len(v))
+        F64OrNone bottoms;
     };
     struct PySurfaceData {
         sextant::PlaneOrientation orient;
-        nb::object u, v, heights;
+        F64 u, v, heights;
     };
-    struct PySurfaceTriData { nb::object x, y, z, tri, colors; }; // tri (n, 3) uint32
-    struct PyScatter3DData { nb::object x, y, z, colors; };
-    struct PyLine3DData { nb::object x, y, z, colors; };
+    struct PySurfaceTriData { F64 x, y, z; U32 tri; F64OrNone colors; }; // tri (n, 3)
+    struct PyScatter3DData { F64 x, y, z; F64OrNone colors; };
+    struct PyLine3DData { F64 x, y, z; F64OrNone colors; };
 
     PyLineData to_python(sextant::LineData&& d);
     PyScatterData to_python(sextant::ScatterData&& d);

@@ -22,6 +22,8 @@ namespace sextant_py {
         // Sets the field from `v`; `ctx` ("line()") and `path` ("errorbar.capsize")
         // are for the message when `v` does not fit.
         void (*set)(T& o, nb::handle v, const std::string& ctx, const std::string& path);
+        // The Python annotation of what `set` takes, for the type stubs.
+        std::string (*type)();
     };
 
     template <class T>
@@ -29,6 +31,28 @@ namespace sextant_py {
 
     template <class T>
     constexpr bool has_fields = requires { Fields<T>::list(); };
+
+    // A caster name's input side: nanobind writes io_name(in, out) as "@in@out@".
+    inline std::string input_side(const char* text) {
+        std::string out;
+        for (const char* p = text; *p; ++p) {
+            if (*p != '@') {
+                out += *p;
+                continue;
+            }
+            while (*++p && *p != '@') out += *p;     // in
+            while (*p && *++p && *p != '@') {}       // out
+        }
+        return out;
+    }
+
+    // What a field of type F takes, as a Python annotation. A nested struct is
+    // the TypedDict of its name, which the stub generator writes.
+    template <class F>
+    std::string annotation() {
+        if constexpr (has_fields<F>) return Fields<F>::name;
+        else return input_side(nb::detail::make_caster<F>::Name.text);
+    }
 
     template <class T>
     std::string field_names() {
@@ -43,7 +67,7 @@ namespace sextant_py {
         if constexpr (is_named_enum<F>) return "one of " + enum_choices<F>();
         else if constexpr (std::is_same_v<F, sextant::Color> || std::is_same_v<F, std::optional<sextant::Color>>)
             return kColorHint;
-        else return nb::detail::make_caster<F>::Name.text;
+        else return input_side(nb::detail::make_caster<F>::Name.text);
     }
 
     template <class T>
@@ -95,7 +119,7 @@ namespace sextant_py {
 #define SEXTANT_PY_FIELD(f)                                                          \
     Field<Self>{#f, [](Self& o, nb::handle v, const std::string& ctx, const std::string& path) { \
         assign(o.f, v, ctx, path);                                                   \
-    }}
+    }, [] { return annotation<decltype(Self::f)>(); }}
 #define SEXTANT_PY_OPTIONS(T, ...)                                                   \
     template <>                                                                      \
     struct Fields<sextant::T> {                                                      \
@@ -184,6 +208,7 @@ namespace sextant_py {
 #undef SEXTANT_PY_OPTIONS
 #undef SEXTANT_PY_FIELD
 
-    // For tests: every struct's field names, so a test can set each one.
+    // For tests and tools/gen_stubs.py: {struct: {field: annotation}}, in
+    // declaration order.
     nb::dict option_fields();
 } // namespace sextant_py

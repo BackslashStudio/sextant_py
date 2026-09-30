@@ -68,7 +68,7 @@ def header_structs():
     return out
 
 
-BINDING = sextant._sextant._option_fields()
+BINDING = {k: list(v) for k, v in sextant._sextant._option_fields().items()}
 HEADER = header_structs()
 THREE_D = {"Plane2DOptions", "Bar3DOptions", "SurfaceOptions", "SurfaceTriOptions", "Scatter3DOptions",
            "Line3DOptions", "ErrorBar3DOptions", "Box3DStyle", "Camera3D"}

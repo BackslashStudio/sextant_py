@@ -40,9 +40,28 @@ namespace sextant_py {
     // Any number of dimensions, read flat (a bar3d/surface `heights` grid).
     using Grid = ArrayOf<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>;
 
+    // A name for the type stubs only: NumpyObject converts as a plain object
+    // (anything in, the object out) and reads "ArrayLike" as an argument,
+    // "numpy.typing.NDArray[numpy.<T>]" as a result; OrNone adds "| None" to the
+    // result (an argument that takes None says so with .none()).
+    template <class T, bool OrNone = false>
+    struct NumpyOf {};
+    template <class T, bool OrNone = false>
+    using NumpyObject = nb::typed<nb::object, NumpyOf<T, OrNone>>;
+
+    // Also stubs only: nb::typed<nb::object, Named<"...">> is an object the
+    // stubs call "...".
+    template <std::size_t N>
+    struct StubName {
+        char text[N];
+        constexpr StubName(const char (&s)[N]) { std::copy_n(s, N, text); }
+    };
+    template <StubName S>
+    struct Named {};
+
     // A new numpy array that owns `v` (moved, not copied).
     template <class T>
-    nb::object to_numpy(std::vector<T>&& v, std::initializer_list<std::size_t> shape) {
+    NumpyObject<T> to_numpy(std::vector<T>&& v, std::initializer_list<std::size_t> shape) {
         auto* heap = new std::vector<T>(std::move(v));
         nb::capsule owner(heap, [](void* p) noexcept { delete static_cast<std::vector<T>*>(p); });
         return nb::cast(nb::ndarray<nb::numpy, T>(heap->data(), shape, owner));
@@ -206,6 +225,23 @@ namespace nanobind::detail {
         }
     };
 
+    // Name only: typed<object, NumpyOf<...>> converts through object's caster.
+    template <class T, bool OrNone>
+    struct type_caster<sextant_py::NumpyOf<T, OrNone>> {
+        static constexpr auto Dtype = const_name<std::is_same_v<T, double>>(
+            const_name("float64"),
+            const_name<std::is_same_v<T, std::uint8_t>>(const_name("uint8"), const_name("uint32")));
+        static constexpr auto None = const_name<OrNone>(const_name(" | None"), const_name(""));
+        static constexpr auto Name = const_name('@') + const_name("ArrayLike") + const_name('@') +
+                                     const_name("numpy.typing.NDArray[numpy.") + Dtype + const_name("]") +
+                                     None + const_name('@');
+    };
+
+    template <sextant_py::StubName S>
+    struct type_caster<sextant_py::Named<S>> {
+        static constexpr auto Name = const_name(S.text);
+    };
+
     // Full specializations below: nanobind's own enum caster is a partial one.
     template <class E>
     struct sextant_enum_caster {
@@ -230,22 +266,26 @@ namespace nanobind::detail {
         }
     };
 
-#define SEXTANT_PY_ENUM_CASTER(E) \
-    template <> struct type_caster<E> : sextant_enum_caster<E> {};
-    SEXTANT_PY_ENUM_CASTER(sextant::LineStyle)
-    SEXTANT_PY_ENUM_CASTER(sextant::MarkerStyle)
-    SEXTANT_PY_ENUM_CASTER(sextant::Colormap)
-    SEXTANT_PY_ENUM_CASTER(sextant::CapStyle)
-    SEXTANT_PY_ENUM_CASTER(sextant::AxisPosition)
-    SEXTANT_PY_ENUM_CASTER(sextant::LegendAnchor)
-    SEXTANT_PY_ENUM_CASTER(sextant::ColorbarAnchor)
-    SEXTANT_PY_ENUM_CASTER(sextant::HAlign)
-    SEXTANT_PY_ENUM_CASTER(sextant::PanelTheme)
-    SEXTANT_PY_ENUM_CASTER(sextant::Projection)
-    SEXTANT_PY_ENUM_CASTER(sextant::PlaneOrientation)
-    SEXTANT_PY_ENUM_CASTER(sextant::EventKind)
-    SEXTANT_PY_ENUM_CASTER(sextant::PickKind)
-    SEXTANT_PY_ENUM_CASTER(sextant::EventConsumed)
+    // Named for the stubs: `LineStyleLike` in (the member or any listed string,
+    // an alias the stub generator writes), the _enums class out.
+#define SEXTANT_PY_ENUM_CASTER(E)                                               \
+    template <> struct type_caster<sextant::E> : sextant_enum_caster<sextant::E> { \
+        static constexpr auto Name = io_name(#E "Like", "sextant._enums." #E);   \
+    };
+    SEXTANT_PY_ENUM_CASTER(LineStyle)
+    SEXTANT_PY_ENUM_CASTER(MarkerStyle)
+    SEXTANT_PY_ENUM_CASTER(Colormap)
+    SEXTANT_PY_ENUM_CASTER(CapStyle)
+    SEXTANT_PY_ENUM_CASTER(AxisPosition)
+    SEXTANT_PY_ENUM_CASTER(LegendAnchor)
+    SEXTANT_PY_ENUM_CASTER(ColorbarAnchor)
+    SEXTANT_PY_ENUM_CASTER(HAlign)
+    SEXTANT_PY_ENUM_CASTER(PanelTheme)
+    SEXTANT_PY_ENUM_CASTER(Projection)
+    SEXTANT_PY_ENUM_CASTER(PlaneOrientation)
+    SEXTANT_PY_ENUM_CASTER(EventKind)
+    SEXTANT_PY_ENUM_CASTER(PickKind)
+    SEXTANT_PY_ENUM_CASTER(EventConsumed)
 #undef SEXTANT_PY_ENUM_CASTER
 
     // Vec3 and BoxAspect: (x, y, z).

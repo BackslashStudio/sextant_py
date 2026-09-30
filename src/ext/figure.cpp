@@ -13,6 +13,10 @@
 
 namespace sextant_py {
     namespace {
+        // savefig(): a path or a file object in; the SVG report, or None, out.
+        using PathOrFile = nb::typed<nb::object, Named<"str | os.PathLike[str] | typing.IO[typing.Any]">>;
+        using SaveResult = nb::typed<nb::object, std::optional<sextant::SvgSaveReport>>;
+
         // Where show() should not block: a REPL, `python -i`, IPython/Jupyter.
         bool interactive_session() {
             nb::module_ sys = nb::module_::import_("sys");
@@ -62,7 +66,7 @@ namespace sextant_py {
             throw nb::value_error(("unknown format '" + f + "'; sextant writes 'png' and 'svg'").c_str());
         }
 
-        nb::object write_rendered(nb::handle file, Format fmt, PyFigure& self, int width, int height,
+        SaveResult write_rendered(nb::handle file, Format fmt, PyFigure& self, int width, int height,
                                   const nb::kwargs& kw) {
             if (fmt == Format::Png) {
                 auto o = options<sextant::PngExportOptions>("savefig()", kw);
@@ -283,8 +287,8 @@ namespace sextant_py {
 
             // --- output ----------------------------------------------------------
             .def("savefig",
-                 [](PyFigure& self, nb::object fname, std::optional<std::string> format, int width, int height,
-                    const nb::kwargs& kw) -> nb::object {
+                 [](PyFigure& self, PathOrFile fname, std::optional<std::string> format, int width, int height,
+                    const nb::kwargs& kw) -> SaveResult {
                      const bool is_file = nb::hasattr(fname, "write");
                      std::string path;
                      if (!is_file) {
@@ -322,7 +326,8 @@ namespace sextant_py {
                  },
                  nb::kw_only(), "width"_a = 0, "height"_a = 0, "opts"_a, png_doc.c_str())
             .def("render_svg",
-                 [](PyFigure& self, int width, int height, const nb::kwargs& kw) {
+                 [](PyFigure& self, int width, int height,
+                    const nb::kwargs& kw) -> nb::typed<nb::tuple, nb::str, sextant::SvgSaveReport> {
                      auto o = options<sextant::SvgExportOptions>("render_svg()", kw);
                      auto r = call(self, [&](Figure& f) { return f.render_svg(o, width, height); });
                      return nb::make_tuple(nb::str(r.svg.data(), r.svg.size()), std::move(r.report));
@@ -348,7 +353,7 @@ namespace sextant_py {
                  },
                  nb::kw_only(), "width"_a = 0, "height"_a = 0, "opts"_a, rgba_doc.c_str())
 
-            .def("__enter__", [](nb::handle self) { return nb::borrow(self); })
+            .def("__enter__", [](nb::handle self) -> nb::typed<nb::object, PyFigure> { return nb::borrow(self); })
             .def("__exit__", [](PyFigure& self, nb::args) { call(self, [](Figure& f) { f.close(); }); });
     }
 } // namespace sextant_py

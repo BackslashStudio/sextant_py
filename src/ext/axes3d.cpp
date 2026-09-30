@@ -148,7 +148,7 @@ namespace sextant_py {
                  },
                  "orient"_a, "u"_a, "v"_a, "heights"_a, "opts"_a, surface_doc.c_str())
             .def("surface_tri",
-                 [](Self self, const Vec& x, const Vec& y, const Vec& z, nb::handle tri,
+                 [](Self self, const Vec& x, const Vec& y, const Vec& z, const U32& tri,
                     std::optional<PlaneOrientation> orient, const std::optional<Vec>& colors, const nb::kwargs& kw) {
                      if (tri.is_none() == !orient.has_value())
                          throw nb::type_error("surface_tri(): pass exactly one of triangles and orient");
@@ -429,7 +429,7 @@ namespace sextant_py {
                  },
                  "i"_a, "data"_a)
             .def("set_surface_tri_data",
-                 [](Self self, std::int64_t i, const Vec& x, const Vec& y, const Vec& z, nb::handle tri,
+                 [](Self self, std::int64_t i, const Vec& x, const Vec& y, const Vec& z, const U32& tri,
                     const std::optional<Vec>& colors) {
                      const auto t = triangles(tri, "set_surface_tri_data()");
                      return chain(self, [&](Axes3D& ax) {

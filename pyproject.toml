@@ -30,6 +30,7 @@ dev = [
     "numpy>=1.23",
     "pytest>=8",
     "pytest-timeout",
+    "mypy>=2.3.1",
 ]
 
 [tool.scikit-build]

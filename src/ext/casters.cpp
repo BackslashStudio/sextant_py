@@ -104,9 +104,9 @@ namespace sextant_py {
     namespace {
         template <class T>
         void add_fields(nb::dict& d) {
-            nb::list names;
-            for (const auto& f : Fields<T>::list()) names.append(f.name);
-            d[Fields<T>::name] = names;
+            nb::dict fields;
+            for (const auto& f : Fields<T>::list()) fields[f.name] = f.type();
+            d[Fields<T>::name] = fields;
         }
     } // namespace
 

@@ -9,6 +9,7 @@
 #include "wrappers.h"
 
 #include <nanobind/stl/string.h>
+#include <nanobind/stl/variant.h>
 
 #include <cmath>
 #include <string>
@@ -93,7 +94,7 @@ namespace sextant_py {
         // The Axes/Axes3D whose frame is under the event, as the same Python
         // object the program holds. The event names the subplot by its first
         // cell; add_subplot() returns the one there, and throws if it is 3D.
-        nb::object inaxes(const PyEvent& ev) {
+        nb::typed<nb::object, std::variant<PyAxes, PyAxes3D, nb::none>> inaxes(const PyEvent& ev) {
             if (ev.e.axes < 0) return nb::none();
             auto st = ev.st.lock();
             if (!st) return nb::none();

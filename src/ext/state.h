@@ -96,7 +96,7 @@ namespace sextant_py {
 
     // Python wrapper for `ax`, the one already handed out if it is alive.
     template <class Wrapper, class T>
-    nb::object wrap(const std::shared_ptr<FigureState>& st, std::shared_ptr<T> obj) {
+    nb::typed<nb::object, Wrapper> wrap(const std::shared_ptr<FigureState>& st, std::shared_ptr<T> obj) {
         const void* key = obj.get();
         if (auto it = st->wrappers.find(key); it != st->wrappers.end()) {
             nb::object alive = it->second();

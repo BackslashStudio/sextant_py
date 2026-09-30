@@ -33,7 +33,7 @@ NB_MODULE(_sextant, m) {
     sextant_py::bind_messages(m);
     sextant_py::bind_lifecycle(m);
 
-    // Tests only: every option struct's field names.
+    // Tests and tools/gen_stubs.py: every option struct's fields and their types.
     m.def("_option_fields", &sextant_py::option_fields);
     // sextant/_enums.py (alias lookup) and tests: the enum name tables.
     m.def("_enum_tables", &sextant_py::enum_tables);

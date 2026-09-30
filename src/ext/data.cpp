@@ -8,16 +8,16 @@
 
 namespace sextant_py {
     namespace {
-        nb::object vec(std::vector<double>&& v) {
+        F64 vec(std::vector<double>&& v) {
             const std::size_t n = v.size();
             return to_numpy(std::move(v), {n});
         }
 
         // None for an empty optional part (bottoms, colors).
-        nb::object vec_or_none(std::vector<double>&& v) { return v.empty() ? nb::none() : vec(std::move(v)); }
+        F64OrNone vec_or_none(std::vector<double>&& v) { return v.empty() ? nb::none() : nb::object(vec(std::move(v))); }
 
         // Bar3D/surface heights as a (len(u), len(v)) array: the C++ layout, u major.
-        nb::object grid(std::vector<double>&& v, std::size_t nu, std::size_t nv) {
+        F64 grid(std::vector<double>&& v, std::size_t nu, std::size_t nv) {
             return to_numpy(std::move(v), {nu, nv});
         }
 
@@ -113,20 +113,20 @@ namespace sextant_py {
                  "z_cap_hi"_a = nb::none(), "z_box_lo"_a = nb::none(), "z_box_hi"_a = nb::none());
 
         nb::class_<PyLineData>(m, "LineData")
-            .def(nb::init<nb::object, nb::object>(), "x"_a, "y"_a)
+            .def(nb::init<F64, F64>(), "x"_a, "y"_a)
             .def_rw("x", &PyLineData::x)
             .def_rw("y", &PyLineData::y)
             .def("__repr__", [](const PyLineData& d) { return repr_fields("LineData", {{"x", d.x}, {"y", d.y}}); });
 
         nb::class_<PyScatterData>(m, "ScatterData")
-            .def(nb::init<nb::object, nb::object>(), "x"_a, "y"_a)
+            .def(nb::init<F64, F64>(), "x"_a, "y"_a)
             .def_rw("x", &PyScatterData::x)
             .def_rw("y", &PyScatterData::y)
             .def("__repr__",
                  [](const PyScatterData& d) { return repr_fields("ScatterData", {{"x", d.x}, {"y", d.y}}); });
 
         nb::class_<PyScatterZData>(m, "ScatterZData")
-            .def(nb::init<nb::object, nb::object, nb::object>(), "x"_a, "y"_a, "z"_a)
+            .def(nb::init<F64, F64, F64>(), "x"_a, "y"_a, "z"_a)
             .def_rw("x", &PyScatterZData::x)
             .def_rw("y", &PyScatterZData::y)
             .def_rw("z", &PyScatterZData::z)
@@ -135,7 +135,7 @@ namespace sextant_py {
             });
 
         nb::class_<PyBarData>(m, "BarData")
-            .def(nb::init<nb::object, nb::object>(), "x"_a, "height"_a)
+            .def(nb::init<F64, F64>(), "x"_a, "height"_a)
             .def_rw("x", &PyBarData::x)
             .def_rw("height", &PyBarData::height)
             .def("__repr__",
@@ -144,7 +144,7 @@ namespace sextant_py {
         nb::class_<PyHeatmapData>(m, "HeatmapData",
                                   "data is (rows, cols), row-major as passed; values come back rounded\n"
                                   "to float32, which is how sextant stores them.")
-            .def(nb::init<nb::object, sextant::Range, sextant::Range>(), "data"_a, "xrange"_a, "yrange"_a)
+            .def(nb::init<F64, sextant::Range, sextant::Range>(), "data"_a, "xrange"_a, "yrange"_a)
             .def_rw("data", &PyHeatmapData::data)
             .def_rw("xrange", &PyHeatmapData::xrange)
             .def_rw("yrange", &PyHeatmapData::yrange)
@@ -157,7 +157,7 @@ namespace sextant_py {
         nb::class_<PyBar3DData>(m, "Bar3DData",
                                 "heights and bottoms are (len(u), len(v)); bottoms is None when every bar\n"
                                 "stands on the bar3d() call's `bottom`.")
-            .def(nb::init<sextant::PlaneOrientation, nb::object, nb::object, nb::object, nb::object>(),
+            .def(nb::init<sextant::PlaneOrientation, F64, F64, F64, F64OrNone>(),
                  "orient"_a, "u"_a, "v"_a, "heights"_a, "bottoms"_a.none() = nb::none())
             .def_rw("orient", &PyBar3DData::orient)
             .def_rw("u", &PyBar3DData::u)
@@ -170,7 +170,7 @@ namespace sextant_py {
             });
 
         nb::class_<PySurfaceData>(m, "SurfaceData", "heights is (len(u), len(v)).")
-            .def(nb::init<sextant::PlaneOrientation, nb::object, nb::object, nb::object>(),
+            .def(nb::init<sextant::PlaneOrientation, F64, F64, F64>(),
                  "orient"_a, "u"_a, "v"_a, "heights"_a)
             .def_rw("orient", &PySurfaceData::orient)
             .def_rw("u", &PySurfaceData::u)
@@ -184,7 +184,7 @@ namespace sextant_py {
         nb::class_<PySurfaceTriData>(m, "SurfaceTriData",
                                      "tri is (n, 3) uint32: as passed, or the Delaunay triangulation made from\n"
                                      "an orientation. colors is None for a flat mesh.")
-            .def(nb::init<nb::object, nb::object, nb::object, nb::object, nb::object>(),
+            .def(nb::init<F64, F64, F64, U32, F64OrNone>(),
                  "x"_a, "y"_a, "z"_a, "tri"_a, "colors"_a.none() = nb::none())
             .def_rw("x", &PySurfaceTriData::x)
             .def_rw("y", &PySurfaceTriData::y)
@@ -197,7 +197,7 @@ namespace sextant_py {
             });
 
         nb::class_<PyScatter3DData>(m, "Scatter3DData", "colors is None for a flat series.")
-            .def(nb::init<nb::object, nb::object, nb::object, nb::object>(),
+            .def(nb::init<F64, F64, F64, F64OrNone>(),
                  "x"_a, "y"_a, "z"_a, "colors"_a.none() = nb::none())
             .def_rw("x", &PyScatter3DData::x)
             .def_rw("y", &PyScatter3DData::y)
@@ -208,7 +208,7 @@ namespace sextant_py {
             });
 
         nb::class_<PyLine3DData>(m, "Line3DData", "colors is None for a flat path.")
-            .def(nb::init<nb::object, nb::object, nb::object, nb::object>(),
+            .def(nb::init<F64, F64, F64, F64OrNone>(),
                  "x"_a, "y"_a, "z"_a, "colors"_a.none() = nb::none())
             .def_rw("x", &PyLine3DData::x)
             .def_rw("y", &PyLine3DData::y)
