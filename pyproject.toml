@@ -37,10 +37,13 @@ Source = "https://github.com/BackslashStudio/sextant_py"
 Issues = "https://github.com/BackslashStudio/sextant_py/issues"
 
 [dependency-groups]
-# What the tests import; cibuildwheel installs it to test each wheel.
+# What the tests import; cibuildwheel installs it to test each wheel. No
+# version specifiers: on Windows cibuildwheel runs pip through cmd.exe, where
+# ">=8" is a redirect (the floor is dropped and pip's output lands in a file
+# named "8"). numpy's floor comes with the wheel; uv.lock pins dev.
 test = [
-    "numpy>=1.23",
-    "pytest>=8",
+    "numpy",
+    "pytest",
     "pytest-timeout",
 ]
 # The build requirements too: the dev install builds without isolation (see

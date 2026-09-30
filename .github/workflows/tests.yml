@@ -1,0 +1,74 @@
+# The dev path: an editable build from the checkout (uv sync) and the whole
+# suite, on each OS. Release wheels are built and tested in wheels.yml.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Windows, os: windows-2025 }
+          - { name: Linux, os: ubuntu-24.04 }
+          - { name: macOS, os: macos-15 }
+    env:
+      # The runners have no GPU: Mesa's software rasterizer on Windows and Linux.
+      GALLIUM_DRIVER: llvmpipe
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      # GLFW's X11 backend and GL headers to build; EGL + llvmpipe for the
+      # display-less export, xvfb for the window tests, a font.
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgl-dev libgl1-mesa-dri libegl1 libegl-mesa0 libopengl0 \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev \
+            xvfb xauth fonts-dejavu-core
+
+      # Windows' own opengl32 stops at GL 1.1; sextant needs 3.3.
+      - name: Install Mesa llvmpipe (Windows)
+        if: runner.os == 'Windows'
+        uses: ssciwr/setup-mesa-dist-win@v3
+
+      - uses: astral-sh/setup-uv@v10.2.0  # no floating major tag
+        with:
+          enable-cache: true
+
+      # Builds sextant and the extension from source (~2 min).
+      - name: Build (uv sync)
+        run: uv sync
+
+      - name: Tests
+        if: runner.os != 'Linux'
+        run: uv run pytest
+
+      # Twice on Linux: with no display (the EGL export path, window tests
+      # skipped) and under xvfb (everything).
+      - name: Tests, no display (Linux)
+        if: runner.os == 'Linux'
+        run: uv run pytest
+
+      - name: Tests, xvfb (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a -s "-screen 0 1920x1080x24" uv run pytest

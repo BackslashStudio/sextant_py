@@ -1,0 +1,201 @@
+# Release wheels and the sdist, tested, and published on a version tag.
+#
+# The build settings are [tool.cibuildwheel] in pyproject.toml, so a local
+# `cibuildwheel` run builds the same wheels.
+#
+# Publishing uses PyPI trusted publishing (no token): register this repository,
+# this workflow and the environment name ("pypi" / "testpypi") as a trusted
+# publisher on the project's PyPI / TestPyPI page first.
+name: wheels
+
+on:
+  push:
+    tags: ["v*"]
+    branches: [main]
+    paths:
+      - pyproject.toml
+      - CMakeLists.txt
+      - extern/sextant
+      - .github/workflows/wheels.yml
+  pull_request:
+    paths:
+      - pyproject.toml
+      - CMakeLists.txt
+      - extern/sextant
+      - .github/workflows/wheels.yml
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Where to upload the built distributions
+        type: choice
+        options: [none, testpypi, pypi]
+        default: none
+
+permissions:
+  contents: read
+
+jobs:
+  build_wheels:
+    name: Wheels, ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Windows, os: windows-2025 }
+          - { name: Linux, os: ubuntu-24.04 }
+          # arm64 runner: builds arm64 and x86_64, and tests x86_64 under Rosetta.
+          - { name: macOS, os: macos-15 }
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      # The wheel tests render: Windows' own opengl32 stops at GL 1.1.
+      - name: Install Mesa llvmpipe (Windows)
+        if: runner.os == 'Windows'
+        uses: ssciwr/setup-mesa-dist-win@v3
+
+      - uses: pypa/cibuildwheel@v4.2
+        env:
+          GALLIUM_DRIVER: llvmpipe
+        with:
+          output-dir: wheelhouse
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheels-${{ matrix.name }}
+          path: wheelhouse/*.whl
+
+  build_sdist:
+    name: sdist
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: astral-sh/setup-uv@v10.2.0  # no floating major tag
+      - run: uv build --sdist --out-dir dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  # The manylinux container has no X server, so cibuildwheel's tests skip the
+  # window tests there. Here the abi3 wheel runs the whole suite on the host,
+  # under xvfb, and once more with no display.
+  test_linux_display:
+    name: Linux wheel with a display, Python ${{ matrix.python }}
+    needs: build_wheels
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.14"]
+    env:
+      GALLIUM_DRIVER: llvmpipe
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: wheels-Linux
+          path: wheelhouse
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgl1 libgl1-mesa-dri libegl1 libegl-mesa0 xvfb xauth fonts-dejavu-core
+      - name: Install the wheel
+        run: python -m pip install wheelhouse/*-abi3-manylinux*.whl pytest pytest-timeout
+      # As cibuildwheel runs them: away from the source tree, so the installed
+      # package is what gets imported.
+      - name: Copy the tests
+        run: |
+          mkdir -p "$RUNNER_TEMP/t/extern/sextant"
+          cp -R pyproject.toml tests "$RUNNER_TEMP/t/"
+          cp -R extern/sextant/include "$RUNNER_TEMP/t/extern/sextant/"
+      - name: Tests, xvfb
+        working-directory: ${{ runner.temp }}/t
+        run: xvfb-run -a -s "-screen 0 1920x1080x24" python -m pytest -q
+      - name: Tests, no display
+        working-directory: ${{ runner.temp }}/t
+        run: python -m pytest -q
+
+  # A user without a matching wheel gets the sdist: it must build with pip
+  # alone (sextant's dependencies are fetched at configure time).
+  test_sdist:
+    name: sdist builds and passes
+    needs: build_sdist
+    runs-on: ubuntu-24.04
+    env:
+      GALLIUM_DRIVER: llvmpipe
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v8
+        with:
+          name: sdist
+          path: dist
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgl-dev libgl1-mesa-dri libegl1 libegl-mesa0 \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev \
+            fonts-dejavu-core
+      - name: Install the sdist
+        run: python -m pip install dist/*.tar.gz pytest pytest-timeout
+      - name: Copy the tests
+        run: |
+          mkdir -p "$RUNNER_TEMP/t/extern/sextant"
+          cp -R pyproject.toml tests "$RUNNER_TEMP/t/"
+          cp -R extern/sextant/include "$RUNNER_TEMP/t/extern/sextant/"
+      - name: Tests, no display
+        working-directory: ${{ runner.temp }}/t
+        run: python -m pytest -q
+
+  publish:
+    name: Publish to ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'pypi' }}
+    needs: [build_wheels, build_sdist, test_linux_display, test_sdist]
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.target != 'none')
+    runs-on: ubuntu-24.04
+    environment:
+      name: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'pypi' }}
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      # A tag must name the version being uploaded: v1.1.0 <-> version = "1.1.0".
+      - name: Tag matches the project version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match pyproject.toml version $version"
+            exit 1
+          fi
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - run: ls -l dist
+      - name: Upload to TestPyPI
+        if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+      - name: Upload to PyPI
+        if: github.event_name != 'workflow_dispatch' || inputs.target == 'pypi'
+        uses: pypa/gh-action-pypi-publish@release/v1

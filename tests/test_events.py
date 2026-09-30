@@ -1,8 +1,8 @@
 """Figure.connect() and event delivery.
 
 Only Close can be caused by a program (closing a shown figure queues one), so
-it carries the delivery tests; input events are checked by hand
-(sextant_dev: memory/python_binding/spec_impl.md, B5).
+it carries the delivery tests; mouse, key, scroll, pick and resize events
+need a person at the window and are checked by hand.
 """
 
 import gc

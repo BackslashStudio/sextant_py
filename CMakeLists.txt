@@ -52,8 +52,10 @@ nanobind_add_module(_sextant STABLE_ABI NB_STATIC
     src/ext/messages.cpp)
 target_link_libraries(_sextant PRIVATE sextant::sextant_static)
 
-# Export PyInit__sextant alone (see the map file). macOS needs nothing: with
-# libc++ and hidden visibility it already exports that symbol only.
+# Export PyInit__sextant alone (see the map file). Not on macOS: arm64 already
+# exports that symbol only, and x86_64's extra exports are weak typeinfo that
+# libc++ there compares by address, so hiding them could break a catch across
+# images.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(_sextant_map "${CMAKE_CURRENT_SOURCE_DIR}/src/ext/_sextant.map")
     target_link_options(_sextant PRIVATE "LINKER:--version-script=${_sextant_map}")
