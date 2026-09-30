@@ -18,6 +18,10 @@ if(NOT EXISTS "${SEXTANT_SOURCE_DIR}/CMakeLists.txt")
 endif()
 message(STATUS "sextant sources: ${SEXTANT_SOURCE_DIR}")
 
+# Link libGL.so.1, not GLVND's libOpenGL.so.0 + libGLX.so.0: manylinux allows
+# only the former, and auditwheel would bundle the latter into the wheel.
+set(OpenGL_GL_PREFERENCE LEGACY)
+
 set(SEXTANT_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 set(SEXTANT_BUNDLE_DEPS  ON  CACHE BOOL "" FORCE)
 set(SEXTANT_BUILD_TESTS  OFF CACHE BOOL "" FORCE)

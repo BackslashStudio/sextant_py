@@ -2,6 +2,7 @@
 
 import _thread
 import gc
+import os
 import subprocess
 import sys
 import textwrap
@@ -223,6 +224,28 @@ def test_dropping_a_shown_figure_closes_it():
     """)
     assert rc == 0, err
     assert out.strip() == "ok"
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="a display is optional on Linux only")
+def test_show_without_a_display_raises():
+    env = {k: v for k, v in os.environ.items() if k not in ("DISPLAY", "WAYLAND_DISPLAY")}
+    code = textwrap.dedent("""
+        import numpy as np, sextant, tempfile, os
+        fig = sextant.Figure(width=200, height=150)
+        fig.axes().line(np.arange(4.0))
+        try:
+            fig.show(block=False)
+            print("no error")
+        except RuntimeError as e:
+            print("RuntimeError", "DISPLAY" in str(e))
+        print("open", fig.is_open())
+        fig.savefig(os.path.join(tempfile.mkdtemp(), "x.png"))
+        print("saved")
+    """)
+    p = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                       timeout=60, env=env)
+    assert p.returncode == 0, p.stderr
+    assert p.stdout.split("\n")[:3] == ["RuntimeError True", "open False", "saved"]
 
 
 @window
