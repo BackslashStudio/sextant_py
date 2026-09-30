@@ -1,0 +1,7 @@
+/* Linux: the module's only export. GCC would otherwise export the weak std::
+   template instantiations it emits (namespace std has default visibility),
+   which -fvisibility=hidden does not reach. */
+{
+    global: PyInit__sextant;
+    local: *;
+};
