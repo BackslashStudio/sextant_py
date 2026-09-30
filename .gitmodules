@@ -1,0 +1,4 @@
+[submodule "extern/sextant"]
+	path = extern/sextant
+	url = https://github.com/BackslashStudio/sextant.git
+	branch = dev

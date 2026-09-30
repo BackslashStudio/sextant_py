@@ -1,0 +1,69 @@
+# ── Build outputs ────────────────────────────────────────────────────────────
+cmake-build-*/
+build/
+out/
+install/
+dist/
+client_tests/output/
+
+# ── Compiled objects / libraries ─────────────────────────────────────────────
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dll
+*.dylib
+*.pdb
+*.ilk
+*.exp
+*.idb
+*.map
+
+# ── CLion ────────────────────────────────────────────────────────────────────
+.idea/
+
+# ── Visual Studio / VS Code (Windows) ────────────────────────────────────────
+.vs/
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+*.suo
+*.user
+*.ncb
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+ipch/
+x64/
+x86/
+Debug/
+Release/
+RelWithDebInfo/
+MinSizeRel/
+
+# ── CMake generated ───────────────────────────────────────────────────────────
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+_deps/
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# ── Misc ─────────────────────────────────────────────────────────────────────
+*.swp
+*.swo
+*~
+.clangd/
+compile_commands.json
+

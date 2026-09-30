@@ -1,0 +1,67 @@
+[build-system]
+requires = ["scikit-build-core>=0.11", "nanobind>=2.9"]
+build-backend = "scikit_build_core.build"
+
+[project]
+# Working name: the PyPI distribution name is settled before the first upload.
+name = "sextant"
+version = "1.1.0.dev0"
+description = "Scientific plotting from a C++20 core: matplotlib-like figures, 2D and 3D, PNG/SVG export"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = ["numpy>=1.23"]
+classifiers = [
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+
+[project.urls]
+Homepage = "https://github.com/BackslashStudio/sextant"
+
+[dependency-groups]
+# The build requirements too: the dev install builds without isolation (see
+# [tool.uv] below).
+dev = [
+    "scikit-build-core>=0.11",
+    "nanobind>=2.9",
+    "ninja",
+    "numpy>=1.23",
+    "pytest>=8",
+    "pytest-timeout",
+]
+
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+build-dir = "build/{wheel_tag}"
+cmake.build-type = "Release"
+# Only the extension module: sextant's own install rules (headers, archives,
+# CMake package) are for C++ consumers and must not land in the wheel.
+install.components = ["python"]
+# One abi3 wheel for 3.12+; older Pythons get per-version wheels.
+wheel.py-api = "cp312"
+sdist.include = ["extern/sextant"]
+# Editable (dev) installs rebuild the extension on import when a source changed.
+editable.rebuild = true
+# Otherwise every import prints MSBuild's up-to-date check.
+editable.verbose = false
+
+[tool.scikit-build.cmake.define]
+# Empty = the extern/sextant submodule. Point at a working tree (../sextant)
+# to build against uncommitted library changes.
+SEXTANT_SOURCE_DIR = { env = "SEXTANT_SOURCE_DIR", default = "" }
+
+[tool.uv]
+# Only uv's own interpreters: the ones on PATH here belong to other tools.
+python-preference = "only-managed"
+# Built in the venv with the dev group's scikit-build-core/nanobind, so
+# build-dir stays valid between builds and editable.rebuild can use it.
+no-build-isolation-package = ["sextant"]
+# The uv cache and a checkout are often on different drives.
+link-mode = "copy"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# A deadlock (the GIL/graph-lock rules broken) must fail the run, not hang it.
+timeout = 60
