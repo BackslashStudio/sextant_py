@@ -36,7 +36,29 @@ namespace sextant_py {
         // The Python wrapper handed out for each axes, so fig.axes() is
         // fig.axes(). Keyed by the C++ object; GIL-protected.
         std::unordered_map<const void*, nb::weakref> wrappers;
+
+        // Ids of the callbacks connected through Python, so the exit sweep can
+        // take every Python callable out of sextant. GIL-protected.
+        std::vector<int> connections;
     };
+
+    // Keeps `st` until the current event dispatch has returned: a callback may
+    // drop the last Python reference to the figure it is being called for, and
+    // a figure must not be destroyed from inside its own dispatch. GIL held.
+    void defer_release(std::shared_ptr<FigureState> st);
+
+    // Releases what defer_release() kept. Call with the GIL held, after a call
+    // that dispatched events has returned.
+    void drain_deferred();
+
+    // A KeyboardInterrupt raised inside an event callback, which cannot
+    // propagate from there: the wait that delivered it raises it instead.
+    // GIL held.
+    void note_interrupt();
+
+    // Raise KeyboardInterrupt (or another signal's exception) if one is due:
+    // a pending signal or note_interrupt(). GIL held.
+    void check_signals();
 
     // f() with the GIL released and the graph lock held -- in that order: a
     // thread waiting for the lock must not hold the GIL, or it deadlocks
@@ -61,6 +83,11 @@ namespace sextant_py {
     // forever), with the GIL released in short slices and Ctrl+C checked
     // between them. Lock-free. GIL held on entry.
     bool wait_closed(FigureState& st, double timeout);
+
+    // Install/remove the REPL's PyOS_InputHook (keeps windows pumped and events
+    // delivered while the prompt waits). GIL held.
+    bool install_input_hook();
+    void uninstall_input_hook();
 
     void bind_figure(nb::module_& m);
     void bind_axes(nb::module_& m);

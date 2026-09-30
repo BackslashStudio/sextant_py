@@ -12,9 +12,31 @@
 namespace sextant_py {
     using namespace nb::literals;
 
+    // The Python callable inside sextant's std::function (events.cpp).
+    struct PyCallable;
+
     struct PyFigure {
         std::shared_ptr<FigureState> st;
+
+        // Callbacks connected through this object, which owns them: the GC sees
+        // them through the Figure type's tp_traverse, so a callback referring
+        // to its figure is collectable, and they are disconnected when this
+        // object goes. GIL-protected.
+        struct Connection {
+            int id;
+            std::shared_ptr<PyCallable> cb;
+        };
+        std::vector<Connection> callbacks;
+
+        explicit PyFigure(std::shared_ptr<FigureState> s) : st(std::move(s)) {}
+        PyFigure(const PyFigure&) = delete;
+        PyFigure& operator=(const PyFigure&) = delete;
+        ~PyFigure();
     };
+
+    // tp_traverse/tp_clear for the Figure type (events.cpp).
+    int figure_traverse(PyObject* self, visitproc visit, void* arg);
+    int figure_clear(PyObject* self);
 
     // An object of a figure's graph: Axes, Axes3D or Plane2D.
     template <class T>
@@ -107,6 +129,7 @@ namespace sextant_py {
     PyLine3DData to_python(sextant::Line3DData&& d);
 
     void bind_data(nb::module_& m);
+    void bind_events(nb::module_& m, nb::class_<PyFigure>& fig);
     void bind_axes3d(nb::module_& m);
     void bind_plane(nb::module_& m);
 } // namespace sextant_py

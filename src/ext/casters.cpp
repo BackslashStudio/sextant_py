@@ -95,6 +95,9 @@ namespace sextant_py {
         add_enum<sextant::PanelTheme>(d);
         add_enum<sextant::Projection>(d);
         add_enum<sextant::PlaneOrientation>(d);
+        add_enum<sextant::EventKind>(d);
+        add_enum<sextant::PickKind>(d);
+        add_enum<sextant::EventConsumed>(d);
         return d;
     }
 
@@ -122,6 +125,7 @@ namespace sextant_py {
         add_fields<sextant::ColorbarOptions>(d);
         add_fields<sextant::SuptitleOptions>(d);
         add_fields<sextant::PngExportOptions>(d);
+        add_fields<sextant::SvgExportOptions>(d);
         add_fields<sextant::FigureOptions>(d);
         add_fields<sextant::ErrorBar3DOptions>(d);
         add_fields<sextant::Plane2DOptions>(d);

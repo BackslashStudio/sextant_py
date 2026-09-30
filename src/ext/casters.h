@@ -145,6 +145,23 @@ namespace sextant_py {
                     ({"orthographic", Orthographic}, {"perspective", Perspective}),
                     ({"ortho", Orthographic}, {"persp", Perspective}))
     SEXTANT_PY_ENUM(PlaneOrientation, ({"xy", XY}, {"yz", YZ}, {"zx", ZX}), ())
+    // Aliases: matplotlib's mpl_connect() names.
+    SEXTANT_PY_ENUM(EventKind,
+                    ({"close", Close}, {"mouse_down", MouseDown}, {"mouse_up", MouseUp},
+                     {"mouse_move", MouseMove}, {"scroll", Scroll}, {"key_down", KeyDown},
+                     {"key_up", KeyUp}, {"resize", Resize}, {"pick", Pick}),
+                    ({"close_event", Close}, {"button_press_event", MouseDown},
+                     {"button_release_event", MouseUp}, {"motion_notify_event", MouseMove},
+                     {"scroll_event", Scroll}, {"key_press_event", KeyDown},
+                     {"key_release_event", KeyUp}, {"resize_event", Resize}, {"pick_event", Pick}))
+    SEXTANT_PY_ENUM(PickKind,
+                    ({"none", None}, {"line", Line}, {"scatter", Scatter}, {"scatter_z", ScatterZ},
+                     {"bar", Bar}, {"heatmap", Heatmap}, {"bar3d", Bar3D}, {"surface", Surface},
+                     {"surface_tri", SurfaceTri}, {"scatter3d", Scatter3D}, {"line3d", Line3D}),
+                    ())
+    SEXTANT_PY_ENUM(EventConsumed,
+                    ({"none", None}, {"select", Select}, {"navigate", Navigate}, {"grid_drag", GridDrag}),
+                    ())
 #undef SEXTANT_PY_ENUM
 #undef SEXTANT_PY_UNPAREN
 
@@ -226,6 +243,9 @@ namespace nanobind::detail {
     SEXTANT_PY_ENUM_CASTER(sextant::PanelTheme)
     SEXTANT_PY_ENUM_CASTER(sextant::Projection)
     SEXTANT_PY_ENUM_CASTER(sextant::PlaneOrientation)
+    SEXTANT_PY_ENUM_CASTER(sextant::EventKind)
+    SEXTANT_PY_ENUM_CASTER(sextant::PickKind)
+    SEXTANT_PY_ENUM_CASTER(sextant::EventConsumed)
 #undef SEXTANT_PY_ENUM_CASTER
 
     // Vec3 and BoxAspect: (x, y, z).

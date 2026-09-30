@@ -124,12 +124,50 @@ class PlaneOrientation(_Named):
     ZX = "zx"
 
 
+class EventKind(_Named):
+    """Figure.connect() kinds; matplotlib's names ('button_press_event', ...) are aliases."""
+
+    CLOSE = "close"
+    MOUSE_DOWN = "mouse_down"
+    MOUSE_UP = "mouse_up"
+    MOUSE_MOVE = "mouse_move"
+    SCROLL = "scroll"
+    KEY_DOWN = "key_down"
+    KEY_UP = "key_up"
+    RESIZE = "resize"
+    PICK = "pick"
+
+
+class PickKind(_Named):
+    NONE = "none"
+    LINE = "line"
+    SCATTER = "scatter"
+    SCATTER_Z = "scatter_z"
+    BAR = "bar"
+    HEATMAP = "heatmap"
+    BAR3D = "bar3d"
+    SURFACE = "surface"
+    SURFACE_TRI = "surface_tri"
+    SCATTER3D = "scatter3d"
+    LINE3D = "line3d"
+
+
+class EventConsumed(_Named):
+    NONE = "none"
+    SELECT = "select"
+    NAVIGATE = "navigate"
+    GRID_DRAG = "grid_drag"
+
+
 __all__ = [
     "AxisPosition",
     "CapStyle",
     "ColorbarAnchor",
     "Colormap",
+    "EventConsumed",
+    "EventKind",
     "HAlign",
+    "PickKind",
     "LegendAnchor",
     "LineStyle",
     "MarkerStyle",

@@ -152,6 +152,7 @@ namespace sextant_py {
     SEXTANT_PY_OPTIONS(SuptitleOptions,
                        F(fontsize), F(color), F(font_path), F(align), F(offset_x), F(offset_y))
     SEXTANT_PY_OPTIONS(PngExportOptions, F(peel_layers), F(dpi))
+    SEXTANT_PY_OPTIONS(SvgExportOptions, F(max_splits), F(max_tests))
     SEXTANT_PY_OPTIONS(FigureOptions,
                        F(width), F(height), F(title), F(resizable), F(dpi), F(subplot_col_gap),
                        F(subplot_row_gap), F(margins), F(panel_width), F(supersample), F(vsync),

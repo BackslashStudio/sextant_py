@@ -38,6 +38,7 @@ nanobind_add_module(_sextant STABLE_ABI NB_STATIC
     src/ext/axes3d.cpp
     src/ext/casters.cpp
     src/ext/data.cpp
+    src/ext/events.cpp
     src/ext/figure.cpp
     src/ext/lifecycle.cpp
     src/ext/messages.cpp)

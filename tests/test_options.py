@@ -149,6 +149,7 @@ def apply(struct, kwargs):
         "SuptitleOptions": lambda: fig.set_suptitle_style(**kwargs),
         "FigureMargins": lambda: fig.set_margins(**kwargs),
         "PngExportOptions": lambda: fig.render_rgba(**kwargs),
+        "SvgExportOptions": lambda: fig.render_svg(**kwargs),
         "ErrorBarOptions": lambda: ax.line(x, x, err=sextant.ErrorBar(y_cap_lo=x), errorbar=kwargs),
         "FigureOptions": lambda: sextant.Figure(**kwargs).render_rgba(),
     }

@@ -6,6 +6,7 @@
 #include <nanobind/stl/string_view.h>
 #include <nanobind/stl/vector.h>
 
+#include <cctype>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -39,6 +40,46 @@ namespace sextant_py {
             return std::string(signature) + "\n\n" + text + "\n\nKeyword options (" + Fields<T>::name +
                    "): " + field_names<T>() + ".";
         }
+
+        // A window shown in an interactive session keeps working between
+        // statements: in IPython through its inputhook machinery
+        // (sextant/_interactive.py), in the plain REPL through PyOS_InputHook.
+        void keep_interactive_windows_live() {
+            if (nb::cast<bool>(nb::module_::import_("sextant._interactive").attr("enable_ipython")())) return;
+            install_input_hook();
+        }
+
+        // What _repr_png_/_repr_svg_ offer; set_repr_formats(). GIL-protected.
+        bool g_repr_png = true, g_repr_svg = false;
+
+        enum class Format { Png, Svg };
+
+        Format parse_format(std::string f) {
+            for (char& c : f) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            if (!f.empty() && f[0] == '.') f.erase(0, 1);
+            if (f == "png") return Format::Png;
+            if (f == "svg") return Format::Svg;
+            throw nb::value_error(("unknown format '" + f + "'; sextant writes 'png' and 'svg'").c_str());
+        }
+
+        nb::object write_rendered(nb::handle file, Format fmt, PyFigure& self, int width, int height,
+                                  const nb::kwargs& kw) {
+            if (fmt == Format::Png) {
+                auto o = options<sextant::PngExportOptions>("savefig()", kw);
+                auto png = call(self, [&](sextant::Figure& f) { return f.render_png(o, width, height); });
+                file.attr("write")(as_bytes(png));
+                return nb::none();
+            }
+            auto o = options<sextant::SvgExportOptions>("savefig()", kw);
+            auto r = call(self, [&](sextant::Figure& f) { return f.render_svg(o, width, height); });
+            // A text stream takes str, anything else bytes.
+            nb::object io = nb::module_::import_("io");
+            if (nb::isinstance(file, io.attr("TextIOBase")))
+                file.attr("write")(nb::str(r.svg.data(), r.svg.size()));
+            else
+                file.attr("write")(nb::bytes(r.svg.data(), r.svg.size()));
+            return nb::cast(std::move(r.report));
+        }
     } // namespace
 
     void bind_figure(nb::module_& m) {
@@ -55,6 +96,43 @@ namespace sextant_py {
             "render_rgba(*, width=0, height=0, **opts)",
             "The rendered figure as a (height, width, 4) uint8 array, top row first; width/height <= 0 use "
             "the figure's size.");
+        static const std::string png_doc = opts_doc<sextant::PngExportOptions>(
+            "render_png(*, width=0, height=0, **opts)", "The PNG file savefig() would write, as bytes.");
+        static const std::string svg_doc = opts_doc<sextant::SvgExportOptions>(
+            "render_svg(*, width=0, height=0, **opts)",
+            "(svg_text, SvgSaveReport): the SVG savefig() would write, and whether its 3D order is exact.");
+        static const std::string savefig_doc =
+            "savefig(fname, *, format=None, width=0, height=0, **opts)\n\n"
+            "Write the figure to fname: a path (str or os.PathLike) or a file object with write().\n"
+            "format is 'png' or 'svg'; by default the path's extension, and PNG for a file object.\n"
+            "A text file object gets SVG as str, a binary one bytes. width/height <= 0 use the\n"
+            "figure's size. Keyword options: PngExportOptions (" + field_names<sextant::PngExportOptions>() +
+            ") or SvgExportOptions (" + field_names<sextant::SvgExportOptions>() + ").\n"
+            "Returns the SvgSaveReport for SVG, None for PNG.";
+
+        nb::class_<sextant::SvgSaveReport>(m, "SvgSaveReport",
+                                           "scene_order_exact False: part of a 3D scene was left in plain depth\n"
+                                           "order (a budget ran out); `warning` says which and how to raise it.")
+            .def_ro("scene_order_exact", &sextant::SvgSaveReport::scene_order_exact)
+            .def_ro("splits", &sextant::SvgSaveReport::splits)
+            .def_ro("tests", &sextant::SvgSaveReport::tests)
+            .def_ro("warning", &sextant::SvgSaveReport::warning)
+            .def("__repr__", [](const sextant::SvgSaveReport& r) {
+                return "SvgSaveReport(scene_order_exact=" + std::string(r.scene_order_exact ? "True" : "False") +
+                       ", splits=" + std::to_string(r.splits) + ", tests=" + std::to_string(r.tests) + ")";
+            });
+
+        m.def("set_repr_formats",
+              [](nb::args formats) {
+                  bool png = false, svg = false;
+                  for (nb::handle f : formats)
+                      (parse_format(nb::cast<std::string>(f)) == Format::Png ? png : svg) = true;
+                  g_repr_png = png;
+                  g_repr_svg = svg;
+              },
+              "set_repr_formats(*formats)\n\n"
+              "What a Figure offers Jupyter/IPython to display it: 'png' (the default), 'svg', both,\n"
+              "or none. SVG of a 3D scene can be slow to order, so it is opt-in.");
 
         nb::class_<sextant::FrameStats>(m, "FrameStats")
             .def_ro("frames", &sextant::FrameStats::frames)
@@ -67,7 +145,13 @@ namespace sextant_py {
                        ", max_ms=" + std::to_string(s.max_ms) + ")";
             });
 
-        nb::class_<PyFigure>(m, "Figure")
+        static PyType_Slot figure_slots[] = {
+            {Py_tp_traverse, reinterpret_cast<void*>(&figure_traverse)},
+            {Py_tp_clear, reinterpret_cast<void*>(&figure_clear)},
+            {0, nullptr}};
+        nb::class_<PyFigure> cls(m, "Figure", nb::type_slots(figure_slots), nb::is_weak_referenceable());
+        bind_events(m, cls);
+        cls
             .def("__init__",
                  [](PyFigure* self, const nb::kwargs& kw) {
                      auto opts = options<sextant::FigureOptions>("Figure()", kw);
@@ -177,11 +261,14 @@ namespace sextant_py {
                  [](PyFigure& self, std::optional<bool> block) {
                      // Never show(true): it reads the console.
                      call(self, [](Figure& f) { f.show(false); });
-                     if (block.value_or(!interactive_session())) wait_closed(*self.st, -1);
+                     const bool interactive = interactive_session();
+                     if (interactive) keep_interactive_windows_live();
+                     if (block.value_or(!interactive)) wait_closed(*self.st, -1);
                  },
                  "block"_a = nb::none(),
                  "Open the window. block=None blocks until it closes, except in an\n"
-                 "interactive session (REPL, IPython, Jupyter).")
+                 "interactive session (REPL, IPython, Jupyter), where the window keeps\n"
+                 "working between statements.")
             .def("close", [](PyFigure& self) { call(self, [](Figure& f) { f.close(); }); })
             .def("is_open", [](PyFigure& self) { return self.st->fig->is_open(); })
             .def("wait_closed",
@@ -196,9 +283,62 @@ namespace sextant_py {
 
             // --- output ----------------------------------------------------------
             .def("savefig",
-                 [](PyFigure& self, std::string path) { call(self, [&](Figure& f) { f.savefig(path); }); },
-                 "path"_a)
-            .def("render_png", [](PyFigure& self) { return as_bytes(call(self, [](Figure& f) { return f.render_png(); })); })
+                 [](PyFigure& self, nb::object fname, std::optional<std::string> format, int width, int height,
+                    const nb::kwargs& kw) -> nb::object {
+                     const bool is_file = nb::hasattr(fname, "write");
+                     std::string path;
+                     if (!is_file) {
+                         nb::object fs = nb::module_::import_("os").attr("fspath")(fname);
+                         if (!nb::isinstance<nb::str>(fs))
+                             throw nb::type_error("savefig(): a str path or a text-named PathLike, please");
+                         path = nb::cast<std::string>(fs);
+                     }
+                     Format fmt = Format::Png;
+                     if (format) {
+                         fmt = parse_format(*format);
+                     } else if (!is_file) {
+                         const auto dot = path.find_last_of('.');
+                         const auto sep = path.find_last_of("/\\");
+                         if (dot == std::string::npos || (sep != std::string::npos && dot < sep))
+                             throw nb::value_error(("savefig(): '" + path +
+                                                    "' has no extension; give format='png' or 'svg'").c_str());
+                         fmt = parse_format(path.substr(dot));
+                     }
+                     if (is_file) return write_rendered(fname, fmt, self, width, height, kw);
+                     if (fmt == Format::Png) {
+                         auto o = options<sextant::PngExportOptions>("savefig()", kw);
+                         call(self, [&](Figure& f) { f.savefig_png(path, o, width, height); });
+                         return nb::none();
+                     }
+                     auto o = options<sextant::SvgExportOptions>("savefig()", kw);
+                     return nb::cast(call(self, [&](Figure& f) { return f.savefig_svg(path, o, width, height); }));
+                 },
+                 "fname"_a, nb::kw_only(), "format"_a = nb::none(), "width"_a = 0, "height"_a = 0, "opts"_a,
+                 savefig_doc.c_str())
+            .def("render_png",
+                 [](PyFigure& self, int width, int height, const nb::kwargs& kw) {
+                     auto o = options<sextant::PngExportOptions>("render_png()", kw);
+                     return as_bytes(call(self, [&](Figure& f) { return f.render_png(o, width, height); }));
+                 },
+                 nb::kw_only(), "width"_a = 0, "height"_a = 0, "opts"_a, png_doc.c_str())
+            .def("render_svg",
+                 [](PyFigure& self, int width, int height, const nb::kwargs& kw) {
+                     auto o = options<sextant::SvgExportOptions>("render_svg()", kw);
+                     auto r = call(self, [&](Figure& f) { return f.render_svg(o, width, height); });
+                     return nb::make_tuple(nb::str(r.svg.data(), r.svg.size()), std::move(r.report));
+                 },
+                 nb::kw_only(), "width"_a = 0, "height"_a = 0, "opts"_a, svg_doc.c_str())
+            .def("_repr_png_",
+                 [](PyFigure& self) -> nb::object {
+                     if (!g_repr_png) return nb::none();
+                     return as_bytes(call(self, [](Figure& f) { return f.render_png(); }));
+                 })
+            .def("_repr_svg_",
+                 [](PyFigure& self) -> nb::object {
+                     if (!g_repr_svg) return nb::none();
+                     auto r = call(self, [](Figure& f) { return f.render_svg(); });
+                     return nb::str(r.svg.data(), r.svg.size());
+                 })
             .def("render_rgba",
                  [](PyFigure& self, int width, int height, const nb::kwargs& kw) {
                      auto o = options<sextant::PngExportOptions>("render_rgba()", kw);
