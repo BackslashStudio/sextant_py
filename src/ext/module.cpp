@@ -4,7 +4,8 @@
 //
 // Threading: every call into a figure's object graph goes through locked()
 // (state.h); the waits run lock-free with the GIL released.
-#include "state.h"
+#include "options.h"
+#include "wrappers.h"
 
 #include <system_error>
 
@@ -24,8 +25,16 @@ NB_MODULE(_sextant, m) {
         }
     });
 
+    sextant_py::bind_data(m);
     sextant_py::bind_axes(m);
+    sextant_py::bind_plane(m);
+    sextant_py::bind_axes3d(m);
     sextant_py::bind_figure(m);
     sextant_py::bind_messages(m);
     sextant_py::bind_lifecycle(m);
+
+    // Tests only: every option struct's field names.
+    m.def("_option_fields", &sextant_py::option_fields);
+    // sextant/_enums.py (alias lookup) and tests: the enum name tables.
+    m.def("_enum_tables", &sextant_py::enum_tables);
 }

@@ -1,10 +1,12 @@
-#include "state.h"
+#include "options.h"
 #include "wrappers.h"
 
 #include <nanobind/stl/optional.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/string_view.h>
+#include <nanobind/stl/vector.h>
 
+#include <cstdint>
 #include <optional>
 #include <string>
 
@@ -26,36 +28,161 @@ namespace sextant_py {
         nb::bytes as_bytes(const std::vector<std::uint8_t>& v) {
             return nb::bytes(reinterpret_cast<const char*>(v.data()), v.size());
         }
+
+        template <class F>
+        auto call(PyFigure& self, F&& f) {
+            return locked(*self.st, [&] { return f(*self.st->fig); });
+        }
+
+        template <class T>
+        std::string opts_doc(const char* signature, const char* text) {
+            return std::string(signature) + "\n\n" + text + "\n\nKeyword options (" + Fields<T>::name +
+                   "): " + field_names<T>() + ".";
+        }
     } // namespace
 
     void bind_figure(nb::module_& m) {
         using sextant::Figure;
+        using sextant::SubplotSpan;
+
+        static const std::string init_doc = opts_doc<sextant::FigureOptions>(
+            "Figure(**opts)", "A figure. Nothing is shown until show(); savefig() works without a window.");
+        static const std::string suptitle_style_doc = opts_doc<sextant::SuptitleOptions>(
+            "set_suptitle_style(**opts)", "Unnamed fields reset to their defaults.");
+        static const std::string margins_doc = opts_doc<sextant::FigureMargins>(
+            "set_margins(**opts)", "Figure edge to subplot grid, in pixels. Unnamed sides reset to 10.");
+        static const std::string rgba_doc = opts_doc<sextant::PngExportOptions>(
+            "render_rgba(*, width=0, height=0, **opts)",
+            "The rendered figure as a (height, width, 4) uint8 array, top row first; width/height <= 0 use "
+            "the figure's size.");
+
+        nb::class_<sextant::FrameStats>(m, "FrameStats")
+            .def_ro("frames", &sextant::FrameStats::frames)
+            .def_ro("total_ms", &sextant::FrameStats::total_ms)
+            .def_ro("last_ms", &sextant::FrameStats::last_ms)
+            .def_ro("max_ms", &sextant::FrameStats::max_ms)
+            .def("__repr__", [](const sextant::FrameStats& s) {
+                return "FrameStats(frames=" + std::to_string(s.frames) + ", total_ms=" +
+                       std::to_string(s.total_ms) + ", last_ms=" + std::to_string(s.last_ms) +
+                       ", max_ms=" + std::to_string(s.max_ms) + ")";
+            });
 
         nb::class_<PyFigure>(m, "Figure")
             .def("__init__",
-                 [](PyFigure* self, int width, int height, std::string title) {
-                     sextant::FigureOptions opts;
-                     opts.width = width;
-                     opts.height = height;
-                     opts.title = std::move(title);
+                 [](PyFigure* self, const nb::kwargs& kw) {
+                     auto opts = options<sextant::FigureOptions>("Figure()", kw);
                      new (self) PyFigure{register_figure(Figure::create(std::move(opts)))};
                  },
-                 "width"_a = 800, "height"_a = 600, "title"_a = "sextant")
+                 "opts"_a, init_doc.c_str())
+
+            // --- subplots ----------------------------------------------------
             .def("axes",
-                 [](PyFigure& self) {
-                     auto ax = locked(*self.st, [&] { return self.st->fig->axes(); });
-                     return wrap<PyAxes>(self.st, std::move(ax));
-                 })
+                 [](PyFigure& self) { return wrap<PyAxes>(self.st, call(self, [](Figure& f) { return f.axes(); })); },
+                 "The single axes of a 1x1 grid (made on first use).")
+            .def("add_subplot",
+                 [](PyFigure& self, int rows, int cols, int index) {
+                     return wrap<PyAxes>(self.st, call(self, [&](Figure& f) { return f.add_subplot(rows, cols, index); }));
+                 },
+                 "rows"_a, "cols"_a, "index"_a,
+                 "The subplot at 1-based `index` of a rows x cols grid; `index` may be a (first, last) span.\n"
+                 "The first call fixes the grid; returns the existing subplot at that cell or span.")
+            .def("add_subplot",
+                 [](PyFigure& self, int rows, int cols, SubplotSpan span) {
+                     return wrap<PyAxes>(self.st, call(self, [&](Figure& f) { return f.add_subplot(rows, cols, span); }));
+                 },
+                 "rows"_a, "cols"_a, "index"_a)
+            .def("add_subplot",
+                 [](PyFigure& self, int index) {
+                     return wrap<PyAxes>(self.st, call(self, [&](Figure& f) { return f.add_subplot(index); }));
+                 },
+                 "index"_a, "On the grid an earlier call fixed.")
+            .def("add_subplot",
+                 [](PyFigure& self, SubplotSpan span) {
+                     return wrap<PyAxes>(self.st, call(self, [&](Figure& f) { return f.add_subplot(span); }));
+                 },
+                 "index"_a)
+            .def("add_subplot3d",
+                 [](PyFigure& self, int rows, int cols, int index) {
+                     return wrap<PyAxes3D>(self.st,
+                                           call(self, [&](Figure& f) { return f.add_subplot3d(rows, cols, index); }));
+                 },
+                 "rows"_a, "cols"_a, "index"_a,
+                 "A 3D subplot on the same grid as add_subplot(), same rules; a cell holding a 2D axes throws.")
+            .def("add_subplot3d",
+                 [](PyFigure& self, int rows, int cols, SubplotSpan span) {
+                     return wrap<PyAxes3D>(self.st,
+                                           call(self, [&](Figure& f) { return f.add_subplot3d(rows, cols, span); }));
+                 },
+                 "rows"_a, "cols"_a, "index"_a)
+            .def("add_subplot3d",
+                 [](PyFigure& self, int index) {
+                     return wrap<PyAxes3D>(self.st, call(self, [&](Figure& f) { return f.add_subplot3d(index); }));
+                 },
+                 "index"_a)
+            .def("add_subplot3d",
+                 [](PyFigure& self, SubplotSpan span) {
+                     return wrap<PyAxes3D>(self.st, call(self, [&](Figure& f) { return f.add_subplot3d(span); }));
+                 },
+                 "index"_a)
+
+            // --- layout --------------------------------------------------------
+            .def("suptitle",
+                 [](PyFigure& self, std::string text, float fontsize) {
+                     call(self, [&](Figure& f) { f.suptitle(text, fontsize); });
+                 },
+                 "text"_a, "fontsize"_a = 21.0f)
+            .def("set_suptitle_style",
+                 [](PyFigure& self, const nb::kwargs& kw) {
+                     auto o = options<sextant::SuptitleOptions>("set_suptitle_style()", kw);
+                     call(self, [&](Figure& f) { f.set_suptitle_style(std::move(o)); });
+                 },
+                 "opts"_a, suptitle_style_doc.c_str())
+            .def("set_margins",
+                 [](PyFigure& self, const nb::kwargs& kw) {
+                     auto o = options<sextant::FigureMargins>("set_margins()", kw);
+                     call(self, [&](Figure& f) { f.set_margins(o); });
+                 },
+                 "opts"_a, margins_doc.c_str())
+            .def("set_col_ratios",
+                 [](PyFigure& self, std::vector<float> r) {
+                     call(self, [&](Figure& f) { f.set_col_ratios(std::move(r)); });
+                 },
+                 "ratios"_a, "Relative column widths, e.g. [2, 1]; [] = equal.")
+            .def("set_row_ratios",
+                 [](PyFigure& self, std::vector<float> r) {
+                     call(self, [&](Figure& f) { f.set_row_ratios(std::move(r)); });
+                 },
+                 "ratios"_a)
+            .def("col_ratios", [](PyFigure& self) { return call(self, [](Figure& f) { return f.col_ratios(); }); })
+            .def("row_ratios", [](PyFigure& self) { return call(self, [](Figure& f) { return f.row_ratios(); }); })
+            .def("resize",
+                 [](PyFigure& self, int width, int height) {
+                     call(self, [&](Figure& f) { f.resize(width, height); });
+                 },
+                 "width"_a, "height"_a, "Resize the plot area (what savefig() writes).")
+            .def("size_for_frame",
+                 [](PyFigure& self, int frame_w, int frame_h, int slot_index) {
+                     return call(self, [&](Figure& f) { return f.size_for_frame(frame_w, frame_h, slot_index); });
+                 },
+                 "frame_w"_a, "frame_h"_a, "slot_index"_a = 1,
+                 "(width, height) at which subplot slot_index's data frame is frame_w x frame_h.")
+            .def("resize_to_frame",
+                 [](PyFigure& self, int frame_w, int frame_h, int slot_index) {
+                     call(self, [&](Figure& f) { f.resize_to_frame(frame_w, frame_h, slot_index); });
+                 },
+                 "frame_w"_a, "frame_h"_a, "slot_index"_a = 1)
+
+            // --- window --------------------------------------------------------
             .def("show",
                  [](PyFigure& self, std::optional<bool> block) {
                      // Never show(true): it reads the console.
-                     locked(*self.st, [&] { self.st->fig->show(false); });
+                     call(self, [](Figure& f) { f.show(false); });
                      if (block.value_or(!interactive_session())) wait_closed(*self.st, -1);
                  },
                  "block"_a = nb::none(),
                  "Open the window. block=None blocks until it closes, except in an\n"
                  "interactive session (REPL, IPython, Jupyter).")
-            .def("close", [](PyFigure& self) { locked(*self.st, [&] { self.st->fig->close(); }); })
+            .def("close", [](PyFigure& self) { call(self, [](Figure& f) { f.close(); }); })
             .def("is_open", [](PyFigure& self) { return self.st->fig->is_open(); })
             .def("wait_closed",
                  [](PyFigure& self, std::optional<double> timeout) {
@@ -63,18 +190,25 @@ namespace sextant_py {
                  },
                  "timeout"_a = nb::none(),
                  "Wait until the window has closed (True) or timeout seconds passed (False).")
+            .def("refresh", [](PyFigure& self) { call(self, [](Figure& f) { f.refresh(); }); },
+                 "Publish changes to an open window.")
+            .def("frame_stats", [](PyFigure& self) { return self.st->fig->frame_stats(); })
+
+            // --- output ----------------------------------------------------------
             .def("savefig",
-                 [](PyFigure& self, std::string path) {
-                     locked(*self.st, [&] { self.st->fig->savefig(path); });
-                 },
+                 [](PyFigure& self, std::string path) { call(self, [&](Figure& f) { f.savefig(path); }); },
                  "path"_a)
-            .def("render_png",
-                 [](PyFigure& self) {
-                     auto png = locked(*self.st, [&] { return self.st->fig->render_png(); });
-                     return as_bytes(png);
-                 })
+            .def("render_png", [](PyFigure& self) { return as_bytes(call(self, [](Figure& f) { return f.render_png(); })); })
+            .def("render_rgba",
+                 [](PyFigure& self, int width, int height, const nb::kwargs& kw) {
+                     auto o = options<sextant::PngExportOptions>("render_rgba()", kw);
+                     auto img = call(self, [&](Figure& f) { return f.render_rgba(o, width, height); });
+                     const auto h = static_cast<std::size_t>(img.height), w = static_cast<std::size_t>(img.width);
+                     return to_numpy(std::move(img.pixels), {h, w, 4});
+                 },
+                 nb::kw_only(), "width"_a = 0, "height"_a = 0, "opts"_a, rgba_doc.c_str())
+
             .def("__enter__", [](nb::handle self) { return nb::borrow(self); })
-            .def("__exit__",
-                 [](PyFigure& self, nb::args) { locked(*self.st, [&] { self.st->fig->close(); }); });
+            .def("__exit__", [](PyFigure& self, nb::args) { call(self, [](Figure& f) { f.close(); }); });
     }
 } // namespace sextant_py
