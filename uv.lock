@@ -671,6 +671,13 @@ dev = [
     { name = "pytest-timeout" },
     { name = "scikit-build-core" },
 ]
+test = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
+    { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pytest" },
+    { name = "pytest-timeout" },
+]
 
 [package.metadata]
 requires-dist = [{ name = "numpy", specifier = ">=1.23" }]
@@ -678,12 +685,17 @@ requires-dist = [{ name = "numpy", specifier = ">=1.23" }]
 [package.metadata.requires-dev]
 dev = [
     { name = "mypy", specifier = ">=2.3.1" },
-    { name = "nanobind", specifier = ">=2.9" },
+    { name = "nanobind", specifier = ">=3.1" },
     { name = "ninja" },
     { name = "numpy", specifier = ">=1.23" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-timeout" },
     { name = "scikit-build-core", specifier = ">=0.11" },
+]
+test = [
+    { name = "numpy", specifier = ">=1.23" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-timeout" },
 ]
 
 [[package]]

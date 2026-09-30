@@ -1,10 +1,12 @@
 [build-system]
-requires = ["scikit-build-core>=0.11", "nanobind>=2.9"]
+# nanobind 3.1: the binding names its stub types with io_name/typed<>.
+requires = ["scikit-build-core>=0.11", "nanobind>=3.1"]
 build-backend = "scikit_build_core.build"
 
 [project]
 # Working name: the PyPI distribution name is settled before the first upload.
 name = "sextant"
+# Set at release (tracks the C++ library's version).
 version = "1.1.0.dev0"
 description = "Scientific plotting from a C++20 core: matplotlib-like figures, 2D and 3D, PNG/SVG export"
 readme = "README.md"
@@ -12,50 +14,74 @@ requires-python = ">=3.10"
 license = "MIT"
 dependencies = ["numpy>=1.23"]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
     "Programming Language :: C++",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Visualization",
+    "Typing :: Typed",
 ]
 
 [project.urls]
 Homepage = "https://github.com/BackslashStudio/sextant"
+Source = "https://github.com/BackslashStudio/sextant_py"
+Issues = "https://github.com/BackslashStudio/sextant_py/issues"
 
 [dependency-groups]
-# The build requirements too: the dev install builds without isolation (see
-# [tool.uv] below).
-dev = [
-    "scikit-build-core>=0.11",
-    "nanobind>=2.9",
-    "ninja",
+# What the tests import; cibuildwheel installs it to test each wheel.
+test = [
     "numpy>=1.23",
     "pytest>=8",
     "pytest-timeout",
+]
+# The build requirements too: the dev install builds without isolation (see
+# [tool.uv] below).
+dev = [
+    { include-group = "test" },
+    "scikit-build-core>=0.11",
+    "nanobind>=3.1",
+    "ninja",
     "mypy>=2.3.1",
 ]
 
 [tool.scikit-build]
 minimum-version = "build-system.requires"
-# Per interpreter, not per wheel tag: every Python >= 3.12 builds the same
-# cp312-abi3 tag, and a build dir configured for one venv's interpreter and
-# nanobind breaks when another reuses it.
-build-dir = "build/{cache_tag}"
 cmake.build-type = "Release"
 # Only the extension module: sextant's own install rules (headers, archives,
 # CMake package) are for C++ consumers and must not land in the wheel.
 install.components = ["python"]
 # One abi3 wheel for 3.12+; older Pythons get per-version wheels.
 wheel.py-api = "cp312"
+# All of the submodule (include wins over exclude, so nothing in it can be
+# dropped): a directory sextant adds later is never missing.
 sdist.include = ["extern/sextant"]
-# Editable (dev) installs rebuild the extension on import when a source changed.
-editable.rebuild = true
-# Otherwise every import prints MSBuild's up-to-date check.
-editable.verbose = false
+# The dev build dir is only left out on its own while it is the build-dir
+# setting, which is editable-only here.
+sdist.exclude = ["build/"]
 
 # An editable wheel points at its interpreter's build dir; tagged abi3, uv
-# would reuse the cached one in a venv of another Python version.
+# would reuse the cached one in a venv of another Python version. The build
+# dir is per interpreter, not per wheel tag: every Python >= 3.12 builds the
+# same cp312-abi3 tag, and a dir configured for one venv's interpreter and
+# nanobind breaks when another reuses it. Only editable builds keep one: a
+# wheel or sdist build (cibuildwheel, pip) gets a fresh temporary dir.
 [[tool.scikit-build.overrides]]
 if.state = "editable"
 wheel.py-api = ""
+build-dir = "build/{cache_tag}"
+# Rebuild the extension on import when a source changed.
+editable.rebuild = true
+# Otherwise every import prints MSBuild's up-to-date check.
+editable.verbose = false
 
 [tool.scikit-build.cmake.define]
 # Empty = the extern/sextant submodule. Point at a working tree (../sextant)
@@ -70,6 +96,38 @@ python-preference = "only-managed"
 no-build-isolation-package = ["sextant"]
 # The uv cache and a checkout are often on different drives.
 link-mode = "copy"
+
+# Release wheels. Settings live here, not in the workflow, so a local
+# `cibuildwheel` run builds what CI builds.
+[tool.cibuildwheel]
+# cp312 builds the abi3 wheel; cp313/cp314 reuse it and only run the tests.
+build = ["cp310-*", "cp311-*", "cp312-*", "cp313-*", "cp314-*"]
+skip = ["*-musllinux_*", "*-win32", "*_i686"]
+build-verbosity = 1
+# The tests run from a temp dir against the installed wheel: pyproject.toml
+# for pytest's settings, the headers for test_options.py (tests/../extern/...).
+# test_stubs.py skips there (no tools/, no src/).
+test-sources = ["pyproject.toml", "tests", "extern/sextant/include"]
+test-groups = ["test"]
+test-command = "pytest -q"
+
+[tool.cibuildwheel.linux]
+# GLFW's X11 backend, and GL/EGL headers to build; EGL + llvmpipe and a font
+# to export in the tests, which run with no X server.
+before-all = """
+dnf install -y libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel \
+    libXext-devel mesa-libGL-devel mesa-libEGL-devel mesa-dri-drivers dejavu-sans-fonts
+"""
+test-environment = { SEXTANT_TEST_NO_WINDOW = "1" }
+
+[tool.cibuildwheel.macos]
+# One wheel per arch; x86_64 is tested under Rosetta on an arm64 machine.
+archs = ["arm64", "x86_64"]
+# sextant's own minimum (std::binary_semaphore needs macOS 11's libc++).
+environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }
+
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
