@@ -1,12 +1,12 @@
 """Keeping windows live at an interactive prompt: the REPL's PyOS_InputHook and
 IPython's inputhook."""
 
-import subprocess
 import sys
 import textwrap
 import types
 
 import pytest
+from _subproc import run_python
 
 import sextant
 from sextant import _interactive, _sextant
@@ -40,7 +40,7 @@ def test_repl_delivers_events_between_lines():
         print("got", got)
         print("hook", _sextant._input_hook_installed())
     """)
-    p = subprocess.run([sys.executable, "-i", "-q"], input=lines, capture_output=True, text=True, timeout=60)
+    p = run_python(["-i", "-q"], input=lines)
     out = [line.replace(">>> ", "").strip() for line in p.stdout.splitlines()]
     out = [line for line in out if line]
     assert p.returncode == 0, p.stderr

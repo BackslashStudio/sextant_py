@@ -6,7 +6,6 @@ need a person at the window and are checked by hand.
 """
 
 import gc
-import subprocess
 import sys
 import textwrap
 import threading
@@ -14,6 +13,7 @@ import weakref
 
 import numpy as np
 import pytest
+from _subproc import run_python
 
 import sextant
 from sextant import EventKind
@@ -166,7 +166,7 @@ def test_a_shown_figure_in_a_cycle_is_collected_and_closed():
         del ax
         print(sextant._sextant._any_open())
     """)
-    p = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=60)
+    p = run_python(["-c", code])
     assert p.returncode == 0, p.stderr
     assert p.stdout.split() == ["True", "True", "False"]
 
@@ -193,6 +193,6 @@ def test_exit_with_callbacks_connected_is_clean():
             f.show(block=False)
         print("exiting")
     """)
-    p = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=60)
+    p = run_python(["-c", code])
     assert p.returncode == 0, p.stderr
     assert p.stdout.strip() == "exiting" and p.stderr == ""

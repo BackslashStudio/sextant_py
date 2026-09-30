@@ -3,7 +3,6 @@
 import _thread
 import gc
 import os
-import subprocess
 import sys
 import textwrap
 import threading
@@ -11,17 +10,17 @@ import time
 
 import numpy as np
 import pytest
+from _subproc import run_python
 
 import sextant
 
 window = pytest.mark.window
 
 
-def run_script(code, timeout=60):
+def run_script(code):
     """Run code in a fresh interpreter; return (returncode, stdout, stderr, seconds)."""
     start = time.monotonic()
-    p = subprocess.run([sys.executable, "-c", textwrap.dedent(code)],
-                       capture_output=True, text=True, timeout=timeout)
+    p = run_python(["-c", textwrap.dedent(code)])
     return p.returncode, p.stdout, p.stderr, time.monotonic() - start
 
 
@@ -242,8 +241,7 @@ def test_show_without_a_display_raises():
         fig.savefig(os.path.join(tempfile.mkdtemp(), "x.png"))
         print("saved")
     """)
-    p = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
-                       timeout=60, env=env)
+    p = run_python(["-c", code], env=env)
     assert p.returncode == 0, p.stderr
     assert p.stdout.split("\n")[:3] == ["RuntimeError True", "open False", "saved"]
 

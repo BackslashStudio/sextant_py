@@ -3,13 +3,13 @@
 import io
 import math
 import struct
-import subprocess
 import sys
 import textwrap
 import types
 
 import numpy as np
 import pytest
+from _subproc import run_python
 
 import sextant
 import sextant.pyplot as plt
@@ -474,7 +474,7 @@ def test_show_blocks_until_closed_in_a_script():
         plt.show()
         print("returned", plt.get_fignums())
     """)
-    p = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=60)
+    p = run_python(["-c", code])
     assert p.returncode == 0, p.stderr
     assert p.stdout.strip() == "returned []"
 
