@@ -76,7 +76,10 @@ jobs:
         with:
           submodules: recursive
       - uses: astral-sh/setup-uv@v10.2.0  # no floating major tag
-      - run: uv build --sdist --out-dir dist
+      # pypa/build, not `uv build`: [tool.uv]'s no-build-isolation-package
+      # (for the dev venv) makes uv build without isolation, and there is no
+      # venv with scikit-build-core here.
+      - run: uvx --from build pyproject-build --sdist --installer uv --outdir dist .
       - uses: actions/upload-artifact@v7
         with:
           name: sdist
