@@ -1,0 +1,82 @@
+# Diagnostic, run by hand: which teardown pattern makes a macOS window's render
+# thread hang in Apple's software GL renderer (seen only on GPU-less runner
+# VMs). Each scenario of tools/teardown_bisect.py runs as its own job, against
+# the macOS wheel of an earlier `wheels` run, so the binary is the one that
+# hung. Results: the run's summary page (one table row per scenario) and, for
+# each hang, its Python and native stacks as an artifact.
+#
+#   gh workflow run teardown_bisect.yml -f wheels_run_id=<id> [-f runs=40] [-f runner=macos-15]
+name: teardown bisect
+
+on:
+  workflow_dispatch:
+    inputs:
+      wheels_run_id:
+        description: Run id of a `wheels` run whose wheels-macOS artifact to test
+        required: true
+        type: string
+      runs:
+        description: Fresh-Python runs per scenario
+        default: "40"
+        type: string
+      runner:
+        description: Runner image
+        default: macos-15
+        type: string
+
+permissions:
+  contents: read
+  actions: read   # the other run's artifact
+
+jobs:
+  bisect:
+    name: ${{ matrix.scenario }}
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario:
+          - exit3
+          - exit1
+          - exit3_framed
+          - exit3_staggered
+          - close3
+          - close_other_first
+          - close_self_first
+    steps:
+      - uses: actions/checkout@v7   # tools/ only; the wheel is not rebuilt
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: wheels-macOS
+          path: wheelhouse
+          run-id: ${{ inputs.wheels_run_id }}
+          github-token: ${{ github.token }}
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install the wheel
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install -q wheelhouse/*-cp312-abi3-macosx_*_arm64.whl
+          sw_vers
+
+      - name: Run ${{ matrix.scenario }}
+        run: |
+          {
+            echo "| scenario | hangs | other failures | runs done | first hang | slowest |"
+            echo "|---|---|---|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/venv/bin/python" "$GITHUB_WORKSPACE/tools/teardown_bisect.py" \
+              "${{ matrix.scenario }}" "${{ inputs.runs }}" --report-dir "$RUNNER_TEMP/reports"
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: reports-${{ matrix.scenario }}
+          path: ${{ runner.temp }}/reports
+          if-no-files-found: ignore
