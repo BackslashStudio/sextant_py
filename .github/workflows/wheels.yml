@@ -68,6 +68,22 @@ jobs:
           name: wheels-${{ matrix.name }}
           path: wheelhouse/*.whl
 
+      # A rare exit hang (a window's first GL draw vs. the main thread joining
+      # its render thread) was seen only on these VMs, in about one wheel test
+      # run in twenty: one pytest run cannot show it is gone. Tear windows down
+      # early, many times, with the abi3 arm64 wheel built above.
+      - uses: actions/setup-python@v7
+        if: runner.os == 'macOS'
+        with:
+          python-version: "3.12"
+      - name: Stress window teardown (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          python -m venv "$RUNNER_TEMP/stress"
+          "$RUNNER_TEMP/stress/bin/python" -m pip install -q wheelhouse/*-cp312-abi3-macosx_*_arm64.whl
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/stress/bin/python" "$GITHUB_WORKSPACE/tools/stress_exit.py" 100
+
   build_sdist:
     name: sdist
     runs-on: ubuntu-24.04
