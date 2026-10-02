@@ -120,7 +120,9 @@ from:
   `wheels-Windows`, `wheels-Linux`, `wheels-macOS`), or `gh run download <run-id> -R
   BackslashStudio/sextant_py -n wheels-Linux`;
 - your own build: `python -m pip wheel ./sextant_py -w dist` builds one for the Python that runs it,
-  which you can then copy to machines of the same OS, architecture and Python version.
+  which you can then copy to machines of the same OS, architecture and Python version. On Linux, such a
+  wheel needs at least the glibc of the machine that built it, unlike the `wheels` workflow's, which run on
+  glibc 2.27 and later.
 
 Pick the file whose tags match your Python and platform:
 
@@ -225,6 +227,7 @@ alone.
 | CMake cannot find a C++ compiler, or rejects C++20 | Install the toolchain of [step 1](#1-the-c-toolchain); on Linux check `g++ --version` is 13 or later |
 | *Could NOT find X11* or *OpenGL* during the build (Linux) | The development packages of [step 1](#1-the-c-toolchain) are missing |
 | The build fails while downloading GLFW, FreeType, libpng or zlib | No network, or a proxy: the build fetches them from GitHub |
+| `ImportError: … version 'GLIBCXX_…' not found` on Linux, often in a conda environment | The module was built by a newer GCC than the `libstdc++` the environment loads. Current sources link libstdc++ statically, so [reinstall](#upgrading-and-uninstalling) from the repository's current `main`. A `GLIBC_…` version in the message instead means a wheel built on a newer system than this one: build from source here, or use a wheel from the `wheels` workflow |
 | `RuntimeError` from `show()` on Linux, mentioning `DISPLAY` | No X server; set `DISPLAY` or export to a file instead |
 | PNG export fails on a headless Linux machine | Mesa's EGL or a font is missing; see [Linux](#linux) |
 | A blank or failed window on Windows in a VM | No OpenGL 3.3 driver; see [Windows](#windows) |
