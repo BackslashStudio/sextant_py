@@ -57,10 +57,13 @@ target_link_libraries(_sextant PRIVATE sextant::sextant_static)
 # libc++ there compares by address, so hiding them could break a catch across
 # images.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    # Static C++ runtime: a module built with a newer GCC than the host Python
+    # Static libstdc++: a module built with a newer GCC than the host Python
     # env's libstdc++ (conda's lags the system's) would fail to import on a
     # missing GLIBCXX_* version. The version script below keeps it all local.
-    target_link_options(_sextant PRIVATE -static-libstdc++ -static-libgcc)
+    # libgcc stays dynamic: with a second, static unwinder an exception thrown
+    # through glibc frames (std::call_once -> pthread_once) reaches libgcc_s's
+    # personality routine with the wrong unwinder's context and aborts.
+    target_link_options(_sextant PRIVATE -static-libstdc++)
     set(_sextant_map "${CMAKE_CURRENT_SOURCE_DIR}/src/ext/_sextant.map")
     target_link_options(_sextant PRIVATE "LINKER:--version-script=${_sextant_map}")
     set_property(TARGET _sextant APPEND PROPERTY LINK_DEPENDS "${_sextant_map}")
