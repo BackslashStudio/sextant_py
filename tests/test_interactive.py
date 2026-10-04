@@ -126,3 +126,29 @@ def test_enable_ipython_in_a_kernel_installs_no_input_hook(monkeypatch):
     monkeypatch.setitem(sys.modules, "IPython", ipython)
     assert _interactive.enable_ipython() is True
     assert not _sextant._input_hook_installed()
+
+
+def test_kernel_loop_delivers_a_close_that_lands_before_it_turns_off(monkeypatch):
+    # The last window closes on another thread right after the loop's poll: its
+    # Close is queued, is_open() then reads false. The loop must deliver that
+    # Close before turning itself off, since nothing pumps afterwards.
+    state = {"open": True, "queued": False, "delivered": False, "polls": 0}
+
+    def poll_events():
+        state["polls"] += 1
+        if state["queued"]:
+            state["queued"], state["delivered"] = False, True
+        if state["polls"] == 1:  # the close lands just after the first poll
+            state["queued"], state["open"] = True, False
+
+    fake = types.SimpleNamespace(poll_events=poll_events, _any_open=lambda: state["open"])
+    monkeypatch.setattr(_interactive, "_sextant", fake)
+    monkeypatch.setattr(_interactive, "_shell_stream", lambda kernel: types.SimpleNamespace(flush=lambda limit: 0))
+    monkeypatch.setattr(_interactive, "_kernel_auto", True)
+    guis = []
+    kernel = types.SimpleNamespace(_poll_interval=0.001,
+                                   shell=types.SimpleNamespace(enable_gui=guis.append))
+
+    _interactive.kernel_loop(kernel)
+
+    assert state["delivered"] and guis == [None] and _interactive._kernel_auto is False

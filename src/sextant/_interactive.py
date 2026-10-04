@@ -70,7 +70,10 @@ def kernel_loop(kernel):
             return
         if _kernel_auto and not _any_open():
             # Off with the last window, as the REPL hook: an idle kernel then
-            # waits for messages as it did before show().
+            # waits for messages as it did before show(). A window closed since
+            # the poll above has queued its Close before reading as closed, and
+            # nothing pumps after this: deliver it now, as run() does.
+            _sextant.poll_events()
             _kernel_auto = False
             kernel.shell.enable_gui(None)
             return
