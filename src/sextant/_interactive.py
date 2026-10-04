@@ -25,6 +25,8 @@ _registered = False
 _kernel_registered = False
 # The kernel loop was enabled by show(), not by %gui: it ends with the last window.
 _kernel_auto = False
+# Longest stretch kernel_loop() keeps the kernel's own event loop waiting, in seconds.
+_KERNEL_SLICE = 0.05
 
 
 def _any_open():
@@ -57,9 +59,14 @@ def kernel_loop(kernel):
     """
     global _kernel_auto
     stream = _shell_stream(kernel)
+    # Back to the kernel at least this often even with nothing on the stream:
+    # a message the kernel has already read off it (ipykernel 7 queues its
+    # handler as an asyncio task) shows no event to flush() and is handled only
+    # once this returns.
+    deadline = time.monotonic() + _KERNEL_SLICE
     while True:
         _sextant.poll_events()
-        if stream.flush(limit=1):
+        if stream.flush(limit=1) or time.monotonic() >= deadline:
             return
         if _kernel_auto and not _any_open():
             # Off with the last window, as the REPL hook: an idle kernel then
