@@ -135,7 +135,7 @@ Pick the file whose tags match your Python and platform:
 `<platform>` is `win_amd64`, a `manylinux_…_x86_64` tag, `macosx_11_0_arm64` or `macosx_11_0_x86_64`.
 
 ```sh
-python -m pip install path/to/sextant-1.1.dev0-cp312-abi3-win_amd64.whl
+python -m pip install path/to/sextant-1.1.dev1-cp312-abi3-win_amd64.whl
 ```
 
 pip refuses a wheel that does not fit your interpreter or platform ("is not a supported wheel on this
@@ -212,7 +212,7 @@ python -m pip install --force-reinstall --no-deps "git+https://github.com/Backsl
 python -m pip uninstall sextant
 ```
 
-`--force-reinstall` matters while the version number stays the same between commits (it is `1.1.dev0`
+`--force-reinstall` matters while the version number stays the same between commits (it is `1.1.dev1`
 until the release): without it pip may find that version installed and keep it. `--no-deps` leaves numpy
 alone.
 

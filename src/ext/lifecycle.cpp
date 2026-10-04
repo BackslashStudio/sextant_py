@@ -20,6 +20,13 @@ namespace sextant_py {
         // GIL-protected.
         std::vector<std::weak_ptr<FigureState>> g_figures;
         std::vector<std::shared_ptr<FigureState>> g_deferred;
+        // Shown figures, kept while their windows are open (keep_shown()): the
+        // Python object, which owns the callbacks, and its state.
+        struct Shown {
+            nb::object fig;
+            std::shared_ptr<FigureState> st;
+        };
+        std::vector<Shown> g_shown;
         bool g_interrupt = false;
 
         std::atomic<bool> g_shutdown{false};
@@ -116,7 +123,43 @@ namespace sextant_py {
 
     void defer_release(std::shared_ptr<FigureState> st) { g_deferred.push_back(std::move(st)); }
 
+    void keep_shown(nb::handle fig, std::shared_ptr<FigureState> st) {
+        for (const auto& s : g_shown)
+            if (s.st == st) return;
+        g_shown.push_back({nb::borrow(fig), std::move(st)});
+    }
+
+    void forget_shown(const FigureState& st) {
+        // Moved out first: the last reference may go, and with it a wrapper
+        // whose destruction runs Python.
+        std::vector<Shown> gone;
+        for (auto it = g_shown.begin(); it != g_shown.end();) {
+            if (it->st.get() == &st) {
+                gone.push_back(std::move(*it));
+                it = g_shown.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
     void drain_deferred() {
+        // The shown figures whose windows have closed go, once their last
+        // events (the Close) are delivered.
+        std::vector<Shown> closed;
+        for (auto it = g_shown.begin(); it != g_shown.end();) {
+            if (it->st->fig->is_open()) {
+                ++it;
+            } else {
+                closed.push_back(std::move(*it));
+                it = g_shown.erase(it);
+            }
+        }
+        if (!closed.empty() && !g_shutdown) {
+            nb::gil_scoped_release nogil;
+            for (auto& s : closed) s.st->fig->dispatch_events();
+        }
+        closed.clear();
         // Swapped out first: releasing one may run Python (a wrapper's weakref
         // callback) that defers another.
         while (!g_deferred.empty()) {
@@ -218,6 +261,9 @@ namespace sextant_py {
             }
             g_shutdown = true;
             sextant::Figure::set_message_handler({});
+            std::vector<Shown> gone;
+            gone.swap(g_shown);
+            gone.clear();
             drain_deferred();
         });
     }

@@ -497,7 +497,8 @@ no display. SVG needs no OpenGL at all.
 savefig(fname, *, format=None, width=0, height=0, **options)
 ```
 
-- `fname` is a path (`str` or `pathlib.Path`) or a file object with a `write()` method.
+- `fname` is a path (`str` or `pathlib.Path`) or a file object with a `write()` method. On Windows a path may
+  not contain `:` other than a drive letter's (NTFS would read it as a hidden data stream): `OSError`.
 - `format` is `"png"` or `"svg"`. Without it, a path's extension decides (anything else is a `ValueError`),
   and a file object gets PNG.
 - `width`/`height` render at another size; `0` uses the figure's.
@@ -570,8 +571,9 @@ fig.show(block=None)
 | `True` | Wait until the window is closed |
 | `False` | Return at once; the window stays open |
 
-The figure, and its window, stay open until the window is closed by the user, by `fig.close()`, or because no
-Python object refers to the figure any more. At interpreter exit, every window is closed.
+The window stays open until the user closes it or you call `fig.close()`, even if no variable refers to the
+figure any more: `show(False)` inside a function leaves its window open, callbacks and all, after the function
+returns, as in matplotlib. At interpreter exit, every window is closed.
 
 Other ways to wait:
 
@@ -613,9 +615,11 @@ with `fig.refresh()`.
 - **IPython in a terminal**: sextant registers an event-loop hook (`%gui sextant`) on the first `show()`,
   unless another GUI loop (Qt, Tk) is active; then it leaves that alone and the window responds during
   sextant's own waits.
-- **Jupyter**: windows open on the machine running the kernel. On Windows and Linux they respond on their own;
-  on macOS only while a cell is inside `wait_closed()`, `run()` or `poll_events()`. Callbacks connected with
-  `connect()` run during those calls.
+- **Jupyter**: windows open on the machine running the kernel. The first `show()` starts a sextant event loop
+  in the kernel (`%gui sextant`), unless another GUI loop is active: the window responds, on macOS too, and
+  callbacks connected with `connect()` run between cells, without `wait_closed()` or `poll_events()`. Their
+  printed output appears under the last cell run. The loop stops by itself when the last window closes;
+  `%gui sextant` starts it by hand (it then stays on until `%gui`).
 
 ### What the window offers
 
@@ -623,7 +627,7 @@ The window has a **Cosmetic** panel and a **Data** panel docked beside the plot,
 
 | | |
 |---|---|
-| **File → Save** | PNG or SVG at a chosen size, or a chosen plot-frame size |
+| **File → Save** | PNG or SVG (by the name's `.png`/`.svg`) at a chosen size, or a chosen plot-frame size. A failed save says why in the window and is issued as a `RuntimeWarning` |
 | **File → Resize to plot frame** | Resize the window so a plot area hits a target size |
 | **File → Refit layout** | Re-measure tick labels after panning has widened them |
 | **View** | Show or hide either panel |
@@ -813,7 +817,7 @@ other threads do the updating; `poll_events()` raises `RuntimeError` on any othe
 | `ValueError` | Mismatched lengths; an error-bar array that is not one per point; an empty or non-finite heatmap range; a bad subplot index, a second grid shape, or an occupied cell; a non-positive `resize()` size or dpi; an unknown `savefig` format; a 2-D grid of the wrong shape; for 3D see [3d.md](3d.md#errors) |
 | `IndexError` | A `<kind>_data(i)` or `set_<kind>_data(i, …)` index out of range |
 | `RuntimeError` | `refresh()` before `show()` or after the window closed; `poll_events()` off the main thread on macOS; a window that cannot be created (on Linux without an X display, with a hint about `DISPLAY`) |
-| `OSError` | Writing a file failed (`FileNotFoundError`, `PermissionError`, … as the cause dictates) |
+| `OSError` | Writing a file failed (`FileNotFoundError`, `PermissionError`, … as the cause dictates); on Windows, a file name with `:` other than a drive letter's |
 
 A call that raises changes nothing.
 
@@ -835,6 +839,8 @@ The handler may be called from a window thread; an exception from it is reported
 ## Lifetime
 
 - A figure lives while any Python object refers to it: the `Figure`, or one of its `Axes`, `Axes3D` or
-  `Plane2D`. When the last one goes, its window closes.
+  `Plane2D`.
+- A shown figure also lives while its window is open: sextant holds it, with its callbacks, until the window
+  is closed by the user or by `fig.close()`, then lets it go.
 - `fig.close()` closes the window but keeps the figure: it can still be saved, changed and shown again.
 - At interpreter exit, sextant closes every window first, so a script may end with windows open.

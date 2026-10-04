@@ -49,6 +49,9 @@ from ._sextant import (
 # finalization would join its window thread against a half torn-down runtime.
 _atexit.register(_sextant._shutdown)
 
+# In a Jupyter kernel this registers the "sextant" event loop, for %gui sextant.
+from . import _interactive  # noqa: E402
+
 __all__ = [
     "Axes",
     "Axes3D",

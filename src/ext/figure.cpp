@@ -265,6 +265,7 @@ namespace sextant_py {
                  [](PyFigure& self, std::optional<bool> block) {
                      // Never show(true): it reads the console.
                      call(self, [](Figure& f) { f.show(false); });
+                     keep_shown(nb::find(&self), self.st);
                      const bool interactive = interactive_session();
                      if (interactive) keep_interactive_windows_live();
                      if (block.value_or(!interactive)) wait_closed(*self.st, -1);
@@ -272,8 +273,13 @@ namespace sextant_py {
                  "block"_a = nb::none(),
                  "Open the window. block=None blocks until it closes, except in an\n"
                  "interactive session (REPL, IPython, Jupyter), where the window keeps\n"
-                 "working between statements.")
-            .def("close", [](PyFigure& self) { call(self, [](Figure& f) { f.close(); }); })
+                 "working between statements. A shown figure is kept, with its callbacks,\n"
+                 "until its window closes, even with no reference left to it.")
+            .def("close",
+                 [](PyFigure& self) {
+                     call(self, [](Figure& f) { f.close(); });
+                     forget_shown(*self.st);
+                 })
             .def("is_open", [](PyFigure& self) { return self.st->fig->is_open(); })
             .def("wait_closed",
                  [](PyFigure& self, std::optional<double> timeout) {
@@ -354,6 +360,9 @@ namespace sextant_py {
                  nb::kw_only(), "width"_a = 0, "height"_a = 0, "opts"_a, rgba_doc.c_str())
 
             .def("__enter__", [](nb::handle self) -> nb::typed<nb::object, PyFigure> { return nb::borrow(self); })
-            .def("__exit__", [](PyFigure& self, nb::args) { call(self, [](Figure& f) { f.close(); }); });
+            .def("__exit__", [](PyFigure& self, nb::args) {
+                call(self, [](Figure& f) { f.close(); });
+                forget_shown(*self.st);
+            });
     }
 } // namespace sextant_py

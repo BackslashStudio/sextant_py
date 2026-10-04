@@ -7,7 +7,7 @@ build-backend = "scikit_build_core.build"
 # Working name: the PyPI distribution name is settled before the first upload.
 name = "sextant"
 # Set at release (tracks the C++ library's version).
-version = "1.1.dev0"
+version = "1.1.dev1"
 description = "Scientific plotting from a C++20 core: matplotlib-like figures, 2D and 3D, PNG/SVG export"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -58,6 +58,8 @@ dev = [
     "nanobind>=3.1",
     "ninja",
     "mypy>=2.3.1",
+    "ipykernel>=7.3.0",
+    "jupyter-client>=8.10.0",
 ]
 
 [tool.scikit-build]

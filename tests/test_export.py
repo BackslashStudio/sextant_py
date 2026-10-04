@@ -2,6 +2,7 @@
 
 import io
 import struct
+import sys
 
 import numpy as np
 import pytest
@@ -56,6 +57,17 @@ def test_savefig_format_overrides_the_extension(fig, tmp_path):
 def test_savefig_unknown_format(fig, tmp_path, name):
     with pytest.raises(ValueError):
         fig.savefig(str(tmp_path / name))
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="':' names an NTFS data stream only on Windows")
+@pytest.mark.parametrize("name", ["plot 12:30.png", "plot 12:30.svg"])
+def test_savefig_refuses_a_data_stream_name(fig, tmp_path, name):
+    # Once an empty "plot 12" and the bytes in its hidden stream "30.png", silently.
+    with pytest.raises(OSError, match="':' is not allowed"):
+        fig.savefig(str(tmp_path / name))
+    assert list(tmp_path.iterdir()) == []
+    fig.savefig("\\\\?\\" + str(tmp_path / "long.png"))  # a \\?\ path's drive colon is fine
+    assert (tmp_path / "long.png").read_bytes() == fig.render_png()
 
 
 def test_savefig_options_belong_to_the_format(fig, tmp_path):

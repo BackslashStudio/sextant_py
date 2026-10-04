@@ -151,7 +151,7 @@ def test_a_callback_referring_to_its_figure_is_collected():
 
 
 @window
-def test_a_shown_figure_in_a_cycle_is_collected_and_closed():
+def test_a_shown_figure_in_a_cycle_is_collected():
     code = textwrap.dedent("""
         import gc, weakref, sextant
         fig = sextant.Figure(width=100, height=80)
@@ -161,14 +161,16 @@ def test_a_shown_figure_in_a_cycle_is_collected_and_closed():
         ref = weakref.ref(fig)
         del fig
         gc.collect()
-        print(ref() is None)
-        print(sextant._sextant._any_open())  # ax keeps the figure, so the window stays
-        del ax
+        print(ref() is None)  # shown: kept, callbacks and all, until closed
+        ref().close()
+        gc.collect()
+        print(ref() is None)  # the cycle through the callback is collectable
         print(sextant._sextant._any_open())
+        del ax
     """)
     p = run_python(["-c", code])
     assert p.returncode == 0, p.stderr
-    assert p.stdout.split() == ["True", "True", "False"]
+    assert p.stdout.split() == ["False", "True", "False"]
 
 
 @window

@@ -117,7 +117,7 @@ def test_enable_ipython_leaves_another_gui_alone(fake_ipython):
     assert enabled == []
 
 
-def test_enable_ipython_in_a_kernel_installs_nothing(monkeypatch):
+def test_enable_ipython_in_a_kernel_installs_no_input_hook(monkeypatch):
     class ZMQInteractiveShell:
         pass
 

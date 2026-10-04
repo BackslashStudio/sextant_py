@@ -19,8 +19,9 @@ namespace sextant_py {
     // object graph that sextant leaves the caller to serialise; `graph` is that
     // exclusion, taken around every call into the graph.
     //
-    // Only Python objects (the Figure and Axes wrappers) own a FigureState, so
-    // the last owner always goes away with the GIL held -- which the destructor
+    // Only Python objects (the Figure and Axes wrappers, and the shown-figure
+    // list of keep_shown()) own a FigureState, so the last owner always goes
+    // away with the GIL held -- which the destructor
     // relies on, since the stable ABI has no way to ask. Code that needs one
     // from another thread must hold a weak_ptr.
     struct FigureState {
@@ -47,8 +48,17 @@ namespace sextant_py {
     // a figure must not be destroyed from inside its own dispatch. GIL held.
     void defer_release(std::shared_ptr<FigureState> st);
 
-    // Releases what defer_release() kept. Call with the GIL held, after a call
-    // that dispatched events has returned.
+    // Keeps a shown figure -- its Python object `fig`, which owns the
+    // callbacks -- while its window is open, as matplotlib does: show(block=False)
+    // in a function does not close the window, or disconnect its callbacks, when
+    // the function's last reference goes. drain_deferred() lets it go once the window has closed, close()
+    // and the exit sweep at once. GIL held.
+    void keep_shown(nb::handle fig, std::shared_ptr<FigureState> st);
+    void forget_shown(const FigureState& st);
+
+    // Releases what defer_release() and keep_shown() kept (the latter once its
+    // window has closed and its last events are delivered). Call with the GIL
+    // held, after a call that dispatched events has returned.
     void drain_deferred();
 
     // A KeyboardInterrupt raised inside an event callback, which cannot

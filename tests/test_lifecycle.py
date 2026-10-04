@@ -212,17 +212,28 @@ def test_show_blocks_in_a_script():
 
 
 @window
-def test_dropping_a_shown_figure_closes_it():
+def test_a_shown_figure_outlives_its_last_reference():
+    # show(block=False) in a function: the window stays until it is closed,
+    # here by a timer, else by the exit sweep.
     rc, out, err, secs = run_script("""
-        import gc, sextant
-        fig = sextant.Figure(width=200, height=150)
-        fig.show(block=False)
-        del fig
+        import gc, threading, sextant
+        def plot(close_after):
+            fig = sextant.Figure(width=200, height=150)
+            fig.axes().line([0, 1], [0, 1])
+            fig.show(block=False)
+            if close_after:
+                threading.Timer(close_after, fig.close).start()
+        plot(0.5)
         gc.collect()
-        print("ok")
+        print("open", sextant._sextant._any_open())
+        sextant.run()
+        print("open", sextant._sextant._any_open())
+        plot(None)
+        gc.collect()
+        print("open", sextant._sextant._any_open())
     """)
     assert rc == 0, err
-    assert out.strip() == "ok"
+    assert out.split() == ["open", "True", "open", "False", "open", "True"]
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="a display is optional on Linux only")

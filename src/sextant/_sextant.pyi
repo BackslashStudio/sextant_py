@@ -1283,7 +1283,8 @@ class Figure:
         """
         Open the window. block=None blocks until it closes, except in an
         interactive session (REPL, IPython, Jupyter), where the window keeps
-        working between statements.
+        working between statements. A shown figure is kept, with its callbacks,
+        until its window closes, even with no reference left to it.
         """
 
     def close(self) -> None: ...
