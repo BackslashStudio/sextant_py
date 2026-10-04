@@ -7,22 +7,22 @@ matplotlib-style code.
 
 ## Install
 
-sextant is not on PyPI yet. Install it from this repository (a C++20 compiler and CMake are needed):
-
 ```sh
-python -m pip install "git+https://github.com/BackslashStudio/sextant_py.git"
+python -m pip install --pre pysextant
 ```
 
-or from a wheel built by CI. Python 3.10 or later on Windows, Linux or macOS; the only dependency is numpy.
-**[doc/install.md](doc/install.md)** has everything else: the [build toolchain](doc/install.md#from-source)
-for each platform, [wheels](doc/install.md#from-a-wheel), [conda](doc/install.md#in-a-conda-environment),
-[what each platform needs at run time](doc/install.md#running-it) (X11/EGL on Linux, the main thread on macOS,
-OpenGL 3.3 on Windows) and [troubleshooting](doc/install.md#troubleshooting).
+On PyPI it is **`pysextant`** (`sextant` there is an unrelated project); it imports as `sextant`. `--pre`
+because the current release, 1.1.dev1, is a development release, which pip skips otherwise. Wheels cover
+Python 3.10 or later on Windows (x86-64), Linux (x86-64, glibc 2.27+) and macOS 11+ (Apple Silicon and Intel);
+the only dependency is numpy. **[doc/install.md](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/install.md)** has everything else: building
+[from source](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/install.md#from-source), [conda](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/install.md#in-a-conda-environment),
+[what each platform needs at run time](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/install.md#running-it) (X11/EGL on Linux, the main thread on macOS,
+OpenGL 3.3 on Windows) and [troubleshooting](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/install.md#troubleshooting).
 
 ## Documentation
 
-[doc/README.md](doc/README.md) indexes it: the [core API guide](doc/api.md), [3D plots](doc/3d.md),
-[`sextant.pyplot`](doc/pyplot.md) and the [option reference](doc/reference.md).
+[doc/README.md](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/README.md) indexes it: the [core API guide](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/api.md), [3D plots](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/3d.md),
+[`sextant.pyplot`](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/pyplot.md) and the [option reference](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/reference.md).
 
 ## Examples
 
@@ -69,7 +69,7 @@ The package is typed (`py.typed`): keyword options and enum names are checked by
 
 ## Development
 
-Building needs the toolchain in [doc/install.md](doc/install.md#1-the-c-toolchain).
+Building needs the toolchain in [doc/install.md](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/install.md#1-the-c-toolchain).
 
 ```sh
 git clone --recursive https://github.com/BackslashStudio/sextant_py.git
@@ -84,7 +84,7 @@ On Windows any shell works (Visual Studio with the C++ workload is found by itse
 - sextant comes from the `extern/sextant` submodule, pinned to a commit. After a `git pull` that moves the
   pin, run `git submodule update` (or pull with `--recurse-submodules`).
 - To build against another sextant checkout, set `SEXTANT_SOURCE_DIR` to its absolute path and run
-  `uv sync --reinstall-package sextant`.
+  `uv sync --reinstall-package pysextant`.
 - After changing a signature, an option field or an enum name, regenerate the type stub with
   `uv run python tools/gen_stubs.py`; `tests/test_stubs.py` fails until it matches.
 - Release wheels are built by `cibuildwheel` with the settings in `pyproject.toml`, locally the same as in CI

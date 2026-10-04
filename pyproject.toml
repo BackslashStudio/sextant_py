@@ -4,8 +4,9 @@ requires = ["scikit-build-core>=0.11", "nanobind>=3.1"]
 build-backend = "scikit_build_core.build"
 
 [project]
-# Working name: the PyPI distribution name is settled before the first upload.
-name = "sextant"
+# The PyPI distribution name; `sextant` there is another project. The import
+# name stays `sextant` (wheel.packages below).
+name = "pysextant"
 # Set at release (tracks the C++ library's version).
 version = "1.1.dev1"
 description = "Scientific plotting from a C++20 core: matplotlib-like figures, 2D and 3D, PNG/SVG export"
@@ -70,6 +71,9 @@ cmake.build-type = "Release"
 install.components = ["python"]
 # One abi3 wheel for 3.12+; older Pythons get per-version wheels.
 wheel.py-api = "cp312"
+# The import package, which is not named after the distribution (the default
+# would look for src/pysextant).
+wheel.packages = ["src/sextant"]
 # All of the submodule (include wins over exclude, so nothing in it can be
 # dropped): a directory sextant adds later is never missing.
 sdist.include = ["extern/sextant"]
@@ -102,7 +106,7 @@ SEXTANT_SOURCE_DIR = { env = "SEXTANT_SOURCE_DIR", default = "" }
 python-preference = "only-managed"
 # Built in the venv with the dev group's scikit-build-core/nanobind, so
 # build-dir stays valid between builds and editable.rebuild can use it.
-no-build-isolation-package = ["sextant"]
+no-build-isolation-package = ["pysextant"]
 # The uv cache and a checkout are often on different drives.
 link-mode = "copy"
 

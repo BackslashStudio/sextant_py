@@ -1,8 +1,18 @@
 # Installing sextant for Python
 
-sextant is **not on PyPI yet**, so `pip install sextant` does not work. Install it from the source
-repository, or from a wheel built from it. Either way pip does the installing, and the package then imports as
-`sextant`.
+On PyPI the package is **`pysextant`** (`sextant` there is an unrelated project). It imports as `sextant`.
+
+```sh
+python -m pip install --pre pysextant
+```
+
+`--pre` because the current release, **1.1.dev1**, is a development release, which pip skips otherwise
+(`pysextant==1.1.dev1` works too). Once a final release is out, `pip install pysextant` alone installs it.
+
+PyPI has wheels, which install without a compiler, for Python 3.10 or later on Windows x86-64, Linux x86-64
+(glibc 2.27 or later) and macOS 11 or later (Apple Silicon and Intel). Anywhere else pip builds from the source
+distribution, which needs the [C++ toolchain](#1-the-c-toolchain). The rest of this page covers installing
+from the repository or a wheel file, conda, and what each platform needs at run time.
 
 - [Requirements](#requirements)
 - [From source](#from-source): [the C++ toolchain](#1-the-c-toolchain) · [installing](#2-installing) ·
@@ -113,8 +123,9 @@ The second command blocks until you close the window.
 
 ## From a wheel
 
-A wheel is a pre-built package: installing one needs no compiler. Until there is a PyPI release, wheels come
-from:
+A wheel is a pre-built package: installing one needs no compiler. `pip install --pre pysextant` picks the
+right one from PyPI by itself; a wheel file is for a machine without access to PyPI, or a build between
+releases. Wheel files come from:
 
 - the *Artifacts* section of a run of the repository's `wheels` workflow on GitHub (one zip per OS:
   `wheels-Windows`, `wheels-Linux`, `wheels-macOS`), or `gh run download <run-id> -R
@@ -128,14 +139,14 @@ Pick the file whose tags match your Python and platform:
 
 | Your Python | Wheel |
 |---|---|
-| 3.10 | `sextant-<version>-cp310-cp310-<platform>.whl` |
-| 3.11 | `sextant-<version>-cp311-cp311-<platform>.whl` |
-| 3.12 or later | `sextant-<version>-cp312-abi3-<platform>.whl` (one wheel for every later version) |
+| 3.10 | `pysextant-<version>-cp310-cp310-<platform>.whl` |
+| 3.11 | `pysextant-<version>-cp311-cp311-<platform>.whl` |
+| 3.12 or later | `pysextant-<version>-cp312-abi3-<platform>.whl` (one wheel for every later version) |
 
 `<platform>` is `win_amd64`, a `manylinux_…_x86_64` tag, `macosx_11_0_arm64` or `macosx_11_0_x86_64`.
 
 ```sh
-python -m pip install path/to/sextant-1.1.dev1-cp312-abi3-win_amd64.whl
+python -m pip install path/to/pysextant-1.1.dev1-cp312-abi3-win_amd64.whl
 ```
 
 pip refuses a wheel that does not fit your interpreter or platform ("is not a supported wheel on this
@@ -150,13 +161,15 @@ conda environments install sextant with pip, like any package that is not on con
 - **Let conda install numpy first**, so pip finds it satisfied and does not add a PyPI build beside it.
 - **Use the environment's pip** (`python -m pip` with the environment active).
 
-From a wheel:
+From PyPI:
 
 ```sh
 conda create -n sextant python=3.12 numpy
 conda activate sextant
-python -m pip install path/to/sextant-<version>-cp312-abi3-<platform>.whl
+python -m pip install --pre pysextant
 ```
+
+From a wheel file, the same with `python -m pip install path/to/pysextant-<version>-cp312-abi3-<platform>.whl`.
 
 From source, with CMake from conda and the compiler from the system (on Linux, the system GCC and the
 development packages from [step 1](#1-the-c-toolchain); conda-forge's own compilers use a separate sysroot
@@ -208,13 +221,14 @@ one program (`python.exe`).
 ## Upgrading and uninstalling
 
 ```sh
-python -m pip install --force-reinstall --no-deps "git+https://github.com/BackslashStudio/sextant_py.git"
-python -m pip uninstall sextant
+python -m pip install --pre --upgrade pysextant
+python -m pip uninstall pysextant
 ```
 
-`--force-reinstall` matters while the version number stays the same between commits (it is `1.1.dev1`
-until the release): without it pip may find that version installed and keep it. `--no-deps` leaves numpy
-alone.
+From the repository instead, `python -m pip install --force-reinstall --no-deps
+"git+https://github.com/BackslashStudio/sextant_py.git"`: `--force-reinstall` because the version number stays
+the same between commits, so pip may otherwise find that version installed and keep it; `--no-deps` leaves
+numpy alone.
 
 ---
 
@@ -222,7 +236,8 @@ alone.
 
 | Symptom | Cause and fix |
 |---|---|
-| `pip install sextant` installs something else, or nothing | Not on PyPI yet; install from the repository as above |
+| `pip install sextant` installs something else | That is an unrelated project on PyPI: `pip uninstall sextant`, then `pip install --pre pysextant` |
+| `pip install pysextant` finds no matching version | The current release is a development release: add `--pre` |
 | *No sextant sources at …/extern/sextant* | The clone has no submodule: `git submodule update --init`, or clone again with `--recursive` |
 | CMake cannot find a C++ compiler, or rejects C++20 | Install the toolchain of [step 1](#1-the-c-toolchain); on Linux check `g++ --version` is 13 or later |
 | *Could NOT find X11* or *OpenGL* during the build (Linux) | The development packages of [step 1](#1-the-c-toolchain) are missing |
