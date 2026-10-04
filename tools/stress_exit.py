@@ -11,7 +11,8 @@ the two ways a window is torn down early:
 
 Each run is a fresh Python that must exit 0, print "exiting" and write nothing
 to stderr within 30 s. On a hang the native stacks are sampled (macOS:
-`sample`), the child gets SIGABRT so faulthandler prints its Python stacks, and
+`sample`; Linux: every thread's backtrace through gdb, with sudo if ptrace is
+restricted), the child gets SIGABRT so faulthandler prints its Python stacks, and
 the script stops with all of it.
 
     python tools/stress_exit.py [runs per scenario, default 100]
@@ -21,6 +22,7 @@ can open.
 """
 
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -51,9 +53,33 @@ print("exiting")
 }
 
 
+def gdb_stacks(pid):
+    """Every thread's native backtrace, by attaching gdb (Linux)."""
+    gdb = shutil.which("gdb")
+    if gdb is None:
+        return "(gdb is not installed)"
+    cmd = [gdb, "-p", str(pid), "-batch", "-nx", "-ex", "set pagination off", "-ex", "thread apply all bt"]
+    # Attaching to a process that is not our descendant needs ptrace_scope 0
+    # or root; CI runners have passwordless sudo.
+    try:
+        with open("/proc/sys/kernel/yama/ptrace_scope", encoding="ascii") as f:
+            restricted = int(f.read().strip()) > 0
+    except (OSError, ValueError):
+        restricted = False
+    if restricted and os.geteuid() != 0 and shutil.which("sudo"):
+        cmd = ["sudo", "-n", *cmd]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, check=False)
+        return r.stdout + (f"\n--- gdb stderr\n{r.stderr}" if r.returncode else "")
+    except (OSError, subprocess.SubprocessError) as e:
+        return f"(gdb failed: {e!r})"
+
+
 def native_stacks(pid):
+    if sys.platform.startswith("linux"):
+        return gdb_stacks(pid)
     if sys.platform != "darwin":
-        return "(native stacks are only sampled on macOS)"
+        return "(native stacks are sampled on macOS and Linux only)"
     fd, path = tempfile.mkstemp(suffix=".txt")
     os.close(fd)
     try:
