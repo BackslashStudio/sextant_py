@@ -11,7 +11,7 @@ name: wheels
 on:
   push:
     tags: ["v*"]
-    branches: [main]
+    branches: [dev]
     paths:
       - pyproject.toml
       - CMakeLists.txt
