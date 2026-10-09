@@ -231,6 +231,13 @@ namespace sextant_py {
                      call(self, [&](Figure& f) { f.set_margins(o); });
                  },
                  "opts"_a, margins_doc.c_str())
+            .def("set_background",
+                 [](PyFigure& self, sextant::Color c) {
+                     call(self, [&](Figure& f) { f.set_background(c); });
+                 },
+                 "color"_a,
+                 "The fill behind the whole figure (default light gray). Alpha 0 leaves a PNG or SVG "
+                 "transparent there.")
             .def("set_col_ratios",
                  [](PyFigure& self, std::vector<float> r) {
                      call(self, [&](Figure& f) { f.set_col_ratios(std::move(r)); });

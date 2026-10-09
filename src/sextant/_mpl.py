@@ -427,6 +427,7 @@ class _AxesBase:
         self._patch_cycle = 0
         self._grid_on = isinstance(self, Axes3D)
         self._xticks = self._yticks = self._zticks = None
+        self._style = {}  # AxesStyle fields set through this adapter (set_axes_style takes the whole struct)
         _adapters[id(core)] = self
 
     # --- the record ---
@@ -437,6 +438,12 @@ class _AxesBase:
         self._log.append(entry)
         self.figure._changed()
         return entry
+
+    def _set_style(self, **fields):
+        """Fields of the axes style, merged into what this adapter already set (sextant's
+        set_axes_style() replaces the whole struct)."""
+        self._style.update(fields)
+        self._call("set_axes_style", **self._style)
 
     def _add(self, kind, method, *args, **kw):
         """A plotting call; returns (index, entry)."""
@@ -462,6 +469,7 @@ class _AxesBase:
         self._artists.clear()
         self._line_cycle = self._patch_cycle = 0
         self._grid_on = isinstance(self, Axes3D)
+        self._style.clear()
         self.figure._changed()
 
     clear = cla
@@ -540,12 +548,22 @@ class _AxesBase:
         ticks = _vec(ticks)
         setattr(self, f"_{axis}ticks", ticks)
         self._call(f"set_{axis}ticks", ticks, [str(s) for s in labels] if labels is not None else [])
+        # An empty list means "no ticks" here as in matplotlib (sextant's own set_xticks([]) means
+        # "automatic", which is why this goes through the style's show_{axis}ticks).
+        show = bool(len(ticks))
+        if self._style.get(f"show_{axis}ticks", True) != show:
+            self._set_style(**{f"show_{axis}ticks": show})
 
     def set_xticks(self, ticks, labels=None, **kw):
         self._ticks("x", ticks, labels, kw)
 
     def set_yticks(self, ticks, labels=None, **kw):
         self._ticks("y", ticks, labels, kw)
+
+    def set_facecolor(self, color):
+        self._set_style(background=to_rgba(color))
+
+    set_axis_bgcolor = set_facecolor
 
     def set_xticklabels(self, labels, **kw):
         if self._xticks is None:
@@ -688,12 +706,25 @@ class Axes(_AxesBase):
     def scatter(self, x, y, s=None, c=None, marker=None, cmap=None, vmin=None, vmax=None,
                 alpha=None, label=None, colorbar=False, **kw):
         _drop_ignored(kw)
-        for k in ("linewidths", "edgecolors", "norm", "plotnonfinite"):
+        for k in ("norm", "plotnonfinite"):
             kw.pop(k, None)
+        edgecolors = _pop(kw, "edgecolors", "edgecolor", "ec")
+        linewidths = _pop(kw, "linewidths", "linewidth", "lw")
+        facecolors = _pop(kw, "facecolors", "facecolor", "fc")
         color = _pop(kw, "color", default=None)
         x, y = _vec(x), _vec(y)
         size = self._size(s)
         opts = dict(kw, size=size, alpha=1.0 if alpha is None else alpha)
+        # An outline only when asked for (matplotlib's default 'face' outline is invisible here).
+        if isinstance(edgecolors, str) and edgecolors.lower() == "none":
+            edgecolors, linewidths = None, None
+        elif edgecolors is not None or linewidths is not None:
+            if edgecolors is not None and not (isinstance(edgecolors, str) and edgecolors == "face"):
+                opts["edgecolor"] = to_rgba(edgecolors)
+            opts["edge_linewidth"] = (1.5 if linewidths is None else float(np.asarray(linewidths).flat[0])) * PT
+        if isinstance(facecolors, str) and facecolors.lower() == "none":
+            opts["alpha"] = 0.0  # hollow: only the outline
+            facecolors = None
         if marker is not None:
             opts["marker"] = _marker(marker)
         if label is not None:
@@ -708,7 +739,7 @@ class Axes(_AxesBase):
             handle = PathCollection(self, "scatter_z", i, entry, label)
             self.figure._mappable = handle
             return handle
-        c = c if c is not None else color
+        c = c if c is not None else (facecolors if facecolors is not None else color)
         opts["color"] = to_rgba(c) if c is not None else self._next_color(patches=True)
         i, entry = self._add("scatter", "scatter", x, y, **opts)
         return PathCollection(self, "scatter", i, entry, label)
@@ -1202,6 +1233,9 @@ class Figure:
         self._dpi = float(dpi) if dpi is not None else 100.0
         self._size = (int(round(w * 100)), int(round(h * 100)))
         title = kw.pop("title", f"Figure {num}" if num is not None else "sextant")
+        facecolor = kw.pop("facecolor", None)
+        if facecolor is not None:
+            kw["background"] = to_rgba(facecolor)
         self.core = _sextant.Figure(width=self._size[0], height=self._size[1], dpi=96.0 * self._dpi / 100.0,
                                     title=str(title), **kw)
         self.number = num
@@ -1209,6 +1243,7 @@ class Figure:
         self.canvas = Canvas(self)
         self._grid = None
         self._shown = False
+        self._background = to_rgba(facecolor) if facecolor is not None else (0.93, 0.93, 0.93, 1.0)
         self._mappable = None  # the last colormapped artist: colorbar()'s default
         self._interactive = lambda: False  # set by pyplot
 
@@ -1216,7 +1251,8 @@ class Figure:
 
     def add_subplot(self, *args, projection=None, **kw):
         _drop_ignored(kw)
-        kw.pop("label", None), kw.pop("facecolor", None)
+        kw.pop("label", None)
+        facecolor = kw.pop("facecolor", None)
         if kw:
             raise TypeError(f"add_subplot(): unsupported keyword(s) {sorted(kw)}")
         if not args:
@@ -1241,6 +1277,8 @@ class Figure:
         if ax is None:
             ax = cls(self, core)
             self.axes.append(ax)
+        if facecolor is not None and cls is Axes:
+            ax.set_facecolor(facecolor)
         return ax
 
     def _slot(self, nrows, ncols, index):
@@ -1304,10 +1342,31 @@ class Figure:
         axes._rebuild()
         return Colorbar(mappable, label, orientation)
 
+    def set_facecolor(self, color):
+        self._background = to_rgba(color)
+        self.core.set_background(self._background)
+        self._changed()
+
+    def get_facecolor(self):
+        return self._background
+
     def savefig(self, fname, dpi=None, format=None, **kw):
-        for k in ("bbox_inches", "pad_inches", "facecolor", "edgecolor", "transparent", "metadata",
-                  "pil_kwargs", "backend", "orientation", "papertype"):
+        for k in ("bbox_inches", "pad_inches", "edgecolor", "metadata", "pil_kwargs", "backend",
+                  "orientation", "papertype"):
             kw.pop(k, None)
+        # facecolor= / transparent= recolor the figure background for this file only.
+        facecolor, transparent = kw.pop("facecolor", "auto"), kw.pop("transparent", None)
+        if transparent:
+            self.core.set_background((0.0, 0.0, 0.0, 0.0))
+        elif facecolor not in (None, "auto"):
+            self.core.set_background(to_rgba(facecolor))
+        try:
+            return self._savefig(fname, dpi, format, kw)
+        finally:
+            if transparent or facecolor not in (None, "auto"):
+                self.core.set_background(self._background)
+
+    def _savefig(self, fname, dpi, format, kw):
         if dpi == "figure":
             dpi = None
         fmt = format

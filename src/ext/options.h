@@ -146,10 +146,10 @@ namespace sextant_py {
                        F(loop), F(errorbar), F(hint_labels))
     SEXTANT_PY_OPTIONS(ScatterOptions,
                        F(color), F(size), F(marker), F(name), F(show_legend), F(alpha),
-                       F(errorbar), F(hint_labels))
+                       F(edgecolor), F(edge_alpha), F(edge_linewidth), F(errorbar), F(hint_labels))
     SEXTANT_PY_OPTIONS(ScatterZOptions,
-                       F(cmap), F(size), F(marker), F(alpha), F(vmin), F(vmax), F(colorbar),
-                       F(name), F(show_legend), F(errorbar), F(hint_labels))
+                       F(cmap), F(size), F(marker), F(alpha), F(edgecolor), F(edge_alpha), F(edge_linewidth),
+                       F(vmin), F(vmax), F(colorbar), F(name), F(show_legend), F(errorbar), F(hint_labels))
     SEXTANT_PY_OPTIONS(BarOptions,
                        F(color), F(width), F(alpha), F(name), F(show_legend), F(edgecolor),
                        F(linewidth), F(errorbar), F(hint_labels))
@@ -159,10 +159,11 @@ namespace sextant_py {
                        F(contour_fontsize), F(hint_labels))
     SEXTANT_PY_OPTIONS(GridOptions, F(color), F(linestyle), F(linewidth))
     SEXTANT_PY_OPTIONS(AxesStyle,
-                       F(spine_color), F(spine_linewidth), F(spine_bottom), F(spine_left),
+                       F(background), F(spine_color), F(spine_linewidth), F(spine_bottom), F(spine_left),
                        F(spine_top), F(spine_right), F(xaxis_y), F(xaxis_z), F(yaxis_x),
                        F(yaxis_z), F(zaxis_x), F(zaxis_y), F(origin_x), F(origin_y), F(origin_z),
-                       F(frame_margin), F(tick_color), F(tick_length), F(tick_linewidth),
+                       F(frame_margin), F(show_xticks), F(show_yticks), F(show_zticks), F(tick_color),
+                       F(tick_length), F(tick_linewidth),
                        F(label_color), F(label_fontsize), F(title_color), F(title_fontsize),
                        F(xtitle_color), F(xtitle_fontsize), F(ytitle_color), F(ytitle_fontsize),
                        F(ztitle_color), F(ztitle_fontsize), F(font_path))
@@ -179,7 +180,7 @@ namespace sextant_py {
     SEXTANT_PY_OPTIONS(SvgExportOptions, F(max_splits), F(max_tests))
     SEXTANT_PY_OPTIONS(FigureOptions,
                        F(width), F(height), F(title), F(resizable), F(dpi), F(subplot_col_gap),
-                       F(subplot_row_gap), F(margins), F(panel_width), F(supersample), F(vsync),
+                       F(subplot_row_gap), F(margins), F(background), F(panel_width), F(supersample), F(vsync),
                        F(theme))
 
     // 3D
@@ -197,8 +198,9 @@ namespace sextant_py {
                        F(alpha), F(shading), F(edges), F(edgecolor), F(edge_alpha), F(edge_linewidth),
                        F(hint_labels))
     SEXTANT_PY_OPTIONS(Scatter3DOptions,
-                       F(color), F(size), F(marker), F(alpha), F(depthshade), F(cmap), F(vmin),
-                       F(vmax), F(colorbar), F(name), F(show_legend), F(errorbar), F(hint_labels))
+                       F(color), F(size), F(marker), F(alpha), F(edgecolor), F(edge_alpha), F(edge_linewidth),
+                       F(depthshade), F(cmap), F(vmin), F(vmax), F(colorbar), F(name), F(show_legend), F(errorbar),
+                       F(hint_labels))
     SEXTANT_PY_OPTIONS(Line3DOptions,
                        F(color), F(linewidth), F(alpha), F(loop), F(depthshade), F(cmap), F(vmin),
                        F(vmax), F(colorbar), F(name), F(show_legend), F(errorbar), F(hint_labels))

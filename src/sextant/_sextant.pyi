@@ -66,6 +66,9 @@ class ScatterOptions(TypedDict, total=False):
     name: str
     show_legend: bool
     alpha: float
+    edgecolor: str | tuple[float, ...] | None
+    edge_alpha: float
+    edge_linewidth: float
     errorbar: ErrorBarOptions
     hint_labels: collections.abc.Sequence[str]
 
@@ -74,6 +77,9 @@ class ScatterZOptions(TypedDict, total=False):
     size: float
     marker: MarkerStyleLike
     alpha: float
+    edgecolor: str | tuple[float, ...] | None
+    edge_alpha: float
+    edge_linewidth: float
     vmin: float
     vmax: float
     colorbar: bool
@@ -113,6 +119,7 @@ class GridOptions(TypedDict, total=False):
     linewidth: float
 
 class AxesStyle(TypedDict, total=False):
+    background: str | tuple[float, ...]
     spine_color: str | tuple[float, ...]
     spine_linewidth: float
     spine_bottom: bool
@@ -129,6 +136,9 @@ class AxesStyle(TypedDict, total=False):
     origin_y: float | None
     origin_z: float | None
     frame_margin: float
+    show_xticks: bool
+    show_yticks: bool
+    show_zticks: bool
     tick_color: str | tuple[float, ...]
     tick_length: float
     tick_linewidth: float
@@ -194,6 +204,7 @@ class FigureOptions(TypedDict, total=False):
     subplot_col_gap: float
     subplot_row_gap: float
     margins: FigureMargins
+    background: str | tuple[float, ...]
     panel_width: float
     supersample: int
     vsync: bool
@@ -265,6 +276,9 @@ class Scatter3DOptions(TypedDict, total=False):
     size: float
     marker: MarkerStyleLike
     alpha: float
+    edgecolor: str | tuple[float, ...] | None
+    edge_alpha: float
+    edge_linewidth: float
     depthshade: float
     cmap: ColormapLike
     vmin: float
@@ -613,7 +627,7 @@ class Axes:
 
         Markers at (x, y).
 
-        Keyword options (ScatterOptions): color, size, marker, name, show_legend, alpha, errorbar, hint_labels.
+        Keyword options (ScatterOptions): color, size, marker, name, show_legend, alpha, edgecolor, edge_alpha, edge_linewidth, errorbar, hint_labels.
         """
 
     def scatter_z(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[ScatterZOptions]) -> Axes:
@@ -622,7 +636,7 @@ class Axes:
 
         Markers at (x, y), coloured by z through cmap/vmin/vmax.
 
-        Keyword options (ScatterZOptions): cmap, size, marker, alpha, vmin, vmax, colorbar, name, show_legend, errorbar, hint_labels.
+        Keyword options (ScatterZOptions): cmap, size, marker, alpha, edgecolor, edge_alpha, edge_linewidth, vmin, vmax, colorbar, name, show_legend, errorbar, hint_labels.
         """
 
     def bar(self, x: ArrayLike, height: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[BarOptions]) -> Axes:
@@ -741,7 +755,7 @@ class Axes:
 
         Spines, ticks, labels and titles. Unnamed fields reset to their defaults.
 
-        Keyword options (AxesStyle): spine_color, spine_linewidth, spine_bottom, spine_left, spine_top, spine_right, xaxis_y, xaxis_z, yaxis_x, yaxis_z, zaxis_x, zaxis_y, origin_x, origin_y, origin_z, frame_margin, tick_color, tick_length, tick_linewidth, label_color, label_fontsize, title_color, title_fontsize, xtitle_color, xtitle_fontsize, ytitle_color, ytitle_fontsize, ztitle_color, ztitle_fontsize, font_path.
+        Keyword options (AxesStyle): background, spine_color, spine_linewidth, spine_bottom, spine_left, spine_top, spine_right, xaxis_y, xaxis_z, yaxis_x, yaxis_z, zaxis_x, zaxis_y, origin_x, origin_y, origin_z, frame_margin, show_xticks, show_yticks, show_zticks, tick_color, tick_length, tick_linewidth, label_color, label_fontsize, title_color, title_fontsize, xtitle_color, xtitle_fontsize, ytitle_color, ytitle_fontsize, ztitle_color, ztitle_fontsize, font_path.
         """
 
     def legend(self, **opts: Unpack[LegendOptions]) -> Axes:
@@ -799,7 +813,7 @@ class Plane2D:
 
         Markers at (x, y).
 
-        Keyword options (ScatterOptions): color, size, marker, name, show_legend, alpha, errorbar, hint_labels.
+        Keyword options (ScatterOptions): color, size, marker, name, show_legend, alpha, edgecolor, edge_alpha, edge_linewidth, errorbar, hint_labels.
         """
 
     def scatter_z(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[ScatterZOptions]) -> Plane2D:
@@ -808,7 +822,7 @@ class Plane2D:
 
         Markers at (x, y), coloured by z through cmap/vmin/vmax.
 
-        Keyword options (ScatterZOptions): cmap, size, marker, alpha, vmin, vmax, colorbar, name, show_legend, errorbar, hint_labels.
+        Keyword options (ScatterZOptions): cmap, size, marker, alpha, edgecolor, edge_alpha, edge_linewidth, vmin, vmax, colorbar, name, show_legend, errorbar, hint_labels.
         """
 
     def bar(self, x: ArrayLike, height: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[BarOptions]) -> Plane2D:
@@ -940,7 +954,7 @@ class Axes3D:
 
         Markers at the points; colors (one per point) colormaps them. In 3D z is a coordinate.
 
-        Keyword options (Scatter3DOptions): color, size, marker, alpha, depthshade, cmap, vmin, vmax, colorbar, name, show_legend, errorbar, hint_labels.
+        Keyword options (Scatter3DOptions): color, size, marker, alpha, edgecolor, edge_alpha, edge_linewidth, depthshade, cmap, vmin, vmax, colorbar, name, show_legend, errorbar, hint_labels.
         """
 
     def line3d(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, *, colors: ArrayLike | None = None, err: ErrorBar3D | None = None, **opts: Unpack[Line3DOptions]) -> Axes3D:
@@ -1003,7 +1017,7 @@ class Axes3D:
 
         Axis annotation, shared with 2D. Unnamed fields reset to their defaults.
 
-        Keyword options (AxesStyle): spine_color, spine_linewidth, spine_bottom, spine_left, spine_top, spine_right, xaxis_y, xaxis_z, yaxis_x, yaxis_z, zaxis_x, zaxis_y, origin_x, origin_y, origin_z, frame_margin, tick_color, tick_length, tick_linewidth, label_color, label_fontsize, title_color, title_fontsize, xtitle_color, xtitle_fontsize, ytitle_color, ytitle_fontsize, ztitle_color, ztitle_fontsize, font_path.
+        Keyword options (AxesStyle): background, spine_color, spine_linewidth, spine_bottom, spine_left, spine_top, spine_right, xaxis_y, xaxis_z, yaxis_x, yaxis_z, zaxis_x, zaxis_y, origin_x, origin_y, origin_z, frame_margin, show_xticks, show_yticks, show_zticks, tick_color, tick_length, tick_linewidth, label_color, label_fontsize, title_color, title_fontsize, xtitle_color, xtitle_fontsize, ytitle_color, ytitle_fontsize, ztitle_color, ztitle_fontsize, font_path.
         """
 
     def set_box_style(self, **opts: Unpack[Box3DStyle]) -> Axes3D:
@@ -1184,7 +1198,7 @@ class Figure:
 
         A figure. Nothing is shown until show(); savefig() works without a window.
 
-        Keyword options (FigureOptions): width, height, title, resizable, dpi, subplot_col_gap, subplot_row_gap, margins, panel_width, supersample, vsync, theme.
+        Keyword options (FigureOptions): width, height, title, resizable, dpi, subplot_col_gap, subplot_row_gap, margins, background, panel_width, supersample, vsync, theme.
         """
 
     def connect(self, kind: EventKindLike, callback: Callable) -> int:
@@ -1258,6 +1272,11 @@ class Figure:
         Figure edge to subplot grid, in pixels. Unnamed sides reset to 10.
 
         Keyword options (FigureMargins): left, right, top, bottom.
+        """
+
+    def set_background(self, color: str | tuple[float, ...]) -> None:
+        """
+        The fill behind the whole figure (default light gray). Alpha 0 leaves a PNG or SVG transparent there.
         """
 
     def set_col_ratios(self, ratios: Sequence[float]) -> None:

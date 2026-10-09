@@ -526,3 +526,79 @@ def test_inline_display_in_a_kernel(monkeypatch):
     plt.plot([1, 2])
     plt.show()  # in a kernel: display now
     assert len(displayed) == 2
+
+
+# --- sextant 1.1: backgrounds, hidden ticks, marker outlines ----------------------
+
+
+def rgba_of(fig):
+    return fig.core.render_rgba()
+
+
+def test_figure_and_axes_facecolor():
+    fig = plt.figure(figsize=(2, 1.5), facecolor="#0000ff")
+    ax = fig.add_subplot(111, facecolor="#00ff00")
+    ax.plot([0, 1], [0, 1])
+    img = rgba_of(fig)
+    assert tuple(img[1, 1]) == (0, 0, 255, 255)
+    assert ((img[..., 1] == 255) & (img[..., 0] == 0) & (img[..., 2] == 0)).sum() > 1000  # the plot area
+    fig.set_facecolor("#ff0000")
+    assert tuple(rgba_of(fig)[1, 1]) == (255, 0, 0, 255)
+    assert fig.get_facecolor() == (1.0, 0.0, 0.0, 1.0)
+    ax.set_facecolor("#ffff00")
+    assert (rgba_of(fig)[..., 2] == 0).sum() > 1000
+
+
+def test_savefig_facecolor_and_transparent_are_for_that_file_only(tmp_path):
+    fig, ax = plt.subplots(figsize=(2, 1.5))
+    ax.plot([0, 1], [0, 1])
+    before = tuple(rgba_of(fig)[1, 1])
+    fig.savefig(tmp_path / "t.svg", transparent=True)
+    assert "<rect width=" not in (tmp_path / "t.svg").read_text()
+    fig.savefig(tmp_path / "f.svg", facecolor="#0000ff")
+    assert 'fill="#0000ff"' in (tmp_path / "f.svg").read_text()
+    assert tuple(rgba_of(fig)[1, 1]) == before   # restored
+
+
+def text_count(fig):
+    return fig.core.render_svg()[0].count("<text")
+
+
+def test_set_xticks_empty_hides_the_ticks_as_in_matplotlib():
+    fig, ax = plt.subplots(figsize=(3, 2))
+    ax.plot([0, 1, 2], [0, 3, 1])
+    full = text_count(fig)
+    ax.set_xticks([])
+    hidden = text_count(fig)
+    assert 0 < hidden < full
+    ax.set_xticks([0, 1, 2])             # explicit ticks show again
+    assert text_count(fig) > hidden
+    ax.set_xticks([])
+    ax.set_yticks([])
+    assert text_count(fig) == 0
+    ax.cla()                             # clearing the axes brings the ticks back
+    ax.plot([0, 1, 2], [0, 3, 1])
+    assert text_count(fig) == full
+
+
+def ink(fig, rgb, tol=60):
+    d = np.abs(rgba_of(fig)[..., :3].astype(int) - np.array(rgb)).max(axis=2)
+    return int((d <= tol).sum())
+
+
+def test_scatter_edgecolors_linewidths_and_facecolors():
+    def fig_with(**kw):
+        fig, ax = plt.subplots(figsize=(4, 3))
+        ax.set_xlim(0, 10)
+        ax.set_ylim(0, 10)
+        ax.scatter([5], [5], s=900, color="#0000ff", **kw)   # 30 pt across
+        return fig
+
+    filled = ink(fig_with(), (0, 0, 255))
+    ring = ink(fig_with(facecolors="none", edgecolors="#ff0000", linewidths=3), (255, 0, 0))
+    assert filled > 1000 and 150 < ring < filled
+    assert ink(fig_with(facecolors="none", edgecolors="#ff0000", linewidths=3), (0, 0, 255)) == 0
+    # no outline unless asked for: edgecolors='none' and the default draw the same picture
+    assert ink(fig_with(edgecolors="none"), (0, 0, 255)) == filled
+    # edgecolors='face' with a width outlines in the marker's own color
+    assert ink(fig_with(facecolors="none", edgecolors="face", linewidths=3), (0, 0, 255)) > 150
