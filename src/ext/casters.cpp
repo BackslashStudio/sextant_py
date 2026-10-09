@@ -92,6 +92,9 @@ namespace sextant_py {
         add_enum<sextant::LegendAnchor>(d);
         add_enum<sextant::ColorbarAnchor>(d);
         add_enum<sextant::HAlign>(d);
+        add_enum<sextant::VAlign>(d);
+        add_enum<sextant::Coords>(d);
+        add_enum<sextant::ArrowHead>(d);
         add_enum<sextant::PanelTheme>(d);
         add_enum<sextant::Projection>(d);
         add_enum<sextant::PlaneOrientation>(d);
@@ -124,6 +127,8 @@ namespace sextant_py {
         add_fields<sextant::LegendOptions>(d);
         add_fields<sextant::ColorbarOptions>(d);
         add_fields<sextant::SuptitleOptions>(d);
+        add_fields<sextant::TextOptions>(d);
+        add_fields<sextant::ArrowOptions>(d);
         add_fields<sextant::PngExportOptions>(d);
         add_fields<sextant::SvgExportOptions>(d);
         add_fields<sextant::FigureOptions>(d);

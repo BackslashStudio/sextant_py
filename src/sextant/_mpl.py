@@ -402,6 +402,185 @@ class Path3D(_Artist):
         self._set_args(method, _vec(x), _vec(y), _vec(z))
 
 
+class Text(_Artist):
+    """ax.text()/annotate()'s return (Axes3D.text()/text2D() too). The position is
+    the anchor in the coordinates it was given in; an annotation's arrow and point
+    stay where they are."""
+
+    def __init__(self, axes, index, entry, slots):
+        super().__init__(axes, "text", index, entry)
+        self._slots = slots  # where the string and the position sit in the call's args
+
+    def _args(self):
+        return self._entry[1]
+
+    def get_text(self):
+        return self._args()[self._slots[0]]
+
+    def get_position(self):
+        return tuple(self._args()[i] for i in self._slots[1:])
+
+    def _set(self, text, pos):
+        args = self._args()
+        args[self._slots[0]] = text
+        for i, v in zip(self._slots[1:], pos):
+            args[i] = v
+        self.axes.core.set_text_data(self._index, text, *pos)
+        self.axes.figure._changed()
+
+    def set_text(self, s):
+        self._set(str(s), self.get_position())
+
+    def set_position(self, xy):
+        self._set(self.get_text(), tuple(float(v) for v in xy))
+
+    def set_color(self, c):
+        self._set_options(color=to_rgba(c))
+
+    def set_fontsize(self, size):
+        self._set_options(fontsize=_fontsize(size))
+
+    def set_rotation(self, r):
+        self._set_options(rotation=_rotation(r))
+
+    def set_alpha(self, a):
+        self._set_options(alpha=1.0 if a is None else float(a))
+
+
+class _Transform:
+    """ax.transData / ax.transAxes: only which coordinates a text is in."""
+
+    def __init__(self, coords):
+        self.coords = coords
+
+
+# matplotlib's named font sizes, relative to its default 10 pt.
+_FONT_SCALE = {"xx-small": 0.579, "x-small": 0.694, "small": 0.833, "medium": 1.0, "large": 1.2,
+               "x-large": 1.44, "xx-large": 1.728, "larger": 1.2, "smaller": 0.833}
+_TEXT_VA = {"top": "top", "center": "center", "center_baseline": "center", "baseline": "baseline",
+            "bottom": "bottom"}
+_TEXT_COORDS = {"data": "data", "axes fraction": "fraction"}
+# arrowstyle -> (head, tail): the head is at the point, the tail at the text.
+_ARROWSTYLES = {"-": ("none", "none"), "->": ("open", "none"), "-|>": ("filled", "none"),
+                "<-": ("none", "open"), "<|-": ("none", "filled"), "<->": ("open", "open"),
+                "<|-|>": ("filled", "filled"), "|-|": ("bar", "bar"), "-[": ("bar", "none"),
+                "]-": ("none", "bar"), "]-[": ("bar", "bar"), "fancy": ("filled", "none"),
+                "simple": ("filled", "none"), "wedge": ("filled", "none")}
+_ARROW_IGNORED = {"mutation_scale", "mutation_aspect", "patchA", "patchB", "relpos", "shrink",
+                  "joinstyle", "capstyle", "antialiased", "zorder"}
+
+
+def _fontsize(size):
+    if isinstance(size, str):
+        if size not in _FONT_SCALE:
+            raise ValueError(f"unknown font size {size!r}; use a number of points or one of {sorted(_FONT_SCALE)}")
+        return 10.0 * _FONT_SCALE[size] * PT
+    return float(size) * PT
+
+
+def _rotation(r):
+    return float({"horizontal": 0.0, "vertical": 90.0}.get(r, r))
+
+
+def _style_params(style):
+    """'round,pad=0.5' -> ('round', {'pad': 0.5})."""
+    name, *params = [part.strip() for part in style.split(",")]
+    return name, {k.strip(): float(v) for k, v in (p.split("=") for p in params)}
+
+
+def _text_opts(kw, fontdict=None):
+    """matplotlib Text keywords -> TextOptions fields. sextant's own names pass through."""
+    if fontdict:
+        kw = {**fontdict, **kw}
+    clip = kw.pop("clip_on", None)
+    _drop_ignored(kw)
+    o = {}
+    size = _pop(kw, "fontsize", "size")
+    if size is not None:
+        o["fontsize"] = _fontsize(size)
+    font_px = o.get("fontsize", 10.0 * PT)
+    color = _pop(kw, "color", "c")
+    if color is not None:
+        o["color"] = to_rgba(color)
+    alpha = _pop(kw, "alpha")
+    if alpha is not None:
+        o["alpha"] = float(alpha)
+    ha = _pop(kw, "ha", "horizontalalignment")
+    if ha is not None:
+        o["ha"] = ha
+    va = _pop(kw, "va", "verticalalignment")
+    if va is not None:
+        o["va"] = _TEXT_VA.get(va, va)
+    rotation = _pop(kw, "rotation")
+    if rotation is not None:
+        o["rotation"] = _rotation(rotation)
+    linespacing = _pop(kw, "linespacing")
+    if linespacing is not None:
+        o["linespacing"] = float(linespacing)
+    if clip:
+        o["clip_to_frame"] = True
+    bbox = _pop(kw, "bbox")
+    if bbox is not None:
+        # matplotlib's FancyBboxPatch defaults: face C0, black edge 1 pt, pad 0.3 x the font size.
+        b = dict(bbox)
+        _, params = _style_params(b.pop("boxstyle", "square"))
+        pad = b.pop("pad", params.get("pad", 0.3))
+        balpha = b.pop("alpha", None)
+        face = to_rgba(_pop(b, "facecolor", "fc", default=TAB10[0]), balpha)
+        edge = to_rgba(_pop(b, "edgecolor", "ec", default="black"), balpha)
+        lw = _pop(b, "linewidth", "lw", default=1.0)
+        b.pop("fill", None)
+        if b:
+            raise TypeError(f"bbox: unsupported key(s) {sorted(b)}")
+        o.update(background=face, edgecolor=edge, edge_linewidth=float(lw) * PT, pad=float(pad) * font_px)
+    o.update(kw)
+    return o
+
+
+def _arrow_opts(arrowprops):
+    """matplotlib's arrowprops -> ArrowOptions fields."""
+    ap = dict(arrowprops)
+    a = {}
+    style = ap.pop("arrowstyle", None)
+    if style is None:
+        # No arrowstyle: matplotlib's YAArrow, a filled arrow drawn in points.
+        a["head"] = "filled"
+        a["linewidth"] = float(ap.pop("width", 4.0)) * PT
+        a["head_width"] = float(ap.pop("headwidth", 12.0)) * PT
+        a["head_length"] = float(ap.pop("headlength", 12.0)) * PT
+    else:
+        name, params = _style_params(style.replace(" ", ""))
+        if name not in _ARROWSTYLES:
+            raise ValueError(f"arrowstyle {name!r} is not one sextant draws; use one of {sorted(_ARROWSTYLES)}")
+        a["head"], a["tail"] = _ARROWSTYLES[name]
+        # Head sizes are in units of the mutation scale, the text's size (10 pt by default).
+        if "head_length" in params:
+            a["head_length"] = params["head_length"] * 10.0 * PT
+        if "head_width" in params:
+            a["head_width"] = 2.0 * params["head_width"] * 10.0 * PT
+    color = _pop(ap, "color", "facecolor", "fc", "edgecolor", "ec")
+    if color is not None:
+        a["color"] = to_rgba(color)
+    lw = _pop(ap, "linewidth", "lw")
+    if lw is not None:
+        a["linewidth"] = float(lw) * PT
+    ls = _pop(ap, "linestyle", "ls")
+    if ls is not None:
+        a["linestyle"] = _linestyle(ls)
+    a["gap_text"] = float(ap.pop("shrinkA", 2.0)) * PT
+    a["gap_point"] = float(ap.pop("shrinkB", 2.0)) * PT
+    conn = ap.pop("connectionstyle", None)
+    if conn is not None:
+        name, params = _style_params(conn.replace(" ", ""))
+        if name != "arc3":
+            raise ValueError(f"connectionstyle {name!r}: sextant draws arc3 only (straight, or arc3,rad=...)")
+        a["arc"] = params.get("rad", 0.0)
+    for k in _ARROW_IGNORED:
+        ap.pop(k, None)
+    a.update(ap)
+    return a
+
+
 class Colorbar:
     """fig.colorbar()'s return. sextant draws a colorbar as part of the object that
     asked for it; this only renames or moves it."""
@@ -428,7 +607,16 @@ class _AxesBase:
         self._grid_on = isinstance(self, Axes3D)
         self._xticks = self._yticks = self._zticks = None
         self._style = {}  # AxesStyle fields set through this adapter (set_axes_style takes the whole struct)
+        self.transData = _Transform("data")
+        self.transAxes = _Transform("fraction")
         _adapters[id(core)] = self
+
+    def _coords(self, transform, method):
+        if transform is None:
+            return None
+        if isinstance(transform, _Transform):
+            return transform.coords
+        raise ValueError(f"{method}(): sextant places text in ax.transData or ax.transAxes only")
 
     # --- the record ---
 
@@ -920,6 +1108,48 @@ class Axes(_AxesBase):
         return self.imshow(C, cmap=cmap, vmin=vmin, vmax=vmax, origin="lower",
                            extent=(x[0], x[-1], y[0], y[-1]), **kw)
 
+    # --- text ----------------------------------------------------------------------
+
+    def text(self, x, y, s, fontdict=None, *, transform=None, **kw):
+        """Text at (x, y) in data coordinates, or in the axes' fraction with
+        transform=ax.transAxes. Returns a Text."""
+        coords = self._coords(transform, "text") or "data"
+        opts = _text_opts(kw, fontdict)
+        i, entry = self._add("text", "text", str(s), float(x), float(y), coords=coords, **opts)
+        return Text(self, i, entry, (0, 1, 2))
+
+    def annotate(self, text, xy, xytext=None, xycoords="data", textcoords=None, arrowprops=None,
+                 annotation_clip=None, **kw):
+        """matplotlib's annotate(). xycoords 'data' (or 'axes fraction' without an
+        arrow); textcoords 'data', 'axes fraction', 'offset points' or 'offset pixels'.
+        The arrow is drawn when arrowprops is given. Returns a Text."""
+        del annotation_clip
+        if xycoords not in _TEXT_COORDS:
+            raise ValueError(f"annotate(): xycoords {xycoords!r} is not one sextant has; use 'data' or 'axes fraction'")
+        if arrowprops is not None and xycoords != "data":
+            raise ValueError("annotate(): sextant's arrow points at a data point; use xycoords='data'")
+        textcoords = textcoords or xycoords
+        opts = _text_opts(kw)
+        px, py = (float(v) for v in xy)
+        if xytext is None:
+            tx, ty, coords = px, py, _TEXT_COORDS[xycoords]
+        elif textcoords in ("offset points", "offset pixels"):
+            scale = PT if textcoords == "offset points" else 1.0
+            tx, ty, coords = px, py, _TEXT_COORDS[xycoords]
+            opts["dx"] = opts.get("dx", 0.0) + float(xytext[0]) * scale
+            opts["dy"] = opts.get("dy", 0.0) + float(xytext[1]) * scale
+        elif textcoords in _TEXT_COORDS:
+            tx, ty, coords = float(xytext[0]), float(xytext[1]), _TEXT_COORDS[textcoords]
+        else:
+            raise ValueError(f"annotate(): textcoords {textcoords!r} is not one sextant has; use 'data', "
+                             "'axes fraction', 'offset points' or 'offset pixels'")
+        if arrowprops is None:
+            i, entry = self._add("text", "text", str(text), tx, ty, coords=coords, **opts)
+            return Text(self, i, entry, (0, 1, 2))
+        i, entry = self._add("text", "annotate", px, py, str(text), tx, ty, coords=coords,
+                             arrow=_arrow_opts(arrowprops), **opts)
+        return Text(self, i, entry, (2, 3, 4))
+
 
 def _values(c, n):
     """scatter's c: per-point values to colormap, or None for a colour."""
@@ -1107,6 +1337,25 @@ class Axes3D(_AxesBase):
         bottoms_arg = bottoms if np.any(bottoms != 0) else None
         i, entry = self._add("bar3d", "bar3d", "xy", u, v, heights, bottoms=bottoms_arg, **opts)
         return BarContainer(self, "bar3d", i, entry, label)
+
+    # --- text ---
+
+    def text(self, x, y, z, s, zdir=None, **kw):
+        """Text at the data point (x, y, z), at a fixed pixel size. zdir is not
+        offered (sextant's 3D text always faces the viewer)."""
+        if zdir is not None:
+            raise ValueError("text(): sextant's 3D text always faces the viewer; zdir is not offered")
+        opts = _text_opts(kw, kw.pop("fontdict", None))
+        i, entry = self._add("text", "text", str(s), float(x), float(y), float(z), **opts)
+        return Text(self, i, entry, (0, 1, 2, 3))
+
+    def text2D(self, x, y, s, fontdict=None, *, transform=None, **kw):
+        """Text at (x, y), fractions of the axes, whatever the camera does."""
+        if self._coords(transform, "text2D") not in (None, "fraction"):
+            raise ValueError("text2D(): sextant places 2D text in ax.transAxes only")
+        opts = _text_opts(kw, fontdict)
+        i, entry = self._add("text", "text2d", str(s), float(x), float(y), **opts)
+        return Text(self, i, entry, (0, 1, 2))
 
     # --- decoration ---
 

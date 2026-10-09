@@ -4,10 +4,12 @@ import atexit as _atexit
 
 from . import _sextant
 from ._enums import (
+    ArrowHead,
     AxisPosition,
     CapStyle,
     ColorbarAnchor,
     Colormap,
+    Coords,
     EventConsumed,
     EventKind,
     HAlign,
@@ -18,6 +20,7 @@ from ._enums import (
     PickKind,
     PlaneOrientation,
     Projection,
+    VAlign,
 )
 from ._sextant import (
     Axes,
@@ -39,6 +42,8 @@ from ._sextant import (
     SurfaceData,
     SurfaceTriData,
     SvgSaveReport,
+    Text3DData,
+    TextData,
     poll_events,
     run,
     set_message_handler,
@@ -53,6 +58,7 @@ _atexit.register(_sextant._shutdown)
 from . import _interactive  # noqa: E402
 
 __all__ = [
+    "ArrowHead",
     "Axes",
     "Axes3D",
     "AxisPosition",
@@ -61,6 +67,7 @@ __all__ = [
     "CapStyle",
     "ColorbarAnchor",
     "Colormap",
+    "Coords",
     "ErrorBar",
     "ErrorBar3D",
     "Event",
@@ -86,6 +93,9 @@ __all__ = [
     "SurfaceData",
     "SurfaceTriData",
     "SvgSaveReport",
+    "Text3DData",
+    "TextData",
+    "VAlign",
     "poll_events",
     "run",
     "set_message_handler",

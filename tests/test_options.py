@@ -82,7 +82,7 @@ def test_binding_lists_every_header_field(struct):
 ENUM_SAMPLE = {
     "LineStyle": "dashed", "MarkerStyle": "square", "Colormap": "plasma", "CapStyle": "arrow",
     "AxisPosition": "mid", "LegendAnchor": "inside_br", "ColorbarAnchor": "top", "HAlign": "left",
-    "PanelTheme": "dark", "Projection": "perspective",
+    "PanelTheme": "dark", "Projection": "perspective", "VAlign": "top", "ArrowHead": "open",
 }
 BY_NAME = {  # values a generic one would make invalid
     "width": 64, "height": 48, "supersample": 1, "peel_layers": 2, "dpi": 96, "origin": "upper",
@@ -147,6 +147,8 @@ def apply(struct, kwargs):
         "LegendOptions": lambda: ax.legend(**kwargs),
         "ColorbarOptions": lambda: ax.set_colorbar_style(**kwargs),
         "SuptitleOptions": lambda: fig.set_suptitle_style(**kwargs),
+        "TextOptions": lambda: ax.text("t", 1, 1, **kwargs),
+        "ArrowOptions": lambda: ax.annotate(1, 1, "t", 0.2, 0.8, coords="fraction", arrow=kwargs),
         "FigureMargins": lambda: fig.set_margins(**kwargs),
         "PngExportOptions": lambda: fig.render_rgba(**kwargs),
         "SvgExportOptions": lambda: fig.render_svg(**kwargs),

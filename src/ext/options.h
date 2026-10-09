@@ -176,6 +176,13 @@ namespace sextant_py {
                        F(text_color), F(border_color), F(border_linewidth), F(font_path))
     SEXTANT_PY_OPTIONS(SuptitleOptions,
                        F(fontsize), F(color), F(font_path), F(align), F(offset_x), F(offset_y))
+    SEXTANT_PY_OPTIONS(TextOptions,
+                       F(fontsize), F(color), F(alpha), F(font_path), F(ha), F(va), F(rotation), F(dx), F(dy),
+                       F(linespacing), F(background), F(edgecolor), F(edge_linewidth), F(pad),
+                       F(clip_to_frame))
+    SEXTANT_PY_OPTIONS(ArrowOptions,
+                       F(head), F(tail), F(head_length), F(head_width), F(linewidth), F(color),
+                       F(linestyle), F(gap_text), F(gap_point), F(arc))
     SEXTANT_PY_OPTIONS(PngExportOptions, F(peel_layers), F(dpi))
     SEXTANT_PY_OPTIONS(SvgExportOptions, F(max_splits), F(max_tests))
     SEXTANT_PY_OPTIONS(FigureOptions,
@@ -209,6 +216,15 @@ namespace sextant_py {
 #undef F
 #undef SEXTANT_PY_OPTIONS
 #undef SEXTANT_PY_FIELD
+
+    // An option struct passed as one dict-valued argument (annotate()'s
+    // `arrow`); None leaves T's defaults.
+    template <class T>
+    T options_arg(nb::handle h, const std::string& ctx, const std::string& name) {
+        T o;
+        if (!h.is_none()) assign(o, h, ctx, name);
+        return o;
+    }
 
     // For tests and tools/gen_stubs.py: {struct: {field: annotation}}, in
     // declaration order.

@@ -26,6 +26,8 @@ namespace sextant_py {
 
         sextant::ErrorBar3D spans(const PyErrorBar3D* err) { return err ? err->spans() : sextant::ErrorBar3D{}; }
 
+        using ArrowArg = nb::typed<nb::object, Named<"ArrowOptions">>;
+
         // A bar3d/surface `heights` (or `bottoms`): flat, or 2-D with shape
         // (len(u), len(v)) -- u major, as sextant lays it out. A transposed
         // array has the right length and would be misread, so it is refused.
@@ -103,6 +105,20 @@ namespace sextant_py {
             "Markers at the points; colors (one per point) colormaps them. In 3D z is a coordinate.");
         static const std::string line3d_doc = opts_doc<sextant::Line3DOptions>(
             "line3d(x, y, z, *, colors=None, err=None, **opts)", "A path through the points in order.");
+        static const std::string text_doc = opts_doc<sextant::TextOptions>(
+            "text(s, x, y, z, **opts)",
+            "Text at the projected data point (x, y, z), drawn over the scene at a fixed pixel size\n"
+            "whatever the camera, never hidden behind geometry. Hidden while the point is outside\n"
+            "the limits or behind the camera.");
+        static const std::string text2d_doc = opts_doc<sextant::TextOptions>(
+            "text2d(s, fx, fy, **opts)",
+            "Text at (fx, fy), fractions of the frame from its bottom-left corner, whatever the\n"
+            "camera does.");
+        static const std::string annotate_doc = opts_doc<sextant::TextOptions>(
+            "annotate(x, y, z, s, dx, dy, *, arrow=None, **opts)",
+            "Text dx, dy pixels (y up) from the projected point (x, y, z), with an arrow to it.\n"
+            "arrow is a dict of ArrowOptions fields: head, tail, head_length, head_width,\n"
+            "linewidth, color, linestyle, gap_text, gap_point, arc. Hidden as text() is.");
         static const std::string plane_doc = opts_doc<sextant::Plane2DOptions>(
             "plane(orient, offset=0.0, **opts)",
             "A Plane2D spanning orient's two axes at offset (data units) along the third.");
@@ -192,6 +208,29 @@ namespace sextant_py {
                  },
                  "x"_a, "y"_a, "z"_a, nb::kw_only(), "colors"_a = nb::none(), "err"_a.none() = nb::none(),
                  "opts"_a, line3d_doc.c_str())
+
+            // --- text ------------------------------------------------------
+            .def("text",
+                 [](Self self, std::string s, double x, double y, double z, const nb::kwargs& kw) {
+                     auto o = options<sextant::TextOptions>("text()", kw);
+                     return chain(self, [&](Axes3D& ax) { ax.text(s, x, y, z, std::move(o)); });
+                 },
+                 "s"_a, "x"_a, "y"_a, "z"_a, "opts"_a, text_doc.c_str())
+            .def("text2d",
+                 [](Self self, std::string s, double fx, double fy, const nb::kwargs& kw) {
+                     auto o = options<sextant::TextOptions>("text2d()", kw);
+                     return chain(self, [&](Axes3D& ax) { ax.text2d(s, fx, fy, std::move(o)); });
+                 },
+                 "s"_a, "fx"_a, "fy"_a, "opts"_a, text2d_doc.c_str())
+            .def("annotate",
+                 [](Self self, double x, double y, double z, std::string s, double dx, double dy, ArrowArg arrow,
+                    const nb::kwargs& kw) {
+                     auto o = options<sextant::TextOptions>("annotate()", kw);
+                     auto a = options_arg<sextant::ArrowOptions>(arrow, "annotate()", "arrow");
+                     return chain(self, [&](Axes3D& ax) { ax.annotate(x, y, z, s, dx, dy, std::move(o), std::move(a)); });
+                 },
+                 "x"_a, "y"_a, "z"_a, "s"_a, "dx"_a, "dy"_a, nb::kw_only(), "arrow"_a.none() = nb::none(), "opts"_a,
+                 annotate_doc.c_str())
 
             // --- planes ----------------------------------------------------
             .def("plane",
@@ -336,6 +375,12 @@ namespace sextant_py {
             .def("scatter3d_count",
                  [](PyAxes3D& a) { return read(a, [](Axes3D& ax) { return ax.scatter3d_count(); }); })
             .def("line3d_count", [](PyAxes3D& a) { return read(a, [](Axes3D& ax) { return ax.line3d_count(); }); })
+            .def("text_count", [](PyAxes3D& a) { return read(a, [](Axes3D& ax) { return ax.text_count(); }); })
+            .def("text_data",
+                 [](PyAxes3D& a, std::int64_t i) {
+                     return read(a, [&](Axes3D& ax) { return ax.text_data(index(i, ax.text_count())); });
+                 },
+                 "i"_a, "text(), text2d() and annotate() alike.")
             .def("bar3d_data",
                  [](PyAxes3D& a, std::int64_t i) {
                      return to_python(read(a, [&](Axes3D& ax) { return ax.bar3d_data(index(i, ax.bar3d_count())); }));
@@ -484,6 +529,20 @@ namespace sextant_py {
                          else ax.set_line3d_data(k, x.span(), y.span(), z.span());
                      });
                  },
-                 "i"_a, "x"_a, "y"_a, "z"_a, "colors"_a = nb::none());
+                 "i"_a, "x"_a, "y"_a, "z"_a, "colors"_a = nb::none())
+            .def("set_text_data",
+                 [](Self self, std::int64_t i, const PyText3DData& d) {
+                     return chain(self, [&](Axes3D& ax) { ax.set_text_data(index(i, ax.text_count()), d); });
+                 },
+                 "i"_a, "data"_a,
+                 "Replace text i's string and placement, which may turn it into any of the three\n"
+                 "calls' kinds. ValueError for arrow with in_frame.")
+            .def("set_text_data",
+                 [](Self self, std::int64_t i, std::string s, double x, double y, double z) {
+                     return chain(self, [&](Axes3D& ax) { ax.set_text_data(index(i, ax.text_count()), s, x, y, z); });
+                 },
+                 "i"_a, "s"_a, "x"_a, "y"_a, "z"_a = 0.0,
+                 "The string and (x, y, z) only: a text2d() reads x, y as fractions and ignores z;\n"
+                 "an annotate() keeps its offset.");
     }
 } // namespace sextant_py

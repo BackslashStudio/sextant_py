@@ -602,3 +602,82 @@ def test_scatter_edgecolors_linewidths_and_facecolors():
     assert ink(fig_with(edgecolors="none"), (0, 0, 255)) == filled
     # edgecolors='face' with a width outlines in the marker's own color
     assert ink(fig_with(facecolors="none", edgecolors="face", linewidths=3), (0, 0, 255)) > 150
+
+
+# --- text and annotate (sextant 1.1 step 31) ------------------------------------------
+
+
+def test_text_matplotlib_signature_and_transforms():
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot([0, 10], [0, 10])
+    t = ax.text(2, 3, "a", fontsize=12, color="r", ha="center", va="center_baseline", rotation="vertical")
+    assert isinstance(t, _mpl.Text)
+    d = ax.core.text_data(0)
+    assert (d.text, d.x, d.y, d.xcoords) == ("a", 2.0, 3.0, "data")
+    ax.text(0.05, 0.95, "corner", transform=ax.transAxes, va="top",
+            bbox=dict(boxstyle="round,pad=0.5", fc="white", ec="k", alpha=0.8))
+    assert ax.core.text_data(1).xcoords == "fraction"
+    plt.text(1, 1, "via pyplot")
+    assert ax.core.text_count() == 3
+    with pytest.raises(ValueError, match="transData or ax.transAxes"):
+        ax.text(0, 0, "x", transform=object())
+    with pytest.raises(TypeError, match="bbox"):
+        ax.text(0, 0, "x", bbox=dict(shadow=True))
+
+
+def test_text_artist_setters_survive_a_replay():
+    fig, ax = plt.subplots(figsize=(4, 3))
+    t = ax.text(1, 2, "old")
+    t.set_text("new")
+    t.set_position((3, 4))
+    assert t.get_text() == "new" and t.get_position() == (3.0, 4.0)
+    t.set_color("blue")  # an option change replays the record
+    d = ax.core.text_data(0)
+    assert (d.text, d.x, d.y) == ("new", 3.0, 4.0)
+
+
+def test_annotate_text_coordinates_and_arrowprops():
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot([0, 10], [0, 10])
+    a = ax.annotate("peak", xy=(5, 6), xytext=(0.6, 0.8), textcoords="axes fraction",
+                    arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=0.2", color="red", lw=1.5))
+    d = ax.core.text_data(0)
+    assert d.arrow and (d.px, d.py) == (5.0, 6.0) and (d.x, d.y, d.xcoords) == (0.6, 0.8, "fraction")
+    assert a.get_text() == "peak"
+
+    # 'offset points': the text sits at the point, moved by the offset.
+    ax.annotate("off", xy=(2, 2), xytext=(10, 5), textcoords="offset points", arrowprops={})
+    d = ax.core.text_data(1)
+    assert d.arrow and (d.x, d.y) == (2.0, 2.0)
+
+    # No arrowprops: just the text.
+    ax.annotate("plain", (1, 1))
+    assert not ax.core.text_data(2).arrow
+
+    svg = fig.core.render_svg()[0]
+    assert ">peak</text>" in svg and ">off</text>" in svg
+
+    with pytest.raises(ValueError, match="arrowstyle"):
+        ax.annotate("x", (1, 1), xytext=(2, 2), arrowprops=dict(arrowstyle="curve"))
+    with pytest.raises(ValueError, match="arc3"):
+        ax.annotate("x", (1, 1), xytext=(2, 2), arrowprops=dict(connectionstyle="angle3"))
+    with pytest.raises(ValueError, match="xycoords"):
+        ax.annotate("x", (0.5, 0.5), xytext=(2, 2), xycoords="axes fraction", arrowprops={})
+    with pytest.raises(ValueError, match="textcoords"):
+        ax.annotate("x", (1, 1), xytext=(2, 2), textcoords="figure pixels")
+
+
+def test_3d_text_and_text2D():
+    fig = plt.figure()
+    ax = fig.add_subplot(projection="3d")
+    ax.scatter([0, 1], [0, 1], [0, 1])
+    t = ax.text(0.5, 0.5, 0.5, "p", color="k")
+    c = ax.text2D(0.05, 0.95, "caption", transform=ax.transAxes)
+    assert ax.core.text_count() == 2
+    assert ax.core.text_data(1).in_frame
+    t.set_position((1, 1, 1))
+    assert (ax.core.text_data(0).x, ax.core.text_data(0).z) == (1.0, 1.0)
+    c.set_text("moved")
+    assert ax.core.text_data(1).text == "moved" and ax.core.text_data(1).in_frame
+    with pytest.raises(ValueError, match="zdir"):
+        ax.text(0, 0, 0, "x", zdir="x")

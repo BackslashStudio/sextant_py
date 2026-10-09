@@ -158,6 +158,12 @@ namespace sextant_py {
                     ({"left", Left}, {"right", Right}, {"top", Top}, {"bottom", Bottom}), ())
     SEXTANT_PY_ENUM(HAlign,
                     ({"left", Left}, {"center", Center}, {"right", Right}), ({"centre", Center}))
+    SEXTANT_PY_ENUM(VAlign,
+                    ({"top", Top}, {"center", Center}, {"baseline", Baseline}, {"bottom", Bottom}),
+                    ({"centre", Center}))
+    // Alias: matplotlib's xycoords name for a frame fraction.
+    SEXTANT_PY_ENUM(Coords, ({"data", Data}, {"fraction", Fraction}), ({"axes fraction", Fraction}))
+    SEXTANT_PY_ENUM(ArrowHead, ({"none", None}, {"open", Open}, {"filled", Filled}, {"bar", Bar}), ())
     SEXTANT_PY_ENUM(PanelTheme,
                     ({"dark", Dark}, {"light", Light}, {"classic", Classic}), ())
     SEXTANT_PY_ENUM(Projection,
@@ -280,6 +286,9 @@ namespace nanobind::detail {
     SEXTANT_PY_ENUM_CASTER(LegendAnchor)
     SEXTANT_PY_ENUM_CASTER(ColorbarAnchor)
     SEXTANT_PY_ENUM_CASTER(HAlign)
+    SEXTANT_PY_ENUM_CASTER(VAlign)
+    SEXTANT_PY_ENUM_CASTER(Coords)
+    SEXTANT_PY_ENUM_CASTER(ArrowHead)
     SEXTANT_PY_ENUM_CASTER(PanelTheme)
     SEXTANT_PY_ENUM_CASTER(Projection)
     SEXTANT_PY_ENUM_CASTER(PlaneOrientation)

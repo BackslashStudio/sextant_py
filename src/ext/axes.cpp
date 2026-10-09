@@ -22,6 +22,15 @@ namespace sextant_py {
 
         sextant::ErrorBar spans(const PyErrorBar* err) { return err ? err->spans() : sextant::ErrorBar{}; }
 
+        using sextant::Coords;
+        using ArrowArg = nb::typed<nb::object, Named<"ArrowOptions">>;
+
+        sextant::Pos pos(double v, Coords c) {
+            sextant::Pos p(v);
+            p.space = c;
+            return p;
+        }
+
         template <class T>
         std::string opts_doc(const char* signature, const char* text) {
             return std::string(signature) + "\n\n" + text + "\n\nKeyword options (" + Fields<T>::name +
@@ -239,6 +248,18 @@ namespace sextant_py {
             "set_axes_style(**opts)", "Spines, ticks, labels and titles. Unnamed fields reset to their defaults.");
         static const std::string legend_doc =
             opts_doc<sextant::LegendOptions>("legend(**opts)", "Show the legend (series with a name).");
+        static const std::string text_doc = opts_doc<sextant::TextOptions>(
+            "text(s, x, y, *, coords='data', xcoords=None, ycoords=None, **opts)",
+            "Text at (x, y), drawn over the data at a fixed pixel size. Each coordinate is in\n"
+            "xcoords/ycoords (default: coords): 'data', or 'fraction' of the plot frame from its\n"
+            "bottom-left corner. Never widens the auto limits; hidden while a data coordinate is\n"
+            "out of view (unless clip_to_frame=True, which cuts it at the frame instead).");
+        static const std::string annotate_doc = opts_doc<sextant::TextOptions>(
+            "annotate(px, py, s, tx, ty, *, coords='data', xcoords=None, ycoords=None, arrow=None, **opts)",
+            "Text at (tx, ty), placed as text() places it, with an arrow to the data point\n"
+            "(px, py). arrow is a dict of ArrowOptions fields: head, tail, head_length,\n"
+            "head_width, linewidth, color, linestyle, gap_text, gap_point, arc. Hidden while\n"
+            "the point is out of view.");
         static const std::string colorbar_doc = opts_doc<sextant::ColorbarOptions>(
             "set_colorbar_style(**opts)", "Style shared by this axes' colorbars; a colorbar itself is asked for "
                                           "with colorbar=True on heatmap/scatter_z.");
@@ -256,6 +277,61 @@ namespace sextant_py {
                 },
                 "data"_a, "bins"_a = 10, nb::kw_only(), "density"_a = false, "cumulative"_a = false, "opts"_a,
                 hist_doc.c_str())
+
+            // --- text ----------------------------------------------------------
+            .def("text",
+                 [](Self self, std::string s, double x, double y, Coords coords, std::optional<Coords> xcoords,
+                    std::optional<Coords> ycoords, const nb::kwargs& kw) {
+                     auto o = options<sextant::TextOptions>("text()", kw);
+                     return chain(self, [&](Axes& ax) {
+                         ax.text(s, pos(x, xcoords.value_or(coords)), pos(y, ycoords.value_or(coords)), std::move(o));
+                     });
+                 },
+                 "s"_a, "x"_a, "y"_a, nb::kw_only(), "coords"_a = Coords::Data, "xcoords"_a = nb::none(),
+                 "ycoords"_a = nb::none(), "opts"_a, text_doc.c_str())
+            .def("annotate",
+                 [](Self self, double px, double py, std::string s, double tx, double ty, Coords coords,
+                    std::optional<Coords> xcoords, std::optional<Coords> ycoords, ArrowArg arrow,
+                    const nb::kwargs& kw) {
+                     auto o = options<sextant::TextOptions>("annotate()", kw);
+                     auto a = options_arg<sextant::ArrowOptions>(arrow, "annotate()", "arrow");
+                     return chain(self, [&](Axes& ax) {
+                         ax.annotate(px, py, s, pos(tx, xcoords.value_or(coords)), pos(ty, ycoords.value_or(coords)),
+                                     std::move(o), std::move(a));
+                     });
+                 },
+                 "px"_a, "py"_a, "s"_a, "tx"_a, "ty"_a, nb::kw_only(), "coords"_a = Coords::Data,
+                 "xcoords"_a = nb::none(), "ycoords"_a = nb::none(), "arrow"_a.none() = nb::none(), "opts"_a,
+                 annotate_doc.c_str())
+            .def("text_count", [](PyAxes& a) { return read(a, [](Axes& ax) { return ax.text_count(); }); })
+            .def("text_data",
+                 [](PyAxes& a, std::int64_t i) {
+                     return to_python(read(a, [&](Axes& ax) { return ax.text_data(index(i, ax.text_count())); }));
+                 },
+                 "i"_a, "text() and annotate() alike.")
+            .def("set_text_data",
+                 [](Self self, std::int64_t i, const PyTextData& d) {
+                     const sextant::TextData cd = d.to_cpp();
+                     return chain(self, [&](Axes& ax) { ax.set_text_data(index(i, ax.text_count()), cd); });
+                 },
+                 "i"_a, "data"_a,
+                 "Replace text i's string, position and arrow (arrow=True on a text() gives it\n"
+                 "default arrow options).")
+            .def("set_text_data",
+                 [](Self self, std::int64_t i, std::string s, double x, double y, std::optional<Coords> coords,
+                    std::optional<Coords> xcoords, std::optional<Coords> ycoords) {
+                     return chain(self, [&](Axes& ax) {
+                         const std::size_t k = index(i, ax.text_count());
+                         const sextant::TextData cur = ax.text_data(k);
+                         const Coords cx = xcoords ? *xcoords : coords ? *coords : cur.x.space;
+                         const Coords cy = ycoords ? *ycoords : coords ? *coords : cur.y.space;
+                         ax.set_text_data(k, s, pos(x, cx), pos(y, cy));
+                     });
+                 },
+                 "i"_a, "s"_a, "x"_a, "y"_a, nb::kw_only(), "coords"_a = nb::none(), "xcoords"_a = nb::none(),
+                 "ycoords"_a = nb::none(),
+                 "The string and position only; an annotation keeps its arrow and point. A\n"
+                 "coordinate keeps its current coords unless coords/xcoords/ycoords says otherwise.")
 
             // --- decoration ------------------------------------------------
             .def("set_title",

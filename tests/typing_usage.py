@@ -31,6 +31,13 @@ def plots() -> None:
     plane.line([0, 1], [1, 0])
     orient: sextant.PlaneOrientation = plane.orientation()
 
+    ax.text("t", 0.5, 0.9, coords="fraction", ha="center", va=sextant.VAlign.TOP, edgecolor=None)
+    ax.annotate(1.0, 2.0, "peak", 0.6, 0.8, xcoords="axes fraction", arrow={"head": "open", "arc": 0.2})
+    td: sextant.TextData = ax.text_data(0)
+    where_x: sextant.Coords = td.xcoords
+    ax3.text2d("caption", 0.02, 0.95).annotate(1.0, 1.0, 1.0, "tip", 40.0, 30.0, arrow={"tail": "bar"})
+    t3: sextant.Text3DData = ax3.text_data(0)
+
     data: sextant.LineData = ax.line_data(0)
     xs: npt.NDArray[np.float64] = data.x
     rgba: npt.NDArray[np.uint8] = fig.render_rgba(width=64, height=48, dpi=1.0)
@@ -55,3 +62,5 @@ def plots() -> None:
     ax3.bar3d("xz", [0], [0], [[1]])  # type: ignore[arg-type]
     fig.render_png(max_splits=3)  # type: ignore[call-arg]
     bad: sextant.Axes3D = ax.grid(True)  # type: ignore[assignment]
+    ax.text("t", 0, 0, coords="pixels")  # type: ignore[arg-type]
+    ax.annotate(0, 0, "t", 1, 1, arrow={"style": "->"})  # type: ignore[arg-type]

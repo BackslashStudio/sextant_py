@@ -92,6 +92,23 @@ namespace sextant_py {
         return {vec(std::move(d.x)), vec(std::move(d.y)), vec(std::move(d.z)), vec_or_none(std::move(d.colors))};
     }
 
+    PyTextData to_python(sextant::TextData&& d) {
+        return {std::move(d.text), d.x.v, d.y.v, d.x.space, d.y.space, d.arrow, d.px, d.py};
+    }
+
+    sextant::TextData PyTextData::to_cpp() const {
+        sextant::TextData d;
+        d.text = text;
+        d.x = {x};
+        d.x.space = xcoords;
+        d.y = {y};
+        d.y.space = ycoords;
+        d.arrow = arrow;
+        d.px = px;
+        d.py = py;
+        return d;
+    }
+
     void bind_data(nb::module_& m) {
         using OV = std::optional<Vec>;
         nb::class_<PyErrorBar>(m, "ErrorBar",
@@ -216,6 +233,57 @@ namespace sextant_py {
             .def_rw("colors", &PyLine3DData::colors, nb::arg().none())
             .def("__repr__", [](const PyLine3DData& d) {
                 return repr_fields("Line3DData", {{"x", d.x}, {"y", d.y}, {"z", d.z}, {"colors", d.colors}});
+            });
+
+        using sextant::Coords;
+        nb::class_<PyTextData>(m, "TextData",
+                               "Axes.text() and annotate(): the string, its position (each coordinate a\n"
+                               "value and what it is in, 'data' or 'fraction' of the frame), and for an\n"
+                               "annotation (arrow=True) the data point (px, py) the arrow points at.")
+            .def(nb::init<std::string, double, double, Coords, Coords, bool, double, double>(),
+                 "text"_a, "x"_a, "y"_a, "xcoords"_a = Coords::Data, "ycoords"_a = Coords::Data,
+                 "arrow"_a = false, "px"_a = 0.0, "py"_a = 0.0)
+            .def_rw("text", &PyTextData::text)
+            .def_rw("x", &PyTextData::x)
+            .def_rw("y", &PyTextData::y)
+            .def_rw("xcoords", &PyTextData::xcoords)
+            .def_rw("ycoords", &PyTextData::ycoords)
+            .def_rw("arrow", &PyTextData::arrow)
+            .def_rw("px", &PyTextData::px)
+            .def_rw("py", &PyTextData::py)
+            .def("__repr__", [](const PyTextData& d) {
+                return repr_fields("TextData", {{"text", nb::cast(d.text)}, {"x", nb::cast(d.x)}, {"y", nb::cast(d.y)},
+                                                {"xcoords", nb::cast(d.xcoords)}, {"ycoords", nb::cast(d.ycoords)},
+                                                {"arrow", nb::cast(d.arrow)}, {"px", nb::cast(d.px)},
+                                                {"py", nb::cast(d.py)}});
+            });
+
+        nb::class_<PyText3DData>(m, "Text3DData",
+                                 "Axes3D.text(), text2d() and annotate(): the string and where it is.\n"
+                                 "  text():     (x, y, z) the data point it is drawn at.\n"
+                                 "  text2d():   in_frame=True; (x, y) fractions of the frame, z unused.\n"
+                                 "  annotate(): arrow=True; (x, y, z) the point, the text (dx, dy) pixels\n"
+                                 "              from it, y up.")
+            .def("__init__",
+                 [](PyText3DData* p, std::string text, double x, double y, double z, bool in_frame, bool arrow,
+                    double dx, double dy) {
+                     new (p) PyText3DData{std::move(text), x, y, z, in_frame, arrow, dx, dy};
+                 },
+                 "text"_a, "x"_a, "y"_a, "z"_a = 0.0, "in_frame"_a = false, "arrow"_a = false, "dx"_a = 0.0,
+                 "dy"_a = 0.0)
+            .def_rw("text", &PyText3DData::text)
+            .def_rw("x", &PyText3DData::x)
+            .def_rw("y", &PyText3DData::y)
+            .def_rw("z", &PyText3DData::z)
+            .def_rw("in_frame", &PyText3DData::in_frame)
+            .def_rw("arrow", &PyText3DData::arrow)
+            .def_rw("dx", &PyText3DData::dx)
+            .def_rw("dy", &PyText3DData::dy)
+            .def("__repr__", [](const PyText3DData& d) {
+                return repr_fields("Text3DData", {{"text", nb::cast(d.text)}, {"x", nb::cast(d.x)},
+                                                  {"y", nb::cast(d.y)}, {"z", nb::cast(d.z)},
+                                                  {"in_frame", nb::cast(d.in_frame)}, {"arrow", nb::cast(d.arrow)},
+                                                  {"dx", nb::cast(d.dx)}, {"dy", nb::cast(d.dy)}});
             });
     }
 } // namespace sextant_py

@@ -107,6 +107,29 @@ class HAlign(_Named):
     RIGHT = "right"
 
 
+class VAlign(_Named):
+    """A text's block against its anchor; BASELINE is the last line's baseline."""
+
+    TOP = "top"
+    CENTER = "center"
+    BASELINE = "baseline"
+    BOTTOM = "bottom"
+
+
+class Coords(_Named):
+    """What a 2D text coordinate is in: data units, or a fraction of the plot frame."""
+
+    DATA = "data"
+    FRACTION = "fraction"
+
+
+class ArrowHead(_Named):
+    NONE = "none"
+    OPEN = "open"
+    FILLED = "filled"
+    BAR = "bar"
+
+
 class PanelTheme(_Named):
     DARK = "dark"
     LIGHT = "light"
@@ -160,10 +183,12 @@ class EventConsumed(_Named):
 
 
 __all__ = [
+    "ArrowHead",
     "AxisPosition",
     "CapStyle",
     "ColorbarAnchor",
     "Colormap",
+    "Coords",
     "EventConsumed",
     "EventKind",
     "HAlign",
@@ -174,4 +199,5 @@ __all__ = [
     "PanelTheme",
     "PlaneOrientation",
     "Projection",
+    "VAlign",
 ]

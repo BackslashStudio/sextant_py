@@ -17,10 +17,10 @@ from . import _interactive, _sextant
 from ._mpl import Axes, Axes3D, Figure, axes_for, interactive_session, pause_loop
 
 __all__ = [
-    "Axes", "Axes3D", "Figure", "axes", "axes_for", "bar", "cla", "clf", "close", "colorbar", "connect",
+    "Axes", "Axes3D", "Figure", "annotate", "axes", "axes_for", "bar", "cla", "clf", "close", "colorbar", "connect",
     "disconnect", "draw", "errorbar", "figure", "gca", "gcf", "get_fignums", "grid", "hist", "imshow",
     "ioff", "ion", "isinteractive", "legend", "line", "pause", "pcolormesh", "plot", "savefig", "sca", "scatter",
-    "show", "subplot", "subplots", "suptitle", "title", "xlabel", "xlim", "xticks", "ylabel", "ylim",
+    "show", "subplot", "subplots", "suptitle", "text", "title", "xlabel", "xlim", "xticks", "ylabel", "ylim",
     "yticks",
 ]
 
@@ -178,6 +178,14 @@ def imshow(*args, **kw):
 
 def pcolormesh(*args, **kw):
     return gca().pcolormesh(*args, **kw)
+
+
+def text(x, y, s, *args, **kw):
+    return gca().text(x, y, s, *args, **kw)
+
+
+def annotate(text, xy, *args, **kw):
+    return gca().annotate(text, xy, *args, **kw)
 
 
 def title(label, **kw):

@@ -26,6 +26,9 @@ AxisPositionLike: TypeAlias = sextant._enums.AxisPosition | Literal["auto", "low
 LegendAnchorLike: TypeAlias = sextant._enums.LegendAnchor | Literal["inside_tl", "inside_tr", "inside_bl", "inside_br", "outside_tl", "outside_tr", "outside_bl", "outside_br", "outside_lt", "outside_lb", "outside_rt", "outside_rb"]
 ColorbarAnchorLike: TypeAlias = sextant._enums.ColorbarAnchor | Literal["left", "right", "top", "bottom"]
 HAlignLike: TypeAlias = sextant._enums.HAlign | Literal["left", "center", "right", "centre"]
+VAlignLike: TypeAlias = sextant._enums.VAlign | Literal["top", "center", "baseline", "bottom", "centre"]
+CoordsLike: TypeAlias = sextant._enums.Coords | Literal["data", "fraction", "axes fraction"]
+ArrowHeadLike: TypeAlias = sextant._enums.ArrowHead | Literal["none", "open", "filled", "bar"]
 PanelThemeLike: TypeAlias = sextant._enums.PanelTheme | Literal["dark", "light", "classic"]
 ProjectionLike: TypeAlias = sextant._enums.Projection | Literal["orthographic", "perspective", "ortho", "persp"]
 PlaneOrientationLike: TypeAlias = sextant._enums.PlaneOrientation | Literal["xy", "yz", "zx"]
@@ -186,6 +189,35 @@ class SuptitleOptions(TypedDict, total=False):
     align: HAlignLike
     offset_x: float
     offset_y: float
+
+class TextOptions(TypedDict, total=False):
+    fontsize: float
+    color: str | tuple[float, ...]
+    alpha: float
+    font_path: str
+    ha: HAlignLike
+    va: VAlignLike
+    rotation: float
+    dx: float
+    dy: float
+    linespacing: float
+    background: str | tuple[float, ...]
+    edgecolor: str | tuple[float, ...] | None
+    edge_linewidth: float
+    pad: float
+    clip_to_frame: bool
+
+class ArrowOptions(TypedDict, total=False):
+    head: ArrowHeadLike
+    tail: ArrowHeadLike
+    head_length: float
+    head_width: float
+    linewidth: float
+    color: str | tuple[float, ...] | None
+    linestyle: LineStyleLike
+    gap_text: float
+    gap_point: float
+    arc: float
 
 class PngExportOptions(TypedDict, total=False):
     peel_layers: int
@@ -611,6 +643,126 @@ class Line3DData:
 
     def __repr__(self) -> str: ...
 
+class TextData:
+    """
+    Axes.text() and annotate(): the string, its position (each coordinate a
+    value and what it is in, 'data' or 'fraction' of the frame), and for an
+    annotation (arrow=True) the data point (px, py) the arrow points at.
+    """
+
+    def __init__(self, text: str, x: float, y: float, xcoords: CoordsLike = sextant._enums.Coords.DATA, ycoords: CoordsLike = sextant._enums.Coords.DATA, arrow: bool = False, px: float = 0.0, py: float = 0.0) -> None: ...
+
+    @property
+    def text(self) -> str: ...
+
+    @text.setter
+    def text(self, arg: str, /) -> None: ...
+
+    @property
+    def x(self) -> float: ...
+
+    @x.setter
+    def x(self, arg: float, /) -> None: ...
+
+    @property
+    def y(self) -> float: ...
+
+    @y.setter
+    def y(self, arg: float, /) -> None: ...
+
+    @property
+    def xcoords(self) -> sextant._enums.Coords: ...
+
+    @xcoords.setter
+    def xcoords(self, arg: CoordsLike, /) -> None: ...
+
+    @property
+    def ycoords(self) -> sextant._enums.Coords: ...
+
+    @ycoords.setter
+    def ycoords(self, arg: CoordsLike, /) -> None: ...
+
+    @property
+    def arrow(self) -> bool: ...
+
+    @arrow.setter
+    def arrow(self, arg: bool, /) -> None: ...
+
+    @property
+    def px(self) -> float: ...
+
+    @px.setter
+    def px(self, arg: float, /) -> None: ...
+
+    @property
+    def py(self) -> float: ...
+
+    @py.setter
+    def py(self, arg: float, /) -> None: ...
+
+    def __repr__(self) -> str: ...
+
+class Text3DData:
+    """
+    Axes3D.text(), text2d() and annotate(): the string and where it is.
+      text():     (x, y, z) the data point it is drawn at.
+      text2d():   in_frame=True; (x, y) fractions of the frame, z unused.
+      annotate(): arrow=True; (x, y, z) the point, the text (dx, dy) pixels
+                  from it, y up.
+    """
+
+    def __init__(self, text: str, x: float, y: float, z: float = 0.0, in_frame: bool = False, arrow: bool = False, dx: float = 0.0, dy: float = 0.0) -> None: ...
+
+    @property
+    def text(self) -> str: ...
+
+    @text.setter
+    def text(self, arg: str, /) -> None: ...
+
+    @property
+    def x(self) -> float: ...
+
+    @x.setter
+    def x(self, arg: float, /) -> None: ...
+
+    @property
+    def y(self) -> float: ...
+
+    @y.setter
+    def y(self, arg: float, /) -> None: ...
+
+    @property
+    def z(self) -> float: ...
+
+    @z.setter
+    def z(self, arg: float, /) -> None: ...
+
+    @property
+    def in_frame(self) -> bool: ...
+
+    @in_frame.setter
+    def in_frame(self, arg: bool, /) -> None: ...
+
+    @property
+    def arrow(self) -> bool: ...
+
+    @arrow.setter
+    def arrow(self, arg: bool, /) -> None: ...
+
+    @property
+    def dx(self) -> float: ...
+
+    @dx.setter
+    def dx(self, arg: float, /) -> None: ...
+
+    @property
+    def dy(self) -> float: ...
+
+    @dy.setter
+    def dy(self, arg: float, /) -> None: ...
+
+    def __repr__(self) -> str: ...
+
 class Axes:
     def line(self, x: ArrayLike, y: ArrayLike | None = None, *, err: ErrorBar | None = None, **opts: Unpack[LineOptions]) -> Axes:
         """
@@ -728,6 +880,49 @@ class Axes:
         Histogram as bars. width defaults to 1.0 here (bins touch), not bar()'s 0.8.
 
         Keyword options (BarOptions): color, width, alpha, name, show_legend, edgecolor, linewidth, errorbar, hint_labels.
+        """
+
+    def text(self, s: str, x: float, y: float, *, coords: CoordsLike = sextant._enums.Coords.DATA, xcoords: CoordsLike | None = None, ycoords: CoordsLike | None = None, **opts: Unpack[TextOptions]) -> Axes:
+        """
+        text(s, x, y, *, coords='data', xcoords=None, ycoords=None, **opts)
+
+        Text at (x, y), drawn over the data at a fixed pixel size. Each coordinate is in
+        xcoords/ycoords (default: coords): 'data', or 'fraction' of the plot frame from its
+        bottom-left corner. Never widens the auto limits; hidden while a data coordinate is
+        out of view (unless clip_to_frame=True, which cuts it at the frame instead).
+
+        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame.
+        """
+
+    def annotate(self, px: float, py: float, s: str, tx: float, ty: float, *, coords: CoordsLike = sextant._enums.Coords.DATA, xcoords: CoordsLike | None = None, ycoords: CoordsLike | None = None, arrow: ArrowOptions | None = None, **opts: Unpack[TextOptions]) -> Axes:
+        """
+        annotate(px, py, s, tx, ty, *, coords='data', xcoords=None, ycoords=None, arrow=None, **opts)
+
+        Text at (tx, ty), placed as text() places it, with an arrow to the data point
+        (px, py). arrow is a dict of ArrowOptions fields: head, tail, head_length,
+        head_width, linewidth, color, linestyle, gap_text, gap_point, arc. Hidden while
+        the point is out of view.
+
+        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame.
+        """
+
+    def text_count(self) -> int: ...
+
+    def text_data(self, i: int) -> TextData:
+        """text() and annotate() alike."""
+
+    @overload
+    def set_text_data(self, i: int, data: TextData) -> Axes:
+        """
+        Replace text i's string, position and arrow (arrow=True on a text() gives it
+        default arrow options).
+        """
+
+    @overload
+    def set_text_data(self, i: int, s: str, x: float, y: float, *, coords: CoordsLike | None = None, xcoords: CoordsLike | None = None, ycoords: CoordsLike | None = None) -> Axes:
+        """
+        The string and position only; an annotation keeps its arrow and point. A
+        coordinate keeps its current coords unless coords/xcoords/ycoords says otherwise.
         """
 
     def set_title(self, text: str, fontsize: float = 18.0) -> Axes: ...
@@ -966,6 +1161,38 @@ class Axes3D:
         Keyword options (Line3DOptions): color, linewidth, alpha, loop, depthshade, cmap, vmin, vmax, colorbar, name, show_legend, errorbar, hint_labels.
         """
 
+    def text(self, s: str, x: float, y: float, z: float, **opts: Unpack[TextOptions]) -> Axes3D:
+        """
+        text(s, x, y, z, **opts)
+
+        Text at the projected data point (x, y, z), drawn over the scene at a fixed pixel size
+        whatever the camera, never hidden behind geometry. Hidden while the point is outside
+        the limits or behind the camera.
+
+        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame.
+        """
+
+    def text2d(self, s: str, fx: float, fy: float, **opts: Unpack[TextOptions]) -> Axes3D:
+        """
+        text2d(s, fx, fy, **opts)
+
+        Text at (fx, fy), fractions of the frame from its bottom-left corner, whatever the
+        camera does.
+
+        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame.
+        """
+
+    def annotate(self, x: float, y: float, z: float, s: str, dx: float, dy: float, *, arrow: ArrowOptions | None = None, **opts: Unpack[TextOptions]) -> Axes3D:
+        """
+        annotate(x, y, z, s, dx, dy, *, arrow=None, **opts)
+
+        Text dx, dy pixels (y up) from the projected point (x, y, z), with an arrow to it.
+        arrow is a dict of ArrowOptions fields: head, tail, head_length, head_width,
+        linewidth, color, linestyle, gap_text, gap_point, arc. Hidden as text() is.
+
+        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame.
+        """
+
     def plane(self, orient: PlaneOrientationLike, offset: float = 0.0, **opts: Unpack[Plane2DOptions]) -> Plane2D:
         """
         plane(orient, offset=0.0, **opts)
@@ -1108,6 +1335,11 @@ class Axes3D:
 
     def line3d_count(self) -> int: ...
 
+    def text_count(self) -> int: ...
+
+    def text_data(self, i: int) -> Text3DData:
+        """text(), text2d() and annotate() alike."""
+
     def bar3d_data(self, i: int) -> Bar3DData: ...
 
     def surface_data(self, i: int) -> SurfaceData: ...
@@ -1147,6 +1379,20 @@ class Axes3D:
 
     @overload
     def set_line3d_data(self, i: int, x: ArrayLike, y: ArrayLike, z: ArrayLike, colors: ArrayLike | None = None) -> Axes3D: ...
+
+    @overload
+    def set_text_data(self, i: int, data: Text3DData) -> Axes3D:
+        """
+        Replace text i's string and placement, which may turn it into any of the three
+        calls' kinds. ValueError for arrow with in_frame.
+        """
+
+    @overload
+    def set_text_data(self, i: int, s: str, x: float, y: float, z: float = 0.0) -> Axes3D:
+        """
+        The string and (x, y, z) only: a text2d() reads x, y as fractions and ignores z;
+        an annotate() keeps its offset.
+        """
 
 class SvgSaveReport:
     """

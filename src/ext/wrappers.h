@@ -121,6 +121,16 @@ namespace sextant_py {
     struct PySurfaceTriData { F64 x, y, z; U32 tri; F64OrNone colors; }; // tri (n, 3)
     struct PyScatter3DData { F64 x, y, z; F64OrNone colors; };
     struct PyLine3DData { F64 x, y, z; F64OrNone colors; };
+    // sextant::TextData with each Pos split into a value and its Coords.
+    struct PyTextData {
+        std::string text;
+        double x = 0.0, y = 0.0;
+        sextant::Coords xcoords = sextant::Coords::Data, ycoords = sextant::Coords::Data;
+        bool arrow = false;
+        double px = 0.0, py = 0.0;
+        sextant::TextData to_cpp() const;
+    };
+    using PyText3DData = sextant::Text3DData; // plain fields, bound as they are
 
     PyLineData to_python(sextant::LineData&& d);
     PyScatterData to_python(sextant::ScatterData&& d);
@@ -132,6 +142,7 @@ namespace sextant_py {
     PySurfaceTriData to_python(sextant::SurfaceTriData&& d);
     PyScatter3DData to_python(sextant::Scatter3DData&& d);
     PyLine3DData to_python(sextant::Line3DData&& d);
+    PyTextData to_python(sextant::TextData&& d);
 
     void bind_data(nb::module_& m);
     void bind_events(nb::module_& m, nb::class_<PyFigure>& fig);
