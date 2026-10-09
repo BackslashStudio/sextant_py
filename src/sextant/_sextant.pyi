@@ -206,6 +206,7 @@ class TextOptions(TypedDict, total=False):
     edge_linewidth: float
     pad: float
     clip_to_frame: bool
+    parse_math: bool
 
 class ArrowOptions(TypedDict, total=False):
     head: ArrowHeadLike
@@ -237,6 +238,7 @@ class FigureOptions(TypedDict, total=False):
     subplot_row_gap: float
     margins: FigureMargins
     background: str | tuple[float, ...]
+    mathtext: bool
     panel_width: float
     supersample: int
     vsync: bool
@@ -891,7 +893,7 @@ class Axes:
         bottom-left corner. Never widens the auto limits; hidden while a data coordinate is
         out of view (unless clip_to_frame=True, which cuts it at the frame instead).
 
-        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame.
+        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame, parse_math.
         """
 
     def annotate(self, px: float, py: float, s: str, tx: float, ty: float, *, coords: CoordsLike = sextant._enums.Coords.DATA, xcoords: CoordsLike | None = None, ycoords: CoordsLike | None = None, arrow: ArrowOptions | None = None, **opts: Unpack[TextOptions]) -> Axes:
@@ -903,7 +905,7 @@ class Axes:
         head_width, linewidth, color, linestyle, gap_text, gap_point, arc. Hidden while
         the point is out of view.
 
-        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame.
+        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame, parse_math.
         """
 
     def text_count(self) -> int: ...
@@ -1169,7 +1171,7 @@ class Axes3D:
         whatever the camera, never hidden behind geometry. Hidden while the point is outside
         the limits or behind the camera.
 
-        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame.
+        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame, parse_math.
         """
 
     def text2d(self, s: str, fx: float, fy: float, **opts: Unpack[TextOptions]) -> Axes3D:
@@ -1179,7 +1181,7 @@ class Axes3D:
         Text at (fx, fy), fractions of the frame from its bottom-left corner, whatever the
         camera does.
 
-        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame.
+        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame, parse_math.
         """
 
     def annotate(self, x: float, y: float, z: float, s: str, dx: float, dy: float, *, arrow: ArrowOptions | None = None, **opts: Unpack[TextOptions]) -> Axes3D:
@@ -1190,7 +1192,7 @@ class Axes3D:
         arrow is a dict of ArrowOptions fields: head, tail, head_length, head_width,
         linewidth, color, linestyle, gap_text, gap_point, arc. Hidden as text() is.
 
-        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame.
+        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame, parse_math.
         """
 
     def plane(self, orient: PlaneOrientationLike, offset: float = 0.0, **opts: Unpack[Plane2DOptions]) -> Plane2D:
@@ -1444,7 +1446,7 @@ class Figure:
 
         A figure. Nothing is shown until show(); savefig() works without a window.
 
-        Keyword options (FigureOptions): width, height, title, resizable, dpi, subplot_col_gap, subplot_row_gap, margins, background, panel_width, supersample, vsync, theme.
+        Keyword options (FigureOptions): width, height, title, resizable, dpi, subplot_col_gap, subplot_row_gap, margins, background, mathtext, panel_width, supersample, vsync, theme.
         """
 
     def connect(self, kind: EventKindLike, callback: Callable) -> int:

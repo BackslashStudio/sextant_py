@@ -181,3 +181,37 @@ def test_3d_text_size_ignores_the_camera():
     ax.set_camera(zoom=2.0)
     b = near(fig.render_rgba(), (255, 0, 0), 60)
     assert a > 50 and abs(a - b) <= a * 0.05
+
+
+# --- Math in text (sextant 1.1 step 32a) ---------------------------------------
+
+
+def test_math_in_every_string_reaches_the_svg_as_tspans():
+    fig, ax = axes()
+    ax.line([0, 1], [0, 1], name=r"$\alpha_1$")
+    ax.set_title(r"$x^2$ [m]")
+    ax.text(r"$\beta^2$", 5, 5)
+    ax.legend()
+    svg = fig.render_svg()[0]
+    assert "<tspan>x</tspan><tspan dy=" in svg
+    assert ">\u03b1</tspan>" in svg and ">\u03b2</tspan>" in svg
+
+
+def test_parse_math_off_per_text_and_per_figure():
+    fig, ax = axes()
+    ax.text(r"$a^2$ raw", 2, 2, parse_math=False)
+    ax.text(r"$b^2$ rich", 6, 6)
+    svg = fig.render_svg()[0]
+    assert ">$a^2$ raw</text>" in svg
+    assert "<tspan>b</tspan>" in svg
+    off = sextant.Figure(width=400, height=300, mathtext=False)
+    off.axes().set_title(r"$x^2$")
+    assert ">$x^2$</text>" in off.render_svg()[0]
+
+
+def test_malformed_math_warns_and_draws_as_written():
+    fig, ax = axes()
+    with pytest.warns(RuntimeWarning, match=r"set_title: math not parsed at column 2: unknown command"):
+        ax.set_title(r"$\alp$")
+    assert ax.title() == r"$\alp$"
+    assert r">$\alp$</text>" in fig.render_svg()[0]

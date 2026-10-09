@@ -179,7 +179,7 @@ namespace sextant_py {
     SEXTANT_PY_OPTIONS(TextOptions,
                        F(fontsize), F(color), F(alpha), F(font_path), F(ha), F(va), F(rotation), F(dx), F(dy),
                        F(linespacing), F(background), F(edgecolor), F(edge_linewidth), F(pad),
-                       F(clip_to_frame))
+                       F(clip_to_frame), F(parse_math))
     SEXTANT_PY_OPTIONS(ArrowOptions,
                        F(head), F(tail), F(head_length), F(head_width), F(linewidth), F(color),
                        F(linestyle), F(gap_text), F(gap_point), F(arc))
@@ -187,7 +187,8 @@ namespace sextant_py {
     SEXTANT_PY_OPTIONS(SvgExportOptions, F(max_splits), F(max_tests))
     SEXTANT_PY_OPTIONS(FigureOptions,
                        F(width), F(height), F(title), F(resizable), F(dpi), F(subplot_col_gap),
-                       F(subplot_row_gap), F(margins), F(background), F(panel_width), F(supersample), F(vsync),
+                       F(subplot_row_gap), F(margins), F(background), F(mathtext), F(panel_width), F(supersample),
+                       F(vsync),
                        F(theme))
 
     // 3D

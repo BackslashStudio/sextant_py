@@ -681,3 +681,34 @@ def test_3d_text_and_text2D():
     assert ax.core.text_data(1).text == "moved" and ax.core.text_data(1).in_frame
     with pytest.raises(ValueError, match="zdir"):
         ax.text(0, 0, 0, "x", zdir="x")
+
+
+# --- math in text (sextant 1.1 step 32a) --------------------------------------------
+
+
+def test_matplotlib_math_labels_draw_as_math():
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot([0, 1], [0, 1], label=r"$\sin(\omega t)$")
+    ax.set_xlabel(r"$\theta$ [rad]")
+    ax.set_ylabel(r"$\sigma^2$ (m$^2$)")
+    ax.legend()
+    svg = fig.core.render_svg()[0]
+    assert ">\u03b8 [rad]</tspan>" in svg and ">\u03c3</tspan>" in svg  # runs on one baseline merge
+    assert "font-size=" in svg
+
+
+def test_parse_math_and_usetex():
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.text(0.1, 0.1, r"$x^2$", parse_math=False)
+    assert ax.core.text_count() == 1
+    ax.annotate(r"$y^2$", (0.5, 0.5), xytext=(0.2, 0.8), parse_math=True)
+    svg = fig.core.render_svg()[0]
+    assert ">$x^2$</text>" in svg and "<tspan>y</tspan>" in svg
+    with pytest.raises(ValueError, match="usetex"):
+        ax.text(0, 0, "x", usetex=True)
+    with pytest.raises(ValueError, match="figure\\(mathtext=False\\)"):
+        ax.set_title(r"$x$", parse_math=False)
+    ax.set_title(r"$x$", parse_math=True)
+    off = plt.figure(mathtext=False)
+    off.add_subplot().set_title(r"$x^2$")
+    assert ">$x^2$</text>" in off.core.render_svg()[0]

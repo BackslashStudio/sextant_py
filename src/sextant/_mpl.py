@@ -488,10 +488,20 @@ def _style_params(style):
     return name, {k.strip(): float(v) for k, v in (p.split("=") for p in params)}
 
 
+def _math_kw(kw, where):
+    """matplotlib's usetex and parse_math: usetex=True raises (sextant draws its own mathtext
+    subset); returns parse_math, True unless False was given."""
+    if kw.pop("usetex", None):
+        raise ValueError(f"{where}: usetex=True is not supported; sextant draws $...$ math itself")
+    parse_math = kw.pop("parse_math", None)
+    return True if parse_math is None else bool(parse_math)
+
+
 def _text_opts(kw, fontdict=None):
     """matplotlib Text keywords -> TextOptions fields. sextant's own names pass through."""
     if fontdict:
         kw = {**fontdict, **kw}
+    parse_math = _math_kw(kw, "text")
     clip = kw.pop("clip_on", None)
     _drop_ignored(kw)
     o = {}
@@ -519,6 +529,8 @@ def _text_opts(kw, fontdict=None):
         o["linespacing"] = float(linespacing)
     if clip:
         o["clip_to_frame"] = True
+    if not parse_math:
+        o["parse_math"] = False
     bbox = _pop(kw, "bbox")
     if bbox is not None:
         # matplotlib's FancyBboxPatch defaults: face C0, black edge 1 pt, pad 0.3 x the font size.
@@ -535,6 +547,13 @@ def _text_opts(kw, fontdict=None):
         o.update(background=face, edgecolor=edge, edge_linewidth=float(lw) * PT, pad=float(pad) * font_px)
     o.update(kw)
     return o
+
+
+def _no_parse_math(kw, where):
+    """Titles and labels follow the figure's switch only: parse_math=False is per text."""
+    if not _math_kw(kw, where):
+        raise ValueError(f"{where}: parse_math=False works on text() and annotate() only; "
+                         "turn math off for a whole figure with figure(mathtext=False)")
 
 
 def _arrow_opts(arrowprops):
@@ -669,6 +688,7 @@ class _AxesBase:
             kw = {**fontsize, **kw}
             fontsize = None
         _drop_ignored(kw)
+        _no_parse_math(kw, method)
         for k in ("fontdict", "loc", "pad", "labelpad", "fontweight", "weight", "y"):
             kw.pop(k, None)
         size = _pop(kw, "fontsize", "size", default=fontsize)
@@ -1573,6 +1593,7 @@ class Figure:
 
     def suptitle(self, t, fontsize=None, **kw):
         _drop_ignored(kw)
+        _no_parse_math(kw, "suptitle")
         if fontsize is None:
             self.core.suptitle(t)
         else:
