@@ -193,7 +193,7 @@ def test_math_in_every_string_reaches_the_svg_as_tspans():
     ax.text(r"$\beta^2$", 5, 5)
     ax.legend()
     svg = fig.render_svg()[0]
-    assert "<tspan>x</tspan><tspan dy=" in svg
+    assert '<tspan font-style="italic">x</tspan><tspan dx=' in svg  # italic, its script kerned (32b)
     assert ">\u03b1</tspan>" in svg and ">\u03b2</tspan>" in svg
 
 
@@ -203,7 +203,7 @@ def test_parse_math_off_per_text_and_per_figure():
     ax.text(r"$b^2$ rich", 6, 6)
     svg = fig.render_svg()[0]
     assert ">$a^2$ raw</text>" in svg
-    assert "<tspan>b</tspan>" in svg
+    assert '<tspan font-style="italic">b</tspan>' in svg
     off = sextant.Figure(width=400, height=300, mathtext=False)
     off.axes().set_title(r"$x^2$")
     assert ">$x^2$</text>" in off.render_svg()[0]

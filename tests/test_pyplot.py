@@ -693,7 +693,9 @@ def test_matplotlib_math_labels_draw_as_math():
     ax.set_ylabel(r"$\sigma^2$ (m$^2$)")
     ax.legend()
     svg = fig.core.render_svg()[0]
-    assert ">\u03b8 [rad]</tspan>" in svg and ">\u03c3</tspan>" in svg  # runs on one baseline merge
+    # Letters are italic (step 32b), so a letter and the upright text after it are two runs.
+    assert '<tspan font-style="italic">\u03b8</tspan><tspan> [rad]</tspan>' in svg
+    assert '<tspan font-style="italic">\u03c3</tspan>' in svg and "<tspan>sin(</tspan>" in svg
     assert "font-size=" in svg
 
 
@@ -703,7 +705,7 @@ def test_parse_math_and_usetex():
     assert ax.core.text_count() == 1
     ax.annotate(r"$y^2$", (0.5, 0.5), xytext=(0.2, 0.8), parse_math=True)
     svg = fig.core.render_svg()[0]
-    assert ">$x^2$</text>" in svg and "<tspan>y</tspan>" in svg
+    assert ">$x^2$</text>" in svg and '<tspan font-style="italic">y</tspan>' in svg
     with pytest.raises(ValueError, match="usetex"):
         ax.text(0, 0, "x", usetex=True)
     with pytest.raises(ValueError, match="figure\\(mathtext=False\\)"):
