@@ -17,6 +17,7 @@ written as `(r, g, b)` tuples. Named colours are matplotlib's tab10 shades: `"bl
   [ErrorBar](#errorbar) · [errorbar style](#errorbaroptions)
 - [Decoration and style](#decoration-and-style): [set_axes_style](#axesstyle) · [grid](#gridoptions) ·
   [legend](#legendoptions) · [set_colorbar_style](#colorbaroptions)
+- [Text](#text): [TextOptions](#textoptions) · [ArrowOptions](#arrowoptions)
 - [3D options](#3d-options): [camera](#camera3d) · [box style](#box3dstyle) · [plane](#plane2doptions) ·
   [bar3d](#bar3doptions) · [surface](#surfaceoptions) · [surface_tri](#surfacetrioptions) ·
   [scatter3d](#scatter3doptions) · [line3d](#line3doptions) · [ErrorBar3D](#errorbar3d) ·
@@ -42,6 +43,8 @@ written as `(r, g, b)` tuples. Named colours are matplotlib's tab10 shades: `"bl
 | `dpi` | float | `96` | PNG resolution: `dpi / 96` output pixels per logical pixel |
 | `subplot_col_gap`, `subplot_row_gap` | float | `0` | Space between subplot cells (a cell includes its decorations) |
 | `margins` | dict | 10 each | [FigureMargins](#figuremargins); also `set_margins()` |
+| `background` | colour | `(0.93, 0.93, 0.93)` | Fill behind everything (margins, gaps, suptitle); alpha 0 is transparent in PNG and SVG. Also `set_background()` |
+| `mathtext` | bool | `True` | Draw `$...$` spans in every string as math; `False` draws every string as written |
 | `panel_width` | float | `240` | Initial width of the window's side panels. Never exported |
 | `supersample` | int | `2` | Supersampling for the window and PNG, 1..4; 1 disables. Cost is quadratic. No effect on SVG |
 | `vsync` | bool | `True` | Cap rendering at the display refresh rate. Turn off only to measure |
@@ -140,7 +143,10 @@ These are also the options of the same calls on a `Plane2D`.
 | `marker` | `MarkerStyle` | `"circle"` | |
 | `name` | str | `""` | Legend key |
 | `show_legend` | bool | `True` | |
-| `alpha` | float | `0.8` | |
+| `alpha` | float | `0.8` | Fill opacity, on top of `color`'s own; 0 = a hollow marker |
+| `edgecolor` | colour or `None` | `None` | Outline colour; `None` = the fill colour |
+| `edge_alpha` | float | `1` | Outline opacity, independent of `alpha` |
+| `edge_linewidth` | float | `0` | Outline width, drawn inside the marker; 0 = none |
 | `errorbar` | dict | | [ErrorBarOptions](#errorbaroptions) |
 | `hint_labels` | list of str | `[]` | |
 
@@ -154,6 +160,7 @@ These are also the options of the same calls on a `Plane2D`.
 | `size` | float | `20` | |
 | `marker` | `MarkerStyle` | `"circle"` | |
 | `alpha` | float | `0.8` | |
+| `edgecolor`, `edge_alpha`, `edge_linewidth` | | `None`, `1`, `0` | As in [ScatterOptions](#scatteroptions); `None` = each point's own colour |
 | `vmin`, `vmax` | float | `0`, `1` | Data range the colormap spans |
 | `colorbar` | bool | `False` | Draw a colorbar for this series |
 | `name` | str | `""` | Titles the colorbar; also the legend key (marker filled white, black edge) |
@@ -233,7 +240,8 @@ Error-bar **style**: the `errorbar={...}` keyword of a 2D series.
 
 Titles and limits are plain arguments: `set_title(text, fontsize=18)`, `set_xtitle(text, fontsize=16.5)`,
 `set_ytitle(...)` (and `set_ztitle` in 3D), `set_xlim(lo, hi)`, `set_ylim(lo, hi)`,
-`set_xticks(positions, labels=[])`, `set_yticks(...)`.
+`set_xticks(positions, labels=[])`, `set_yticks(...)`. An empty `set_xticks([])` means automatic ticks; to hide
+them, `show_xticks=False` below.
 
 ### AxesStyle
 
@@ -241,6 +249,7 @@ Titles and limits are plain arguments: `set_title(text, fontsize=18)`, `set_xtit
 
 | Keyword | Type | Default | Meaning |
 |---|---|---|---|
+| `background` | colour | `"white"` | 2D plot-area fill, under the data; alpha 0 shows the figure background. A 3D box uses `pane_color` ([Box3DStyle](#box3dstyle)) |
 | `spine_color` | colour | `(0.3, 0.3, 0.3)` | Frame and axis lines |
 | `spine_linewidth` | float | `1` | |
 | `spine_bottom`, `spine_left`, `spine_top`, `spine_right` | bool | `True` | The four 2D frame edges; ignored in 3D |
@@ -249,6 +258,7 @@ Titles and limits are plain arguments: `set_title(text, fontsize=18)`, `set_xtit
 | `zaxis_x`, `zaxis_y` | `AxisPosition` | `"auto"` | Where the z axis sits (3D) |
 | `origin_x`, `origin_y`, `origin_z` | float or `None` | `None` | Put the other axes through this data value; overrides the positions |
 | `frame_margin` | float | `0` | Space around the frame and its labels before an outside legend or colorbar |
+| `show_xticks`, `show_yticks`, `show_zticks` | bool | `True` | `False` hides that axis' tick marks and labels and frees their room; grid lines stay. `show_zticks` is 3D only |
 | `tick_color` | colour | `(0.3, 0.3, 0.3)` | |
 | `tick_length` | float | `5` | |
 | `tick_linewidth` | float | `1` | |
@@ -302,6 +312,50 @@ Titles and limits are plain arguments: `set_title(text, fontsize=18)`, `set_xtit
 | `border_color` | colour | `(0.3, 0.3, 0.3)` | |
 | `border_linewidth` | float | `1` | |
 | `font_path` | str | `""` | |
+
+---
+
+## Text
+
+`Axes.text(s, x, y, *, coords="data", xcoords=None, ycoords=None, **options)` and
+`annotate(px, py, s, tx, ty, ..., arrow=None, **options)`; in 3D `text()`, `text2d()` and `annotate()`
+([3d.md](3d.md#text-and-annotations)). `coords` (and per axis `xcoords`/`ycoords`) is a [`Coords`](#enums):
+`"data"`, or `"fraction"` of the plot frame from its left (x) or bottom (y) edge.
+
+### TextOptions
+
+| Keyword | Type | Default | Meaning |
+|---|---|---|---|
+| `fontsize` | float | `12` | Pixels as drawn; constant under zoom and at any 3D distance |
+| `color` | colour | `"black"` | |
+| `alpha` | float | `1` | Of everything the text draws (text, box, arrow) |
+| `font_path` | str | `""` | Empty = the default font |
+| `ha` | `HAlign` | `"left"` | Where the block sits against its anchor, across |
+| `va` | `VAlign` | `"baseline"` | ... and up/down; `baseline` is the last line's |
+| `rotation` | float | `0` | Degrees counter-clockwise, about the anchor |
+| `dx`, `dy` | float | `0` | Nudge of the whole text, box included; y up |
+| `linespacing` | float | `1.2` | Lines (`"\n"`) are `linespacing` × `fontsize` apart |
+| `background` | colour | transparent | Box fill; alpha 0 = no fill |
+| `edgecolor` | colour or `None` | `None` | Box outline; `None` = the text colour |
+| `edge_linewidth` | float | `0` | 0 = no outline |
+| `pad` | float | `4` | Box margin around the text |
+| `clip_to_frame` | bool | `False` | Cut at the plot frame; by default a text whose data position leaves the view is hidden whole |
+| `parse_math` | bool | `True` | Draw `$...$` as math (only when the figure's `mathtext` is on too) |
+
+### ArrowOptions
+
+`annotate(..., arrow={...})`: the arrow from the text to the point, as a dict; `None` takes every default.
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `head` | `ArrowHead` | `"filled"` | At the point |
+| `tail` | `ArrowHead` | `"none"` | At the text |
+| `head_length`, `head_width` | float | `10`, `7` | |
+| `linewidth` | float | `1.25` | |
+| `color` | colour or `None` | `None` | `None` = the text colour |
+| `linestyle` | `LineStyle` | `"solid"` | |
+| `gap_text`, `gap_point` | float | `2`, `0` | Pixels left clear at the text's box and before the point |
+| `arc` | float | `0` | 0 = straight; otherwise it bows to one side by `arc` × its length (negative: the other side), as matplotlib's `arc3` |
 
 ---
 
@@ -414,6 +468,7 @@ Titles and limits are plain arguments: `set_title(text, fontsize=18)`, `set_xtit
 | `marker` | `MarkerStyle` | `"circle"` | |
 | `alpha` | float | `1` | |
 | `depthshade` | float | `0` | Darken with distance; 0 = off |
+| `edgecolor`, `edge_alpha`, `edge_linewidth` | | `None`, `1`, `0` | Marker outline, as in [ScatterOptions](#scatteroptions); darkened with `depthshade` |
 | `cmap` | `Colormap` | `"viridis"` | For `colors` |
 | `vmin`, `vmax` | float | `0`, `0` | Equal = the series' own range |
 | `colorbar` | bool | `False` | Only with `colors` |
@@ -482,6 +537,9 @@ Pass the value as a string (case, `_`, `-` and spaces are ignored), or use the c
 | `LegendAnchor` | `inside_tl`, `inside_tr`, `inside_bl`, `inside_br`, `outside_tl`, `outside_tr`, `outside_bl`, `outside_br`, `outside_lt`, `outside_lb`, `outside_rt`, `outside_rb` | |
 | `ColorbarAnchor` | `left`, `right`, `top`, `bottom` | |
 | `HAlign` | `left`, `center`, `right` | `centre` |
+| `VAlign` | `top`, `center`, `baseline`, `bottom` | |
+| `Coords` | `data`, `fraction` | `axes fraction` |
+| `ArrowHead` | `none`, `open`, `filled`, `bar` | |
 | `PanelTheme` | `dark`, `light`, `classic` | |
 | `Projection` | `orthographic`, `perspective` | `ortho`, `persp` |
 | `PlaneOrientation` | `xy`, `yz`, `zx` | |
@@ -512,6 +570,8 @@ are numpy `float64` unless noted. Each can also be built: `sextant.LineData(x, y
 | `SurfaceTriData` | `x`, `y`, `z`, `tri` (`(n, 3)` `uint32`; the derived triangulation for an `orient=` mesh), `colors` (or `None`) |
 | `Scatter3DData` | `x`, `y`, `z`, `colors` (or `None`) |
 | `Line3DData` | `x`, `y`, `z`, `colors` (or `None`) |
+| `TextData` | `text`; `x`, `y` and their `xcoords`, `ycoords` (`Coords`); `arrow` (bool) and the point `px`, `py`. From `Axes.text_data(i)`, for `text()` and `annotate()` alike |
+| `Text3DData` | `text`, `x`, `y`, `z`; `in_frame` (a `text2d()`: `x`, `y` are fractions of the frame); `arrow` and `dx`, `dy` (an `annotate()`: the text's offset in pixels, y up) |
 
 ---
 

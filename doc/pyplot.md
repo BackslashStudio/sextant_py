@@ -20,6 +20,7 @@ This page lists what is supported and where it differs from matplotlib. The core
 - [Plotting (2D)](#plotting-2d)
 - [Plotting (3D)](#plotting-3d)
 - [Decoration](#decoration)
+- [Text and annotations](#text-and-annotations)
 - [Colours, sizes and format strings](#colours-sizes-and-format-strings)
 - [Changing what is drawn](#changing-what-is-drawn)
 - [Showing, animation and interactive mode](#showing-animation-and-interactive-mode)
@@ -84,7 +85,7 @@ Each is a method of the axes and a `plt.` function acting on the current axes.
 |---|---|---|
 | `plot([x], y, [fmt], [x2], y2, [fmt2], ..., **kw)` | list of `Line2D` | Format strings, several groups, 2-D `y` (one line per column), `data=` |
 | `line(...)` | the same | sextant's name for `plot`; the two are the same function |
-| `scatter(x, y, s=None, c=None, marker=None, cmap=, vmin=, vmax=, alpha=, label=, colorbar=False)` | `PathCollection` | `c` a colour, or one value per point to colour-map |
+| `scatter(x, y, s=None, c=None, marker=None, cmap=, vmin=, vmax=, alpha=, label=, colorbar=False, edgecolors=, linewidths=, facecolors=)` | `PathCollection` | `c` a colour, or one value per point to colour-map. `edgecolors`/`linewidths` draw an outline (matplotlib's default `'face'` outline is not drawn); `facecolors='none'` makes hollow markers |
 | `bar(x, height, width=0.8, *, align="center", color=, edgecolor=, linewidth=, label=, alpha=, yerr=, xerr=, ecolor=, capsize=, error_kw=, tick_label=)` | `BarContainer` | |
 | `hist(x, bins=10, range=None, density=False, weights=None, cumulative=False, histtype="bar", color=, label=, alpha=, rwidth=, edgecolor=, linewidth=)` | `(n, bins, BarContainer)` | Binned with `numpy.histogram`, so `n` and `bins` match matplotlib's |
 | `errorbar(x, y, yerr=None, xerr=None, fmt="", ecolor=, elinewidth=, capsize=, label=)` | `Line2D` | `yerr`/`xerr` a scalar, `(N,)`, or `(2, N)` lower/upper; `fmt="none"` for bars alone |
@@ -121,6 +122,7 @@ mplot3d's calls:
 | `ax.plot_wireframe(X, Y, Z, color=, linewidth=)` | A surface with transparent faces and drawn edges |
 | `ax.plot_trisurf(x, y, z, triangles=None, cmap=, color=, ...)` | Without `triangles`, a Delaunay triangulation in xy |
 | `ax.bar3d(x, y, z, dx, dy, dz, color=, alpha=, shade=True, edgecolor=, label=)` | The bars must form a grid (every x with every y, once) |
+| `ax.text(x, y, z, s, **kw)`, `ax.text2D(x, y, s, **kw)` | `text2D` takes fractions of the axes (`ax.transAxes`); see [Text and annotations](#text-and-annotations). 3D text always faces the viewer (no `zdir`) |
 | `ax.set_zlabel`, `set_zlim`, `get_zlim`, `set_zticks` | |
 | `ax.view_init(elev=None, azim=None)` | No `roll`; z is up |
 | `ax.set_proj_type("persp" or "ortho", focal_length=None)` | |
@@ -135,10 +137,18 @@ On axes (2D and 3D): `set_title`, `set_xlabel`, `set_ylabel` (with `fontsize=`),
 `get_xlim`/`get_ylim`, `invert_xaxis`, `invert_yaxis`; `set_xticks(ticks, labels=None)`,
 `set_yticks`, `set_xticklabels`/`set_yticklabels` (after `set_xticks`/`set_yticks`); `grid(visible=None,
 color=, linestyle=, linewidth=, alpha=)`; `legend(labels=None, loc=None, fontsize=None, frameon=None)`;
-`ax.set(title=..., xlabel=..., xlim=..., ...)`.
+`ax.set_facecolor(color)` (2D); `ax.set(title=..., xlabel=..., xlim=..., ...)`. `set_xticks([])` hides the
+ticks and their labels, as in matplotlib (the core API's `set_xticks([])` means automatic ticks).
 
 On the figure: `fig.suptitle(t, fontsize=None)`, `fig.colorbar(mappable=None, ax=None, label="",
-orientation="vertical")`.
+orientation="vertical")`, `fig.set_facecolor(color)`/`get_facecolor()`. `facecolor=` on `plt.figure()`
+colours the figure as it is made, and on `fig.add_subplot()` the axes.
+
+**Math.** Titles, labels, legend entries, tick labels and texts take `$...$` math, a subset of matplotlib's
+mathtext ([api.md](api.md#math-in-text)). `plt.figure(mathtext=False)` turns it off for a figure;
+`parse_math=False` turns it off for one `text()` or `annotate()` (on a title or label it raises, pointing to
+the figure's switch). `usetex=True` raises: sextant draws its own math, with no LaTeX. Math that does not parse
+is drawn as written, with a `RuntimeWarning`.
 
 The same through `plt`: `title`, `xlabel`, `ylabel`, `xlim`, `ylim` (no arguments: get), `xticks`, `yticks`,
 `grid`, `legend`, `suptitle`, `colorbar`.
@@ -147,6 +157,36 @@ The same through `plt`: `title`, `xlabel`, `ylabel`, `xlim`, `ylim` (no argument
 on the colorbar of the last (or given) colour-mapped object, and `label=` titles it. `orientation="horizontal"`
 puts the axes' colorbars below the frame. Passing `colorbar=True` to `imshow`, `scatter` or a surface does the
 same at once.
+
+---
+
+## Text and annotations
+
+```python
+ax.text(5, 0.8, "peak", ha="center", fontsize=12)
+ax.text(0.02, 0.95, "run 41", transform=ax.transAxes, va="top")
+ax.annotate("first peak", xy=(t0, y0), xytext=(30, 20), textcoords="offset points",
+            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=0.2"),
+            bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray"))
+```
+
+`text(x, y, s, fontdict=None, *, transform=None, **kw)` and `annotate(text, xy, xytext=None, xycoords="data",
+textcoords=None, arrowprops=None, **kw)`, on the axes and through `plt`. Both return a `Text`.
+
+- **Where:** `transform` is `ax.transData` (the default) or `ax.transAxes`. `xycoords` is `"data"` or
+  `"axes fraction"` (an arrow needs `"data"`); `textcoords` adds `"offset points"` and `"offset pixels"`.
+- **Text keywords:** `fontsize`/`size` (points, or `"small"`, `"large"`, ...), `color`, `alpha`,
+  `ha`/`horizontalalignment`, `va`/`verticalalignment`, `rotation` (degrees, `"horizontal"`, `"vertical"`),
+  `linespacing`, `clip_on`, `fontdict`, and `bbox` (`boxstyle`, `pad`, `facecolor`/`fc`, `edgecolor`/`ec`,
+  `linewidth`/`lw`, `alpha`); every box draws square. sextant's own [TextOptions](reference.md#textoptions)
+  names pass through.
+- **`arrowprops`:** an `arrowstyle` among `-`, `->`, `-|>`, `<-`, `<|-`, `<->`, `<|-|>`, `|-|`, `-[`, `]-`,
+  `]-[`, `fancy`, `simple`, `wedge` (the last three draw a filled head), with `head_length`/`head_width`;
+  without one, matplotlib's default arrow (`width`, `headwidth`, `headlength`). Also `color`, `linewidth`,
+  `linestyle`, `shrinkA`/`shrinkB`, and `connectionstyle="arc3,rad=..."`; other connection styles raise.
+
+A text keeps a constant size on screen, never widens the limits, and is hidden while its data position is out
+of view (`clip_on=True` cuts it at the frame instead).
 
 ---
 
@@ -182,6 +222,7 @@ The returned handles have the usual setters:
 | `BarContainer` (bar, hist, bar3d) | `datavalues`, `set_heights(heights)` (sextant's; matplotlib changes bars one by one) |
 | `Path3D` (3D plot, scatter) | `get_data_3d`, `set_data_3d` |
 | `Surface3D` | `set_cmap` |
+| `Text` (text, annotate, 3D text) | `get_text`, `set_text`, `get_position`, `set_position`, `set_color`, `set_fontsize`, `set_rotation` |
 
 Data setters (`set_data`, `set_ydata`, `set_offsets`, `set_array`, …) update the plot in place and are cheap:
 use them for animation. Style setters (`set_color`, `set_linewidth`, `set_clim`, `legend(labels)`,
@@ -253,8 +294,9 @@ fig.savefig(buffer, format="png")          # a file object
 ```
 
 `fname` is a path or a file object; `format` is `"png"` or `"svg"` (by default the extension). `dpi` applies
-to PNG. matplotlib's `bbox_inches`, `pad_inches`, `transparent`, `facecolor`, `metadata` and similar keywords
-are accepted and ignored. Saving needs no window.
+to PNG. `facecolor=` and `transparent=True` recolour the figure background for that file only (a transparent
+PNG or SVG). matplotlib's `bbox_inches`, `pad_inches`, `metadata` and similar keywords are accepted and
+ignored. Saving needs no window.
 
 ---
 
@@ -289,7 +331,7 @@ axes.
 
 These raise rather than draw something different:
 
-- `axhline`, `axvline`, `text`, `annotate`, `fill_between`, `contour`/`contourf` (use a heatmap's
+- `axhline`, `axvline`, `fill_between`, `contour`/`contourf` (use a heatmap's
   `contours=`), `twinx`, log scales, `stackplot`, `pie`, `boxplot`, `violinplot`, `quiver`, `step`;
 - `imshow` of RGB(A) images (scalar data only) and `alpha=` on images (a warning; ignored);
 - a scatter with per-point sizes, bars with `bottom=` or varying widths, a `hist` with unequal bins or

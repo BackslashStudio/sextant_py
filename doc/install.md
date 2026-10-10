@@ -3,11 +3,10 @@
 On PyPI the package is **`pysextant`** (`sextant` there is an unrelated project). It imports as `sextant`.
 
 ```sh
-python -m pip install --pre pysextant
+python -m pip install pysextant
 ```
 
-`--pre` because the current release, **1.1.dev1**, is a development release, which pip skips otherwise
-(`pysextant==1.1.dev1` works too). Once a final release is out, `pip install pysextant` alone installs it.
+The current release is **1.1.0** (`pysextant==1.1.0` to ask for it by number).
 
 PyPI has wheels, which install without a compiler, for Python 3.10 or later on Windows x86-64, Linux x86-64
 (glibc 2.27 or later) and macOS 11 or later (Apple Silicon and Intel). Anywhere else pip builds from the source
@@ -123,7 +122,7 @@ The second command blocks until you close the window.
 
 ## From a wheel
 
-A wheel is a pre-built package: installing one needs no compiler. `pip install --pre pysextant` picks the
+A wheel is a pre-built package: installing one needs no compiler. `pip install pysextant` picks the
 right one from PyPI by itself; a wheel file is for a machine without access to PyPI, or a build between
 releases. Wheel files come from:
 
@@ -146,7 +145,7 @@ Pick the file whose tags match your Python and platform:
 `<platform>` is `win_amd64`, a `manylinux_…_x86_64` tag, `macosx_11_0_arm64` or `macosx_11_0_x86_64`.
 
 ```sh
-python -m pip install path/to/pysextant-1.1.dev1-cp312-abi3-win_amd64.whl
+python -m pip install path/to/pysextant-1.1.0-cp312-abi3-win_amd64.whl
 ```
 
 pip refuses a wheel that does not fit your interpreter or platform ("is not a supported wheel on this
@@ -166,7 +165,7 @@ From PyPI:
 ```sh
 conda create -n sextant python=3.12 numpy
 conda activate sextant
-python -m pip install --pre pysextant
+python -m pip install pysextant
 ```
 
 From a wheel file, the same with `python -m pip install path/to/pysextant-<version>-cp312-abi3-<platform>.whl`.
@@ -221,7 +220,7 @@ one program (`python.exe`).
 ## Upgrading and uninstalling
 
 ```sh
-python -m pip install --pre --upgrade pysextant
+python -m pip install --upgrade pysextant
 python -m pip uninstall pysextant
 ```
 
@@ -236,8 +235,8 @@ numpy alone.
 
 | Symptom | Cause and fix |
 |---|---|
-| `pip install sextant` installs something else | That is an unrelated project on PyPI: `pip uninstall sextant`, then `pip install --pre pysextant` |
-| `pip install pysextant` finds no matching version | The current release is a development release: add `--pre` |
+| `pip install sextant` installs something else | That is an unrelated project on PyPI: `pip uninstall sextant`, then `pip install pysextant` |
+| `pip install pysextant` finds no matching version | Python is older than 3.10, or pip is too old to read the wheel tags: `python -m pip install --upgrade pip` |
 | *No sextant sources at …/extern/sextant* | The clone has no submodule: `git submodule update --init`, or clone again with `--recursive` |
 | CMake cannot find a C++ compiler, or rejects C++20 | Install the toolchain of [step 1](#1-the-c-toolchain); on Linux check `g++ --version` is 13 or later |
 | *Could NOT find X11* or *OpenGL* during the build (Linux) | The development packages of [step 1](#1-the-c-toolchain) are missing |

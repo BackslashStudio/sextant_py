@@ -1,4 +1,4 @@
-"""Text and annotations (sextant 1.1 step 31): Axes.text()/annotate(), the Axes3D
+"""Text and annotations (sextant 1.1): Axes.text()/annotate(), the Axes3D
 calls, read-back and set_text_data()."""
 
 import numpy as np
@@ -183,7 +183,7 @@ def test_3d_text_size_ignores_the_camera():
     assert a > 50 and abs(a - b) <= a * 0.05
 
 
-# --- Math in text (sextant 1.1 step 32a) ---------------------------------------
+# --- Math in text (sextant 1.1) ----------------------------------------------
 
 
 def test_math_in_every_string_reaches_the_svg_as_tspans():

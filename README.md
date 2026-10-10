@@ -8,21 +8,20 @@ matplotlib-style code.
 ## Install
 
 ```sh
-python -m pip install --pre pysextant
+python -m pip install pysextant
 ```
 
-On PyPI it is **`pysextant`** (`sextant` there is an unrelated project); it imports as `sextant`. `--pre`
-because the current release, 1.1.dev1, is a development release, which pip skips otherwise. Wheels cover
-Python 3.10 or later on Windows (x86-64), Linux (x86-64, glibc 2.27+) and macOS 11+ (Apple Silicon and Intel);
-the only dependency is numpy. **[doc/install.md](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/install.md)** has everything else: building
-[from source](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/install.md#from-source), [conda](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/install.md#in-a-conda-environment),
-[what each platform needs at run time](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/install.md#running-it) (X11/EGL on Linux, the main thread on macOS,
-OpenGL 3.3 on Windows) and [troubleshooting](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/install.md#troubleshooting).
+On PyPI it is **`pysextant`** (`sextant` there is an unrelated project); it imports as `sextant`. The current
+release is 1.1.0. Wheels cover Python 3.10 or later on Windows (x86-64), Linux (x86-64, glibc 2.27+) and macOS 11+ (Apple Silicon and Intel);
+the only dependency is numpy. **[doc/install.md](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/install.md)** has everything else: building
+[from source](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/install.md#from-source), [conda](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/install.md#in-a-conda-environment),
+[what each platform needs at run time](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/install.md#running-it) (X11/EGL on Linux, the main thread on macOS,
+OpenGL 3.3 on Windows) and [troubleshooting](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/install.md#troubleshooting).
 
 ## Documentation
 
-[doc/README.md](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/README.md) indexes it: the [core API guide](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/api.md), [3D plots](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/3d.md),
-[`sextant.pyplot`](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/pyplot.md) and the [option reference](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/reference.md).
+[doc/README.md](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/README.md) indexes it: the [core API guide](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/api.md), [3D plots](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/3d.md),
+[`sextant.pyplot`](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/pyplot.md) and the [option reference](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/reference.md).
 
 ## Examples
 
@@ -59,7 +58,8 @@ plt.show()
 ```
 
 `pyplot` covers the common calls (`plot`, `scatter`, `bar`, `hist`, `errorbar`, `imshow`, `pcolormesh`, 3D
-`plot_surface`/`scatter`/`bar3d`, colorbars, `mpl_connect` events, `pause`/`ion`); what sextant cannot draw
+`plot_surface`/`scatter`/`bar3d`, `text`/`annotate`, `$...$` math in labels, colorbars, `mpl_connect` events,
+`pause`/`ion`); what sextant cannot draw
 raises an error rather than being ignored. In Jupyter a figure displays inline as PNG.
 
 Windows are interactive (pan, zoom, a panel to edit titles, ticks and data). In a script `show()` blocks until
@@ -69,7 +69,7 @@ The package is typed (`py.typed`): keyword options and enum names are checked by
 
 ## Development
 
-Building needs the toolchain in [doc/install.md](https://github.com/BackslashStudio/sextant_py/blob/v1.1.dev1/doc/install.md#1-the-c-toolchain).
+Building needs the toolchain in [doc/install.md](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/install.md#1-the-c-toolchain).
 
 ```sh
 git clone --recursive https://github.com/BackslashStudio/sextant_py.git

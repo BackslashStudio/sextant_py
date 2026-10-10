@@ -23,6 +23,8 @@ The core API follows sextant's C++ API name for name, so the C++ documentation a
 - [Contours](#contours)
 - [Colormaps](#colormaps)
 - [Titles, legends, colorbars and ticks](#titles-legends-colorbars-and-ticks)
+- [Text and annotations](#text-and-annotations)
+- [Math in text](#math-in-text)
 - [Styling](#styling)
 - [Layout](#layout): [subplots and spans](#subplots-and-spans) · [sizing a figure](#sizing-a-figure)
 - [Saving and rendering](#saving-and-rendering)
@@ -195,6 +197,15 @@ ax.scatter(px, py, color="orange", size=24, marker="diamond", alpha=0.6)
 
 `size` is the marker's diameter in pixels and stays the same when you zoom. Markers: `circle`, `square`,
 `triangle`, `diamond`, `cross`, `plus`, and `none`. One size and one colour per series.
+
+**Outlines and hollow markers.** `edge_linewidth` (pixels, 0 by default) draws an outline inside the marker,
+so `size` stays its full diameter. `edgecolor` sets its colour (unset: the marker's own) and `edge_alpha` its
+opacity, independent of `alpha`. With `alpha=0` only the outline is drawn: a hollow marker. Every shape takes
+one, `cross` and `plus` included (both are filled shapes). `scatter_z` and `scatter3d` take the same keywords.
+
+```python
+ax.scatter(px, py, color="orange", size=16, alpha=0, edge_linewidth=2)       # hollow
+```
 
 ### scatter_z
 
@@ -386,11 +397,90 @@ ax.set_xticks(days)              # positions only; the values are the labels
 ax.set_xticks([])                # back to automatic ticks
 ```
 
+`set_xticks([])` means automatic ticks, not none (`sextant.pyplot`'s follows matplotlib and hides them). To
+hide an axis' ticks, see [Styling](#styling).
+
 `cla()` resets the axes completely: plot objects, limits, titles, styles, legend and ticks. To change a
 series' data and keep everything else, use [`set_<kind>_data()`](#live-updates).
 
 > **Ordering.** `set_title(text, fontsize)` stores its size in the axes style, so a later `set_axes_style()`
 > resets it. Call `set_axes_style()` first.
+
+---
+
+## Text and annotations
+
+```python
+ax.text(s, x, y, *, coords="data", xcoords=None, ycoords=None, **TextOptions) -> Axes
+ax.annotate(px, py, s, tx, ty, *, coords="data", xcoords=None, ycoords=None,
+            arrow=None, **TextOptions) -> Axes
+```
+
+`text()` writes a string over the plot; `annotate()` writes one with an arrow to the data point `(px, py)`.
+Each coordinate of the text's position is in data units or, with `"fraction"`, a fraction of the plot frame
+from its left (x) or bottom (y) edge. `coords` sets both; `xcoords` and `ycoords` set one each, so a label
+can follow the data on one axis and stay put on the other:
+
+```python
+(ax.text("threshold", 2.5, 0.95, ycoords="fraction", va="top")
+   .text("n = 120", 0.02, 0.04, coords="fraction")
+   .annotate(t_peak, x_peak, "first peak", 0.6, 0.8, coords="fraction",
+             fontsize=14, background="white", edgecolor="gray", edge_linewidth=1,
+             arrow={"arc": 0.2}))
+```
+
+The keywords ([TextOptions](reference.md#textoptions)) set the look: `fontsize` (pixels), `color`, `alpha`,
+`font_path`; `ha`/`va`, how the block sits against its anchor (`va="baseline"` by default); `rotation` in
+degrees; `dx`/`dy`, a nudge in pixels (y up); multi-line text (`"\n"`) with `linespacing`; and a box,
+`background` filled and `edge_linewidth` outlined, `pad` pixels out. `arrow` is a dict of
+[ArrowOptions](reference.md#arrowoptions): `head` and `tail` (`"none"`, `"open"`, `"filled"`, `"bar"`), their
+size, `linewidth`, `color` (unset: the text's), `linestyle`, the gaps left at the text and the point, and
+`arc`, which bows the arrow (as matplotlib's `arc3`).
+
+Texts are drawn over the data at a fixed pixel size: they never widen the automatic limits and reserve no
+room. A text whose **data** coordinate leaves the view is hidden whole; `clip_to_frame=True` cuts it at the
+frame instead. An annotation is hidden while its point is out of view. A non-finite coordinate is a
+`ValueError`.
+
+Texts appear in the window, PNG and SVG, have a tab in the Data panel, and read back like plot objects:
+`text_count()`, `text_data(i)` (a `TextData`: the string, both coordinates and their `Coords`, the arrow and
+its point) and `set_text_data(i, ...)`, either with a `TextData` or as `set_text_data(i, s, x, y)`, which keeps
+each coordinate's coords and an annotation's arrow unless told otherwise. 3D has `text()`, `text2d()` and
+`annotate()` of its own; see [3d.md](3d.md#text-and-annotations).
+
+---
+
+## Math in text
+
+Every string sextant draws can hold math: titles, axis titles, the suptitle, legend and colorbar names,
+custom tick labels and texts, in 2D and 3D. Write it between dollars, as in matplotlib (a raw string keeps the
+backslashes):
+
+```python
+ax.set_xtitle(r"$\theta$ [rad]")
+ax.set_title(r"Damped oscillator: $x(t) = e^{-\gamma t}\sin(\omega t)$")
+```
+
+It is a subset of matplotlib's mathtext:
+
+- superscripts and subscripts, `x^2`, `x_i`, `x_{i,j}^{2}`, nestable;
+- Greek letters and about 150 symbols by name: `\alpha`, `\Delta`, `\pm`, `\times`, `\leq`, `\neq`,
+  `\approx`, `\infty`, `\sum`, `\int`, `\nabla`, `\rightarrow`, ...;
+- function names set upright, `\sin`, `\cos`, `\log`, `\exp`, `\max`, ...;
+- TeX spacing (`\,`, `\;`, `\quad`, ...) and the spacing around operators;
+- fonts: `\mathrm{}` (upright), `\mathit{}` (italic), `\text{}` (upright, spaces kept).
+
+Letters draw italic, as in TeX; digits, symbols, Greek capitals and function names stay upright. Symbols the
+font lacks come from a system symbol font. The SVG writes math as `<tspan>`s, so it stays text.
+
+**When a string is math.** As in matplotlib: when it has an even, nonzero number of `$` not preceded by a
+backslash. `\$` is a literal dollar, and a string with one `$` or none draws as written. Math that does not
+parse (an unknown command, an unclosed brace) is drawn as written, and the call that set it issues a
+`RuntimeWarning` (see [Errors and warnings](#errors-and-warnings)).
+
+Turn it off for a whole figure with `sextant.Figure(mathtext=False)`, or for one text with
+`parse_math=False`. Automatic tick labels, contour labels and hover text are never math. Not supported:
+fractions, roots, accents, sized delimiters, `\mathbf` and the calligraphic fonts, and `usetex`.
 
 ---
 
@@ -415,6 +505,19 @@ the axes'.
 side. `xaxis_y` and `yaxis_x` move them (`"low"`, `"mid"`, `"high"`), and `origin_x`/`origin_y` put them
 through a data value: `set_axes_style(origin_x=0, origin_y=0)` draws axes crossing at the origin. The four
 `spine_*` flags turn the frame's edges on and off.
+
+**Backgrounds.** `sextant.Figure(background=...)` (or `fig.set_background(color)`) fills behind the whole
+figure: margins, gaps and the suptitle, light gray by default. `set_axes_style(background=...)` fills a 2D plot
+area, white by default (a 3D box colours its panes with `set_box_style(pane_color=...)`). Alpha 0 leaves a PNG
+or SVG transparent there; the window shows its panel colour instead.
+
+**Hiding ticks.** `set_axes_style(show_xticks=False)` (and `show_yticks`, and `show_zticks` in 3D) drops that
+axis' tick marks and labels and gives their room back to the plot; grid lines stay.
+
+```python
+fig = sextant.Figure(background="#dde6ef")
+fig.axes().set_axes_style(background="#1e1f29", show_xticks=False)
+```
 
 The window's side panels (not the plot) take a theme when the figure is made:
 `sextant.Figure(theme="dark", panel_width=300)`; `"light"` is the default, `"classic"` the third.
@@ -777,6 +880,7 @@ d = ax.line_data(0)            # LineData(x=array(...), y=array(...))
 Each kind has `<kind>_count()` and `<kind>_data(i)`, returning an object named after the kind (`LineData`,
 `ScatterData`, `ScatterZData`, `BarData`, `HeatmapData`; in 3D `Bar3DData`, `SurfaceData`, `SurfaceTriData`,
 `Scatter3DData`, `Line3DData`) whose attributes are numpy arrays named after the plotting call's arguments.
+Texts read back the same way: `text_count()`, `text_data(i)` (`TextData`, in 3D `Text3DData`).
 `bar_data` covers `hist()` (bin centres and heights) and `heatmap_data` covers `imshow()`; `HeatmapData.data`
 is `(rows, cols)`, rounded to single precision. Styles, error bars and `hint_labels` are not read back.
 
@@ -814,15 +918,15 @@ other threads do the updating; `poll_events()` raises `RuntimeError` on any othe
 | Raised | When |
 |---|---|
 | `TypeError` | An unknown keyword option (the message lists the valid ones); an option or argument of the wrong type, including an unknown enum name or colour; an array of the wrong dimensionality |
-| `ValueError` | Mismatched lengths; an error-bar array that is not one per point; an empty or non-finite heatmap range; a bad subplot index, a second grid shape, or an occupied cell; a non-positive `resize()` size or dpi; an unknown `savefig` format; a 2-D grid of the wrong shape; for 3D see [3d.md](3d.md#errors) |
+| `ValueError` | Mismatched lengths; a non-finite text coordinate; an error-bar array that is not one per point; an empty or non-finite heatmap range; a bad subplot index, a second grid shape, or an occupied cell; a non-positive `resize()` size or dpi; an unknown `savefig` format; a 2-D grid of the wrong shape; for 3D see [3d.md](3d.md#errors) |
 | `IndexError` | A `<kind>_data(i)` or `set_<kind>_data(i, …)` index out of range |
 | `RuntimeError` | `refresh()` before `show()` or after the window closed; `poll_events()` off the main thread on macOS; a window that cannot be created (on Linux without an X display, with a hint about `DISPLAY`) |
 | `OSError` | Writing a file failed (`FileNotFoundError`, `PermissionError`, … as the cause dictates); on Windows, a file name with `:` other than a drive letter's |
 
 A call that raises changes nothing.
 
-**Warnings.** Problems that do not stop a call (no usable font found, an SVG export that hit its work bound)
-are issued as `RuntimeWarning`, so the `warnings` module controls them:
+**Warnings.** Problems that do not stop a call (no usable font found, math that does not parse, an SVG export
+that hit its work bound) are issued as `RuntimeWarning`, so the `warnings` module controls them:
 
 ```python
 import warnings

@@ -604,7 +604,7 @@ def test_scatter_edgecolors_linewidths_and_facecolors():
     assert ink(fig_with(facecolors="none", edgecolors="face", linewidths=3), (0, 0, 255)) > 150
 
 
-# --- text and annotate (sextant 1.1 step 31) ------------------------------------------
+# --- text and annotate (sextant 1.1) ------------------------------------------------
 
 
 def test_text_matplotlib_signature_and_transforms():
@@ -683,7 +683,7 @@ def test_3d_text_and_text2D():
         ax.text(0, 0, 0, "x", zdir="x")
 
 
-# --- math in text (sextant 1.1 step 32a) --------------------------------------------
+# --- math in text (sextant 1.1) ---------------------------------------------------
 
 
 def test_matplotlib_math_labels_draw_as_math():
@@ -693,7 +693,7 @@ def test_matplotlib_math_labels_draw_as_math():
     ax.set_ylabel(r"$\sigma^2$ (m$^2$)")
     ax.legend()
     svg = fig.core.render_svg()[0]
-    # Letters are italic (step 32b), so a letter and the upright text after it are two runs.
+    # Math letters are italic, so a letter and the upright text after it are two runs.
     assert '<tspan font-style="italic">\u03b8</tspan><tspan> [rad]</tspan>' in svg
     assert '<tspan font-style="italic">\u03c3</tspan>' in svg and "<tspan>sin(</tspan>" in svg
     assert "font-size=" in svg
