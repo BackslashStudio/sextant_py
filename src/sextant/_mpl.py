@@ -616,6 +616,23 @@ class Colorbar:
 
 # --- axes -----------------------------------------------------------------------------
 
+# set_axes_style() on a sextant twin keeps its own axis' fields and gives the shared
+# axis' and the cell's to the host; these are the host's (`{a}` = the shared axis).
+_CELL_STYLE = frozenset({"background", "spine_color", "spine_linewidth", "spine_bottom", "spine_left",
+                         "spine_top", "spine_right", "frame_margin", "title_color", "title_fontsize"})
+_AXIS_STYLE = ("show_{a}ticks", "show_{a}tick_labels", "minor_{a}ticks", "{a}tick_color", "{a}tick_length",
+               "{a}tick_linewidth", "minor_{a}tick_length", "{a}label_color", "{a}label_fontsize",
+               "{a}title_color", "{a}title_fontsize", "{a}axis_color")
+# Each title call's size field (the call sets it, its default size included).
+_TITLE_SIZE = {"set_title": "title_fontsize", "set_xtitle": "xtitle_fontsize",
+               "set_ytitle": "ytitle_fontsize", "set_ztitle": "ztitle_fontsize"}
+
+
+def _host_style(field, shared):
+    """Whether a twin sharing `shared` hands `field` to its host."""
+    return field in _CELL_STYLE or field in {f.format(a=shared) for f in _AXIS_STYLE}
+
+
 class _AxesBase:
     def __init__(self, figure, core):
         self.figure = figure
@@ -649,11 +666,37 @@ class _AxesBase:
         self.figure._changed()
         return entry
 
+    def _owner(self, axis=None):
+        """The adapter that holds `axis`'s calls ("x"/"y"; None = the cell's title,
+        frame and background): a twin's host for its shared axis and the cell, as
+        sextant forwards them, else this one."""
+        host = getattr(self, "_host", None)
+        if host is None or (axis is not None and axis != self._shared):
+            return self
+        return host
+
     def _set_style(self, **fields):
         """Fields of the axes style, merged into what this adapter already set (sextant's
-        set_axes_style() replaces the whole struct)."""
+        set_axes_style() replaces the whole struct). On a twin, the host's fields go
+        through the host's record; the twin's call then rewrites the host's fields, so
+        the host's are sent again after it."""
+        host = getattr(self, "_host", None)
+        if host is not None:
+            to_host = {k: v for k, v in fields.items() if _host_style(k, self._shared)}
+            fields = {k: v for k, v in fields.items() if k not in to_host}
+            if to_host:
+                host._set_style(**to_host)
+            if not fields:
+                return
         self._style.update(fields)
         self._call("set_axes_style", **self._style)
+        if host is not None:
+            host._restyle()
+
+    def _restyle(self):
+        """Send this adapter's style again, unrecorded (a twin's style call reset it)."""
+        self.core.set_axes_style(**self._style)
+        self.figure._changed()
 
     def _add(self, kind, method, *args, **kw):
         """A plotting call; returns (index, entry)."""
@@ -664,6 +707,9 @@ class _AxesBase:
         self.core.cla()
         for method, args, kw in self._log:
             getattr(self.core, method)(*args, **kw)
+        host = getattr(self, "_host", None)
+        if host is not None:  # a twin's replayed style calls reset the host's fields
+            host._restyle()
         self.figure._changed()
 
     def _next_color(self, patches=False):
@@ -726,7 +772,15 @@ class _AxesBase:
         if kw:
             raise TypeError(f"{method}(): unsupported keyword(s) {sorted(kw)}")
         args = (label,) if size is None else (label, float(size) * PT)
-        self._call(method, *args)
+        # A twin's title and its shared axis' title are the host's (sextant forwards them).
+        owner = self._owner({"set_title": None, "set_xtitle": "x", "set_ytitle": "y"}.get(method, "z"))
+        # The size lives in the axes style, so keep it in the record that set_axes_style()
+        # resends whole (else a later tick_params() reset it); the call sets it either way.
+        if size is None:
+            owner._style.pop(_TITLE_SIZE[method], None)
+        else:
+            owner._style[_TITLE_SIZE[method]] = float(size) * PT
+        owner._call(method, *args)
 
     def set_title(self, label, fontsize=None, **kw):
         self._title("set_title", label, fontsize, kw)
@@ -781,6 +835,9 @@ class _AxesBase:
         self._call("set_xlim", hi, lo)
 
     def _ticks(self, axis, ticks, labels, kw):
+        owner = self._owner(axis)
+        if owner is not self:  # a twin's shared axis is its host's
+            return owner._ticks(axis, ticks, labels, kw)
         kw.pop("minor", None)
         if kw:
             raise TypeError(f"set_{axis}ticks(): unsupported keyword(s) {sorted(kw)}")
@@ -1284,23 +1341,50 @@ class Axes(_AxesBase):
         self._set_style(minor_xticks=False, minor_yticks=False)
 
     def tick_params(self, axis="both", which="major", reset=False, **kw):
-        """Tick-label visibility only: labelbottom/labeltop for the x labels,
-        labelleft/labelright for the y labels (sextant draws each axis' labels on one
-        side). Tick colours, sizes and directions are not per axis in sextant yet."""
-        del which, reset
+        """Per axis: labelbottom/labeltop (x) and labelleft/labelright (y) show or hide
+        the tick labels (sextant draws each axis' labels on one side); colors (marks and
+        labels), color (marks), labelcolor, labelsize, length and width style them.
+        which='minor' sets the minor marks' length (their color and width are the
+        axis'); 'both' sets both lengths. Directions, padding and per-side marks are
+        not in sextant."""
+        del reset
         if axis not in ("x", "y", "both"):
             raise ValueError(f"tick_params(): axis must be 'x', 'y' or 'both', not {axis!r}")
+        if which not in ("major", "minor", "both"):
+            raise ValueError(f"tick_params(): which must be 'major', 'minor' or 'both', not {which!r}")
+        axes = ("x", "y") if axis == "both" else (axis,)
         fields = {}
         for keys, field, own in ((("labelbottom", "labeltop"), "show_xtick_labels", "x"),
                                  (("labelleft", "labelright"), "show_ytick_labels", "y")):
             for k in keys:
                 if k in kw:
                     value = kw.pop(k)
-                    if axis in (own, "both"):
+                    if own in axes:
                         fields[field] = bool(value)
+        colors = kw.pop("colors", None)
+        mark = _pop(kw, "color", default=colors)
+        label = _pop(kw, "labelcolor", default=colors)
+        size = kw.pop("labelsize", None)
+        length = kw.pop("length", None)
+        width = kw.pop("width", None)
         if kw:
             raise TypeError(f"tick_params(): unsupported keyword(s) {sorted(kw)}; sextant takes "
-                            "labelbottom, labeltop, labelleft, labelright")
+                            "labelbottom, labeltop, labelleft, labelright, colors, color, labelcolor, "
+                            "labelsize, length, width")
+        for a in axes:
+            if mark is not None:
+                fields[f"{a}tick_color"] = to_rgba(mark)
+            if label is not None:
+                fields[f"{a}label_color"] = to_rgba(label)
+            if size is not None:
+                fields[f"{a}label_fontsize"] = _fontsize(size)
+            if width is not None:
+                fields[f"{a}tick_linewidth"] = float(width) * PT
+            if length is not None:
+                if which in ("major", "both"):
+                    fields[f"{a}tick_length"] = float(length) * PT
+                if which in ("minor", "both"):
+                    fields[f"minor_{a}tick_length"] = float(length) * PT
         if fields:
             self._set_style(**fields)
 
@@ -1337,7 +1421,6 @@ class Axes(_AxesBase):
         if ax is None:
             ax = Axes(self.figure, core)
             ax._host, ax._shared, ax._span = self, which, self._span
-            ax._twin_style()
             self._twins[which] = ax
             self.figure.axes.append(ax)
         return ax
@@ -1350,16 +1433,6 @@ class Axes(_AxesBase):
 
     def twiny(self):
         return self._twin("y")
-
-    def _twin_style(self):
-        # The core twin hides its shared axis by style, which set_axes_style()
-        # replaces: keep it in this adapter's fields.
-        self._style[f"show_{self._shared}ticks"] = False
-
-    def cla(self):
-        super().cla()
-        if self._host is not None:
-            self._twin_style()
 
     # --- aspect ---------------------------------------------------------------------------
 
@@ -1413,8 +1486,12 @@ class Axes(_AxesBase):
                 self.set_aspect("auto")
             elif arg in ("on", "off"):
                 on = arg == "on"
-                self._set_style(show_xticks=on, show_yticks=on, spine_bottom=on, spine_left=on,
-                                spine_top=on, spine_right=on)
+                if self._host is not None:  # a twin: its own axis only (the frame is the host's)
+                    own = "y" if self._shared == "x" else "x"
+                    self._set_style(**{f"show_{own}ticks": on})
+                else:
+                    self._set_style(show_xticks=on, show_yticks=on, spine_bottom=on, spine_left=on,
+                                    spine_top=on, spine_right=on)
             else:
                 raise ValueError(f"axis(): {arg!r} is not one sextant has ('equal', 'scaled', 'square', "
                                  "'image', 'auto', 'on', 'off')")
@@ -1477,7 +1554,7 @@ class _Axis:
         else:
             raise TypeError(f"set_major_formatter(): sextant takes a format string, FormatStrFormatter or "
                             f"StrMethodFormatter, not {name}")
-        self.axes._call(f"set_{self._axis}tick_format", fmt)
+        self.axes._owner(self._axis)._call(f"set_{self._axis}tick_format", fmt)
 
     def get_scale(self):
         return getattr(self.axes, f"get_{self._axis}scale")()

@@ -100,7 +100,7 @@ def sample(name, ctype):
         return "red"
     if t == "std::optional<Color>":
         return (0.1, 0.2, 0.3)
-    if t == "std::optional<double>":
+    if t in ("std::optional<double>", "std::optional<float>"):
         return 0.5
     if t == "std::optional<bool>":
         return True

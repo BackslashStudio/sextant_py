@@ -138,6 +138,8 @@ class AxesStyle(TypedDict, total=False):
     spine_left: bool
     spine_top: bool
     spine_right: bool
+    xaxis_color: str | tuple[float, ...] | None
+    yaxis_color: str | tuple[float, ...] | None
     xaxis_y: AxisPositionLike
     xaxis_z: AxisPositionLike
     yaxis_x: AxisPositionLike
@@ -161,6 +163,23 @@ class AxesStyle(TypedDict, total=False):
     minor_tick_length: float
     label_color: str | tuple[float, ...]
     label_fontsize: float
+    xtick_color: str | tuple[float, ...] | None
+    ytick_color: str | tuple[float, ...] | None
+    ztick_color: str | tuple[float, ...] | None
+    xtick_length: float | None
+    ytick_length: float | None
+    ztick_length: float | None
+    xtick_linewidth: float | None
+    ytick_linewidth: float | None
+    ztick_linewidth: float | None
+    minor_xtick_length: float | None
+    minor_ytick_length: float | None
+    xlabel_color: str | tuple[float, ...] | None
+    ylabel_color: str | tuple[float, ...] | None
+    zlabel_color: str | tuple[float, ...] | None
+    xlabel_fontsize: float | None
+    ylabel_fontsize: float | None
+    zlabel_fontsize: float | None
     title_color: str | tuple[float, ...]
     title_fontsize: float
     xtitle_color: str | tuple[float, ...]
@@ -969,7 +988,7 @@ class Axes:
 
         Spines, ticks, labels and titles. Unnamed fields reset to their defaults.
 
-        Keyword options (AxesStyle): background, spine_color, spine_linewidth, spine_bottom, spine_left, spine_top, spine_right, xaxis_y, xaxis_z, yaxis_x, yaxis_z, zaxis_x, zaxis_y, origin_x, origin_y, origin_z, frame_margin, show_xticks, show_yticks, show_zticks, show_xtick_labels, show_ytick_labels, tick_color, tick_length, tick_linewidth, minor_xticks, minor_yticks, minor_tick_length, label_color, label_fontsize, title_color, title_fontsize, xtitle_color, xtitle_fontsize, ytitle_color, ytitle_fontsize, ztitle_color, ztitle_fontsize, font_path.
+        Keyword options (AxesStyle): background, spine_color, spine_linewidth, spine_bottom, spine_left, spine_top, spine_right, xaxis_color, yaxis_color, xaxis_y, xaxis_z, yaxis_x, yaxis_z, zaxis_x, zaxis_y, origin_x, origin_y, origin_z, frame_margin, show_xticks, show_yticks, show_zticks, show_xtick_labels, show_ytick_labels, tick_color, tick_length, tick_linewidth, minor_xticks, minor_yticks, minor_tick_length, label_color, label_fontsize, xtick_color, ytick_color, ztick_color, xtick_length, ytick_length, ztick_length, xtick_linewidth, ytick_linewidth, ztick_linewidth, minor_xtick_length, minor_ytick_length, xlabel_color, ylabel_color, zlabel_color, xlabel_fontsize, ylabel_fontsize, zlabel_fontsize, title_color, title_fontsize, xtitle_color, xtitle_fontsize, ytitle_color, ytitle_fontsize, ztitle_color, ztitle_fontsize, font_path.
         """
 
     def legend(self, **opts: Unpack[LegendOptions]) -> Axes:
@@ -1346,7 +1365,7 @@ class Axes3D:
 
         Axis annotation, shared with 2D. Unnamed fields reset to their defaults.
 
-        Keyword options (AxesStyle): background, spine_color, spine_linewidth, spine_bottom, spine_left, spine_top, spine_right, xaxis_y, xaxis_z, yaxis_x, yaxis_z, zaxis_x, zaxis_y, origin_x, origin_y, origin_z, frame_margin, show_xticks, show_yticks, show_zticks, show_xtick_labels, show_ytick_labels, tick_color, tick_length, tick_linewidth, minor_xticks, minor_yticks, minor_tick_length, label_color, label_fontsize, title_color, title_fontsize, xtitle_color, xtitle_fontsize, ytitle_color, ytitle_fontsize, ztitle_color, ztitle_fontsize, font_path.
+        Keyword options (AxesStyle): background, spine_color, spine_linewidth, spine_bottom, spine_left, spine_top, spine_right, xaxis_color, yaxis_color, xaxis_y, xaxis_z, yaxis_x, yaxis_z, zaxis_x, zaxis_y, origin_x, origin_y, origin_z, frame_margin, show_xticks, show_yticks, show_zticks, show_xtick_labels, show_ytick_labels, tick_color, tick_length, tick_linewidth, minor_xticks, minor_yticks, minor_tick_length, label_color, label_fontsize, xtick_color, ytick_color, ztick_color, xtick_length, ytick_length, ztick_length, xtick_linewidth, ytick_linewidth, ztick_linewidth, minor_xtick_length, minor_ytick_length, xlabel_color, ylabel_color, zlabel_color, xlabel_fontsize, ylabel_fontsize, zlabel_fontsize, title_color, title_fontsize, xtitle_color, xtitle_fontsize, ytitle_color, ytitle_fontsize, ztitle_color, ztitle_fontsize, font_path.
         """
 
     def set_box_style(self, **opts: Unpack[Box3DStyle]) -> Axes3D:

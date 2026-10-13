@@ -2,6 +2,7 @@
 
 import io
 import math
+import re
 import struct
 import sys
 import textwrap
@@ -592,6 +593,8 @@ def test_add_subplot_and_axes_share():
         plt.figure().add_subplot(111, projection="3d", sharex=a)
 
 
+
+
 def test_tick_params_and_label_outer():
     fig, axs = plt.subplots(2, 2)
     axs[0, 1].label_outer()
@@ -603,8 +606,45 @@ def test_tick_params_and_label_outer():
     plt.sca(axs[0, 0])
     plt.tick_params(labelleft=False, labelright=True)  # one y side in sextant: the last wins
     assert axs[0, 0]._style == {"show_ytick_labels": True}
-    with pytest.raises(TypeError, match="labelsize"):
-        axs[0, 0].tick_params(labelsize=8)
+    with pytest.raises(TypeError, match="direction"):
+        axs[0, 0].tick_params(direction="in")
+    with pytest.raises(ValueError, match="which"):
+        axs[0, 0].tick_params(which="all")
+
+
+def test_tick_params_styles_each_axis():
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    ax.tick_params(axis="y", colors="red", labelsize=14, length=6, width=2)
+    st = ax._style
+    assert st["ytick_color"] == st["ylabel_color"] == _mpl.to_rgba("red")
+    assert st["ylabel_fontsize"] == pytest.approx(14 * _mpl.PT)
+    assert st["ytick_length"] == pytest.approx(6 * _mpl.PT)
+    assert st["ytick_linewidth"] == pytest.approx(2 * _mpl.PT)
+    assert not any(k.startswith("x") for k in st)
+    ax.tick_params(axis="both", which="minor", length=2)
+    assert "minor_xtick_length" in ax._style and "minor_ytick_length" in ax._style
+    assert "xtick_length" not in ax._style
+    ax.tick_params(axis="x", color="blue", labelcolor="green")
+    assert ax._style["xtick_color"] == _mpl.to_rgba("blue")
+    assert ax._style["xlabel_color"] == _mpl.to_rgba("green")
+    svg = fig.core.render_svg()[0]
+    assert 'fill="rgb(255,0,0)"' in svg and 'fill="rgb(0,128,0)"' in svg
+
+
+def test_style_calls_keep_title_sizes():
+    # The sizes live in sextant's axes style, which a later style call sends whole.
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    ax.set_xlabel("XLAB", fontsize=30)
+    ax.set_title("TITLE", fontsize=20)
+    ax.tick_params(labelbottom=False)
+    ax.set_facecolor("white")
+    svg = fig.core.render_svg()[0]
+    assert re.search(r'font-size="41\.6667"[^>]*>XLAB<', svg)
+    assert re.search(r'font-size="27\.7778"[^>]*>TITLE<', svg)
+    ax.set_xlabel("XLAB")  # the default size again, as matplotlib's rcParams
+    assert "xtitle_fontsize" not in ax._style
 
 
 def test_twinx_like_matplotlib():
@@ -616,16 +656,61 @@ def test_twinx_like_matplotlib():
     # A matplotlib twin restarts the colour cycle at C0.
     tw.plot([0, 1], [3, 2])
     assert color_of(tw._log[-1]) == hexrgba(_mpl.TAB10[0])
-    # Its shared axis stays hidden through style changes, and through cla().
-    tw.set_facecolor("white")
-    assert tw._style["show_xticks"] is False
-    tw.cla()
-    assert tw._style == {"show_xticks": False}
-    ty = ax.twiny()
-    ty.set_yticks([])
-    assert ty._style["show_yticks"] is False
     with pytest.raises(ValueError):
         tw.twinx()
+
+
+def test_twin_calls_reach_the_host():
+    # sextant forwards a twin's shared-axis and cell calls to its host; the adapters
+    # keep each record where the library keeps the value.
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    ax.set_xticks([0.5], ["MID"])
+    ax.set_xlabel("XL", fontsize=20)
+    tw = ax.twinx()
+    tw.plot([0, 1], [3, 2])
+    # Style on the twin: the frame, background and x axis are the host's, its y its own.
+    tw.set_facecolor("white")
+    tw.tick_params(axis="both", colors="red")
+    assert "background" in ax._style and "background" not in tw._style
+    assert "xtick_color" in ax._style and "xtick_color" not in tw._style
+    assert "ytick_color" in tw._style and "ytick_color" not in ax._style
+    svg = fig.core.render_svg()[0]
+    # The host's x axis is still drawn, its label keeps its size, and it is drawn once.
+    assert ">MID<" in svg and svg.count(">XL<") == 1
+    assert re.search(r'font-size="27\.7778"[^>]*>XL<', svg)
+    # The twin's x label, ticks and title are the host's.
+    tw.set_xlabel("XT")
+    tw.set_xticks([0.25], ["Q"])
+    tw.set_title("T2")
+    assert ax.get_xlabel() == tw.get_xlabel() == "XT" and ax.get_title() == "T2"
+    assert ax._xticks is not None and tw._xticks is None
+    svg = fig.core.render_svg()[0]
+    assert svg.count(">XT<") == 1 and ">XL<" not in svg and ">Q<" in svg and ">MID<" not in svg
+    # axis('off') on the twin hides its own axis only.
+    tw.axis("off")
+    assert tw._style.get("show_yticks") is False and "show_xticks" not in ax._style
+    # cla() on the twin keeps the host's.
+    tw.cla()
+    assert tw._style == {}
+    svg = fig.core.render_svg()[0]
+    assert ">Q<" in svg and svg.count(">XT<") == 1
+    # A twiny's y calls likewise.
+    ty = ax.twiny()
+    ty.set_yticks([])
+    assert ax._style["show_yticks"] is False and "show_yticks" not in ty._style
+
+
+def test_twin_rebuild_keeps_the_host_style():
+    # A rebuild replays the twin's style calls, which reset the host's fields.
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    tw = ax.twinx()
+    tw.plot([0, 1], [3, 2])
+    tw.tick_params(axis="y", colors="red")
+    ax.set_facecolor((0.0, 0.0, 1.0))
+    tw._rebuild()
+    assert 'fill="#0000ff"' in fig.core.render_svg()[0]
 
 
 def test_set_aspect_like_matplotlib():
