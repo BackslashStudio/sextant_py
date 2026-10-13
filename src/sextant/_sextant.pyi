@@ -20,9 +20,11 @@ from typing_extensions import TypeAlias, Unpack
 
 LineStyleLike: TypeAlias = sextant._enums.LineStyle | Literal["solid", "dashed", "dotted", "dashdot", "none", "-", "--", ":", "-.", ""]
 MarkerStyleLike: TypeAlias = sextant._enums.MarkerStyle | Literal["none", "circle", "square", "triangle", "cross", "plus", "diamond", "o", "s", "^", "x", "+", "D", "d", ""]
-ColormapLike: TypeAlias = sextant._enums.Colormap | Literal["viridis", "plasma", "inferno", "magma", "cividis", "turbo", "coolwarm", "gray", "grey"]
+ColormapLike: TypeAlias = sextant._enums.Colormap | Literal["viridis", "plasma", "inferno", "magma", "cividis", "turbo", "coolwarm", "gray", "Blues", "Greens", "Reds", "Oranges", "Purples", "Greys", "YlOrRd", "YlGnBu", "hot", "jet", "RdBu", "Spectral", "BrBG", "PiYG", "twilight", "twilight_shifted", "hsv", "phase", "grey"] | str
 CapStyleLike: TypeAlias = sextant._enums.CapStyle | Literal["flat", "arrow"]
 AxisPositionLike: TypeAlias = sextant._enums.AxisPosition | Literal["auto", "low", "mid", "high"]
+ScaleLike: TypeAlias = sextant._enums.Scale | Literal["linear", "log", "symlog"]
+AdjustableLike: TypeAlias = sextant._enums.Adjustable | Literal["box", "datalim"]
 LegendAnchorLike: TypeAlias = sextant._enums.LegendAnchor | Literal["inside_tl", "inside_tr", "inside_bl", "inside_br", "outside_tl", "outside_tr", "outside_bl", "outside_br", "outside_lt", "outside_lb", "outside_rt", "outside_rb"]
 ColorbarAnchorLike: TypeAlias = sextant._enums.ColorbarAnchor | Literal["left", "right", "top", "bottom"]
 HAlignLike: TypeAlias = sextant._enums.HAlign | Literal["left", "center", "right", "centre"]
@@ -52,7 +54,7 @@ class FigureMargins(TypedDict, total=False):
     bottom: float
 
 class LineOptions(TypedDict, total=False):
-    color: str | tuple[float, ...]
+    color: str | tuple[float, ...] | None
     linewidth: float
     linestyle: LineStyleLike
     name: str
@@ -63,7 +65,7 @@ class LineOptions(TypedDict, total=False):
     hint_labels: collections.abc.Sequence[str]
 
 class ScatterOptions(TypedDict, total=False):
-    color: str | tuple[float, ...]
+    color: str | tuple[float, ...] | None
     size: float
     marker: MarkerStyleLike
     name: str
@@ -92,7 +94,7 @@ class ScatterZOptions(TypedDict, total=False):
     hint_labels: collections.abc.Sequence[str]
 
 class BarOptions(TypedDict, total=False):
-    color: str | tuple[float, ...]
+    color: str | tuple[float, ...] | None
     width: float
     alpha: float
     name: str
@@ -120,6 +122,13 @@ class GridOptions(TypedDict, total=False):
     color: str | tuple[float, ...]
     linestyle: LineStyleLike
     linewidth: float
+    minor: bool
+    minor_color: str | tuple[float, ...]
+
+class ScaleOptions(TypedDict, total=False):
+    base: float
+    linthresh: float
+    linscale: float
 
 class AxesStyle(TypedDict, total=False):
     background: str | tuple[float, ...]
@@ -142,9 +151,14 @@ class AxesStyle(TypedDict, total=False):
     show_xticks: bool
     show_yticks: bool
     show_zticks: bool
+    show_xtick_labels: bool | None
+    show_ytick_labels: bool | None
     tick_color: str | tuple[float, ...]
     tick_length: float
     tick_linewidth: float
+    minor_xticks: bool | None
+    minor_yticks: bool | None
+    minor_tick_length: float
     label_color: str | tuple[float, ...]
     label_fontsize: float
     title_color: str | tuple[float, ...]
@@ -258,7 +272,7 @@ class Plane2DOptions(TypedDict, total=False):
     visible: bool
 
 class Bar3DOptions(TypedDict, total=False):
-    color: str | tuple[float, ...]
+    color: str | tuple[float, ...] | None
     alpha: float
     width: float
     depth: float
@@ -273,7 +287,7 @@ class Bar3DOptions(TypedDict, total=False):
     hint_labels: collections.abc.Sequence[str]
 
 class SurfaceOptions(TypedDict, total=False):
-    color: str | tuple[float, ...]
+    color: str | tuple[float, ...] | None
     colormap: bool
     cmap: ColormapLike
     vmin: float
@@ -290,7 +304,7 @@ class SurfaceOptions(TypedDict, total=False):
     hint_labels: collections.abc.Sequence[str]
 
 class SurfaceTriOptions(TypedDict, total=False):
-    color: str | tuple[float, ...]
+    color: str | tuple[float, ...] | None
     cmap: ColormapLike
     vmin: float
     vmax: float
@@ -306,7 +320,7 @@ class SurfaceTriOptions(TypedDict, total=False):
     hint_labels: collections.abc.Sequence[str]
 
 class Scatter3DOptions(TypedDict, total=False):
-    color: str | tuple[float, ...]
+    color: str | tuple[float, ...] | None
     size: float
     marker: MarkerStyleLike
     alpha: float
@@ -324,7 +338,7 @@ class Scatter3DOptions(TypedDict, total=False):
     hint_labels: collections.abc.Sequence[str]
 
 class Line3DOptions(TypedDict, total=False):
-    color: str | tuple[float, ...]
+    color: str | tuple[float, ...] | None
     linewidth: float
     alpha: float
     loop: bool
@@ -821,7 +835,10 @@ class Axes:
         """
 
     def cla(self) -> Axes:
-        """Clear all plot objects (on Axes, also reset limits)."""
+        """
+        Clear all plot objects (on Axes, also reset limits, the color cycle and the
+        aspect; a shared axis stays shared).
+        """
 
     def line_count(self) -> int: ...
 
@@ -943,7 +960,7 @@ class Axes:
 
         Grid lines.
 
-        Keyword options (GridOptions): color, linestyle, linewidth.
+        Keyword options (GridOptions): color, linestyle, linewidth, minor, minor_color.
         """
 
     def set_axes_style(self, **opts: Unpack[AxesStyle]) -> Axes:
@@ -952,7 +969,7 @@ class Axes:
 
         Spines, ticks, labels and titles. Unnamed fields reset to their defaults.
 
-        Keyword options (AxesStyle): background, spine_color, spine_linewidth, spine_bottom, spine_left, spine_top, spine_right, xaxis_y, xaxis_z, yaxis_x, yaxis_z, zaxis_x, zaxis_y, origin_x, origin_y, origin_z, frame_margin, show_xticks, show_yticks, show_zticks, tick_color, tick_length, tick_linewidth, label_color, label_fontsize, title_color, title_fontsize, xtitle_color, xtitle_fontsize, ytitle_color, ytitle_fontsize, ztitle_color, ztitle_fontsize, font_path.
+        Keyword options (AxesStyle): background, spine_color, spine_linewidth, spine_bottom, spine_left, spine_top, spine_right, xaxis_y, xaxis_z, yaxis_x, yaxis_z, zaxis_x, zaxis_y, origin_x, origin_y, origin_z, frame_margin, show_xticks, show_yticks, show_zticks, show_xtick_labels, show_ytick_labels, tick_color, tick_length, tick_linewidth, minor_xticks, minor_yticks, minor_tick_length, label_color, label_fontsize, title_color, title_fontsize, xtitle_color, xtitle_fontsize, ytitle_color, ytitle_fontsize, ztitle_color, ztitle_fontsize, font_path.
         """
 
     def legend(self, **opts: Unpack[LegendOptions]) -> Axes:
@@ -977,6 +994,77 @@ class Axes:
 
     def set_yticks(self, positions: ArrayLike, labels: Sequence[str] = []) -> Axes: ...
 
+    def set_xscale(self, scale: ScaleLike, **opts: Unpack[ScaleOptions]) -> Axes:
+        """
+        set_xscale(scale, **opts)
+
+        The x axis' scale: 'linear', 'log' or 'symlog' (linear within +-linthresh, so it
+        takes 0 and negatives). Limits stay in data units. ValueError for options the
+        scale cannot use, and for log/symlog on an axes holding a heatmap.
+
+        Keyword options (ScaleOptions): base, linthresh, linscale.
+        """
+
+    def set_yscale(self, scale: ScaleLike, **opts: Unpack[ScaleOptions]) -> Axes:
+        """
+        set_yscale(scale, **opts)
+
+        set_xscale() for the y axis.
+
+        Keyword options (ScaleOptions): base, linthresh, linscale.
+        """
+
+    def set_xtick_format(self, fmt: str) -> Axes:
+        """
+        printf's format for one double, used for every x tick label: exactly one %f, %F,
+        %e, %E, %g or %G (flags, width, precision allowed) plus any %% and other text:
+        '%.1f', '%.0f%%', '$%.2g$ s'. ValueError otherwise. '' restores the default.
+        """
+
+    def set_ytick_format(self, fmt: str) -> Axes:
+        """set_xtick_format() for the y axis."""
+
+    def set_color_cycle(self, colors: Sequence[str | tuple[float, ...]]) -> Axes:
+        """
+        The colors an unset `color` takes in turn: line(), scatter(), bar(), hist().
+        Restarts from the first; [] restores the default, matplotlib's tab10. Objects
+        already plotted keep theirs. A twin shares its host's cycle.
+        """
+
+    def sharex(self, other: Axes) -> Axes:
+        """
+        Share the x axis with `other` (and every axes it shares it with): one set of
+        limits and one scale, moved together by setters, pan and zoom; this axes takes
+        other's. Inner tick labels hide by themselves (AxesStyle.show_xtick_labels).
+        ValueError for another figure's axes, or a heatmap's axes taking a log/symlog
+        scale. There is no unsharing.
+        """
+
+    def sharey(self, other: Axes) -> Axes:
+        """sharex() for the y axis."""
+
+    def twinx(self) -> Axes:
+        """
+        A second axes over this one's frame, sharing its x axis, its own y axis on the
+        right. The same object on every call. The cell's title, legend and colorbars
+        stay this axes' (set_title()/legend() on the twin set them; the legend lists
+        both axes' series); the twin continues this axes' color cycle. ValueError on a
+        twin.
+        """
+
+    def twiny(self) -> Axes:
+        """
+        twinx() with the axes swapped: shares the y axis, its own x axis at the top.
+        """
+
+    def set_aspect(self, ratio: float, adjustable: AdjustableLike = sextant._enums.Adjustable.BOX) -> Axes:
+        """
+        Draw one y unit `ratio` times as long as one x unit (1: equal; 0: auto, fill the
+        frame), in the scales' units. adjustable='box' shrinks the frame, 'datalim'
+        widens one axis' limits as drawn. ValueError for a negative or non-finite ratio,
+        on a twin, and for 'datalim' when both axes are shared. cla() resets it.
+        """
+
     def title(self) -> str: ...
 
     def xtitle(self) -> str: ...
@@ -987,6 +1075,15 @@ class Axes:
         """The x limits as drawn: set_xlim()'s, or the data's auto scale."""
 
     def ylim(self) -> tuple[float, float]: ...
+
+    def xscale(self) -> sextant._enums.Scale: ...
+
+    def yscale(self) -> sextant._enums.Scale: ...
+
+    def aspect(self) -> float:
+        """set_aspect()'s ratio; 0 is auto."""
+
+    def adjustable(self) -> sextant._enums.Adjustable: ...
 
 class Plane2D:
     """
@@ -1050,7 +1147,10 @@ class Plane2D:
         """
 
     def cla(self) -> Plane2D:
-        """Clear all plot objects (on Axes, also reset limits)."""
+        """
+        Clear all plot objects (on Axes, also reset limits, the color cycle and the
+        aspect; a shared axis stays shared).
+        """
 
     def line_count(self) -> int: ...
 
@@ -1237,7 +1337,7 @@ class Axes3D:
 
         Grid lines on the three back panes (on by default).
 
-        Keyword options (GridOptions): color, linestyle, linewidth.
+        Keyword options (GridOptions): color, linestyle, linewidth, minor, minor_color.
         """
 
     def set_axes_style(self, **opts: Unpack[AxesStyle]) -> Axes3D:
@@ -1246,7 +1346,7 @@ class Axes3D:
 
         Axis annotation, shared with 2D. Unnamed fields reset to their defaults.
 
-        Keyword options (AxesStyle): background, spine_color, spine_linewidth, spine_bottom, spine_left, spine_top, spine_right, xaxis_y, xaxis_z, yaxis_x, yaxis_z, zaxis_x, zaxis_y, origin_x, origin_y, origin_z, frame_margin, show_xticks, show_yticks, show_zticks, tick_color, tick_length, tick_linewidth, label_color, label_fontsize, title_color, title_fontsize, xtitle_color, xtitle_fontsize, ytitle_color, ytitle_fontsize, ztitle_color, ztitle_fontsize, font_path.
+        Keyword options (AxesStyle): background, spine_color, spine_linewidth, spine_bottom, spine_left, spine_top, spine_right, xaxis_y, xaxis_z, yaxis_x, yaxis_z, zaxis_x, zaxis_y, origin_x, origin_y, origin_z, frame_margin, show_xticks, show_yticks, show_zticks, show_xtick_labels, show_ytick_labels, tick_color, tick_length, tick_linewidth, minor_xticks, minor_yticks, minor_tick_length, label_color, label_fontsize, title_color, title_fontsize, xtitle_color, xtitle_fontsize, ytitle_color, ytitle_fontsize, ztitle_color, ztitle_fontsize, font_path.
         """
 
     def set_box_style(self, **opts: Unpack[Box3DStyle]) -> Axes3D:
@@ -1277,6 +1377,14 @@ class Axes3D:
         Style of every colorbar in the cell, planes' included.
 
         Keyword options (ColorbarOptions): anchor, width, margin, offset_x, offset_y, fontsize, text_color, border_color, border_linewidth, font_path.
+        """
+
+    def set_color_cycle(self, colors: Sequence[str | tuple[float, ...]]) -> Axes3D:
+        """
+        The colors an unset `color` takes in turn: bar3d(), surface(), surface_tri(),
+        scatter3d(), line3d() and the 2D calls on this axes' planes, which share it. A
+        colormapped object takes the next color without advancing. Restarts from the
+        first; [] restores the default, matplotlib's tab10.
         """
 
     def set_view(self, azimuth: float, elevation: float) -> Axes3D:
@@ -1672,6 +1780,19 @@ class Event:
     def zdata(self) -> float: ...
 
     @property
+    def x2data(self) -> float:
+        """
+        Over a 2D axes with a twiny(): the twin's x under (x, y); NaN without one.
+        xdata/ydata stay the host's (inaxes).
+        """
+
+    @property
+    def y2data(self) -> float:
+        """
+        Over a 2D axes with a twinx(): the twin's y under (x, y); NaN without one.
+        """
+
+    @property
     def scroll_x(self) -> float: ...
 
     @property
@@ -1717,6 +1838,13 @@ class Event:
     def pick_plane(self) -> int:
         """Axes3D.plane_at() index of the plane the picked object is on, or -1."""
 
+    @property
+    def pick_twin(self) -> int:
+        """
+        Whose object pick_object indexes in a 2D cell with twins: 0 inaxes' own,
+        1 inaxes.twinx()'s, 2 inaxes.twiny()'s.
+        """
+
     def __repr__(self) -> str: ...
 
 def set_message_handler(handler: Callable[[str], None] | None) -> Callable[[str], None] | None:
@@ -1733,3 +1861,19 @@ def poll_events() -> None:
 
 def run() -> None:
     """Block until every open figure has closed, delivering their events."""
+
+def register_colormap(name: str, colors: Sequence[str | tuple[float, ...]], cyclic: bool = False) -> sextant._enums.Colormap | str:
+    """
+    Add a colormap for the rest of the process, usable by name wherever cmap= is
+    taken (with '_r' for reversed): `colors` spread evenly from vmin to vmax,
+    interpolated linearly, alpha included. cyclic=True wraps values outside
+    [vmin, vmax] instead of clamping (give it equal first and last colors). Returns
+    the name. ValueError for fewer than two colors, an empty name, one ending in
+    '_r', or one already taken (any case). A registered map cannot be removed.
+    """
+
+def colormaps() -> list[str]:
+    """
+    Every colormap's name, without '_r': the built-ins, then the registered ones in
+    registration order.
+    """

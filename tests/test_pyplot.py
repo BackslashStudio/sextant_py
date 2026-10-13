@@ -461,6 +461,256 @@ def test_canvas_mpl_connect():
         fig.canvas.mpl_connect("draw_event", print)
 
 
+def twin_event(fig, host, **fields):
+    e = dict(kind=sextant.EventKind.PICK, x=10.0, y=100.0, inaxes=host.core, has_data=True, xdata=1.0,
+             ydata=2.0, x2data=math.nan, y2data=math.nan, key="", double_click=False, button=0,
+             scroll_y=0.0, width=0, height=0, pick_kind=sextant.PickKind.LINE, pick_object=0,
+             pick_index=0, pick_plane=-1, pick_twin=0)
+    e.update(fields)
+    return _mpl.MplEvent(fig, "pick_event", types.SimpleNamespace(**e))
+
+
+def test_events_over_a_twin_report_the_twin():
+    fig, ax = plt.subplots()
+    own = ax.plot([0, 1], [0, 1])[0]
+    tw = ax.twinx()
+    theirs = tw.plot([0, 1], [5, 6])[0]
+    # matplotlib's inaxes is the topmost axes, with ydata in its coordinates.
+    m = twin_event(fig, ax, y2data=5.5)
+    assert m.inaxes is tw and m.xdata == 1.0 and m.ydata == 5.5
+    # A pick on the twin's object (pick_twin=1) finds the twin's artist, not the host's.
+    assert m.artist is own
+    assert twin_event(fig, ax, pick_twin=1).artist is theirs
+    ty = ax.twiny()
+    m = twin_event(fig, ax, x2data=7.0, y2data=5.5)
+    assert m.inaxes is ty and m.xdata == 7.0 and m.ydata == 2.0  # the last twin made is on top
+
+
+# --- scales, ticks, sharing, twins, aspect (sextant 1.2) -------------------------------------
+
+def test_scales_like_matplotlib():
+    fig, ax = plt.subplots()
+    ax.set_xscale("log", base=2, nonpositive="clip", subs=[2])
+    assert ax.get_xscale() == "log" and ax.xaxis.get_scale() == "log"
+    plt.yscale("symlog", linthresh=0.1)
+    assert ax.get_yscale() == "symlog" and ax.core.yscale() == "symlog"
+    with pytest.raises(ValueError, match="'linear', 'log' and 'symlog'"):
+        ax.set_xscale("logit")
+    with pytest.raises(TypeError):
+        ax.set_xscale("log", basex=2)
+
+
+@pytest.mark.parametrize("fn, scales", [("semilogx", ("log", "linear")), ("semilogy", ("linear", "log")),
+                                        ("loglog", ("log", "log"))])
+def test_semilog_and_loglog(fn, scales):
+    lines = getattr(plt, fn)([1, 10, 100], [1, 10, 100], "r--", base=10)
+    ax = plt.gca()
+    assert (ax.get_xscale(), ax.get_yscale()) == scales and ax.core.line_count() == 1
+    assert len(lines) == 1
+
+
+@pytest.mark.parametrize("fmt, printf", [("{x:.1f}", "%.1f"), ("{x:+.2e} V", "%+.2e V"), ("{x}%", "%g%%"),
+                                         ("{x:d}", "%.0f"), ("%.3g", "%.3g"), ("{{{x:g}}}", "{%g}")])
+def test_tick_formats_become_printf(fmt, printf):
+    assert _mpl._printf_format(fmt) == printf
+
+
+def test_major_formatter():
+    fig, ax = plt.subplots()
+    class FormatStrFormatter:  # matplotlib's, by name and .fmt
+        fmt = "%.1f"
+
+    ax.xaxis.set_major_formatter("{x:.2f}")
+    ax.yaxis.set_major_formatter(FormatStrFormatter())
+    calls = [e for e in ax._log if e[0].endswith("tick_format")]
+    assert calls == [["set_xtick_format", ["%.2f"], {}], ["set_ytick_format", ["%.1f"], {}]]
+
+    class FuncFormatter:
+        pass
+
+    with pytest.raises(TypeError, match="FuncFormatter"):
+        ax.xaxis.set_major_formatter(FuncFormatter())
+    with pytest.raises(ValueError):
+        ax.xaxis.set_major_formatter("{pos}")
+    with pytest.raises(ValueError):
+        ax.xaxis.set_major_formatter("{x:,}")
+
+
+def test_minorticks_and_minor_grid():
+    fig, ax = plt.subplots()
+    plt.minorticks_on()
+    assert ax._style["minor_xticks"] is True and ax._style["minor_yticks"] is True
+    ax.grid(True)
+    ax.grid(which="minor", color="red")
+    assert ax._log[-1] == ["grid", [True], {"minor": True, "minor_color": (1.0, 0.0, 0.0, 1.0)}]
+    ax.grid(color="0.5")  # a later major grid() keeps the minor lines
+    assert ax._log[-1][2]["minor"] is True and ax._log[-1][2]["color"] == (0.5, 0.5, 0.5, 1.0)
+    ax.grid(False, which="both")
+    assert ax._log[-1][1] == [False] and ax._log[-1][2]["minor"] is False
+    plt.minorticks_off()
+    assert ax._style["minor_xticks"] is False
+    with pytest.raises(ValueError):
+        ax.grid(which="sub")
+
+
+@pytest.mark.parametrize("how, x_groups", [
+    (True, [[(0, 0), (0, 1), (1, 0), (1, 1)]]), ("all", [[(0, 0), (0, 1), (1, 0), (1, 1)]]),
+    ("col", [[(0, 0), (1, 0)], [(0, 1), (1, 1)]]), ("row", [[(0, 0), (0, 1)], [(1, 0), (1, 1)]])])
+def test_subplots_share(how, x_groups, recwarn):
+    fig, axs = plt.subplots(2, 2, sharex=how)
+    for i, (r, c) in enumerate([(0, 0), (0, 1), (1, 0), (1, 1)]):
+        axs[r, c].set_xlim(i, i + 10)
+        for group in x_groups:
+            if (r, c) in group:
+                assert all(axs[g].get_xlim() == (i, i + 10) for g in group)
+            else:
+                assert all(axs[g].get_xlim() != (i, i + 10) for g in group)
+    assert not recwarn.list  # no more "not supported" warning
+
+
+def test_subplots_share_y_and_bad_value():
+    fig, axs = plt.subplots(1, 3, sharey=True)
+    axs[2].set_ylim(-1, 1)
+    assert axs[0].get_ylim() == (-1, 1)
+    with pytest.raises(ValueError, match="sharex"):
+        plt.subplots(2, 2, sharex="diagonal")
+
+
+def test_add_subplot_and_axes_share():
+    fig = plt.figure()
+    a = fig.add_subplot(211)
+    b = fig.add_subplot(212, sharex=a)
+    c = plt.figure().add_subplot(111)
+    a.set_xlim(3, 4)
+    assert b.get_xlim() == (3, 4)
+    b.sharey(a)
+    a.set_ylim(5, 6)
+    assert b.get_ylim() == (5, 6)
+    with pytest.raises(ValueError):
+        c.sharex(a)
+    with pytest.raises(ValueError, match="2D axes only"):
+        plt.figure().add_subplot(111, projection="3d", sharex=a)
+
+
+def test_tick_params_and_label_outer():
+    fig, axs = plt.subplots(2, 2)
+    axs[0, 1].label_outer()
+    assert axs[0, 1]._style == {"show_xtick_labels": False, "show_ytick_labels": False}
+    axs[1, 0].label_outer()
+    assert axs[1, 0]._style == {}
+    axs[1, 1].tick_params(axis="x", labelbottom=False, labelleft=False)
+    assert axs[1, 1]._style == {"show_xtick_labels": False}
+    plt.sca(axs[0, 0])
+    plt.tick_params(labelleft=False, labelright=True)  # one y side in sextant: the last wins
+    assert axs[0, 0]._style == {"show_ytick_labels": True}
+    with pytest.raises(TypeError, match="labelsize"):
+        axs[0, 0].tick_params(labelsize=8)
+
+
+def test_twinx_like_matplotlib():
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    tw = plt.twinx()
+    assert plt.gca() is tw and tw in fig.axes and tw is ax.twinx()
+    assert tw.core is ax.core.twinx()
+    # A matplotlib twin restarts the colour cycle at C0.
+    tw.plot([0, 1], [3, 2])
+    assert color_of(tw._log[-1]) == hexrgba(_mpl.TAB10[0])
+    # Its shared axis stays hidden through style changes, and through cla().
+    tw.set_facecolor("white")
+    assert tw._style["show_xticks"] is False
+    tw.cla()
+    assert tw._style == {"show_xticks": False}
+    ty = ax.twiny()
+    ty.set_yticks([])
+    assert ty._style["show_yticks"] is False
+    with pytest.raises(ValueError):
+        tw.twinx()
+
+
+def test_set_aspect_like_matplotlib():
+    fig, ax = plt.subplots()
+    assert ax.get_aspect() == "auto" and ax.get_adjustable() == "box"
+    ax.set_aspect("equal")
+    assert ax.get_aspect() == 1.0 and ax.core.aspect() == 1.0
+    ax.set_aspect(2.5, adjustable="datalim")
+    assert ax.get_aspect() == 2.5 and ax.get_adjustable() == "datalim"
+    ax.set_aspect("equal")  # keeps the adjustable, as matplotlib does
+    assert ax.get_adjustable() == "datalim"
+    ax.set_adjustable("box")
+    assert ax.get_adjustable() == "box" and ax.get_aspect() == 1.0
+    ax.set_aspect("auto")
+    assert ax.get_aspect() == "auto"
+    with pytest.raises(ValueError):
+        ax.set_aspect("square")
+    with pytest.raises(ValueError):
+        ax.set_aspect(1, anchor="SW")
+    with pytest.raises(ValueError):
+        ax.twinx().set_aspect("equal")
+
+
+def test_axis_modes():
+    fig, ax = plt.subplots()
+    ax.plot([0, 4], [0, 1])
+    plt.axis("equal")
+    assert (ax.get_aspect(), ax.get_adjustable()) == (1.0, "datalim")
+    plt.axis("scaled")
+    assert (ax.get_aspect(), ax.get_adjustable()) == (1.0, "box")
+    lims = plt.axis("square")
+    assert lims[1] - lims[0] == pytest.approx(lims[3] - lims[2])
+    plt.axis("auto")
+    assert ax.get_aspect() == "auto"
+    assert plt.axis([0, 2, -1, 1]) == (0, 2, -1, 1)
+    assert ax.axis(xmax=3) == (0, 3, -1, 1)
+    plt.axis("off")
+    assert ax._style["show_xticks"] is False and ax._style["spine_left"] is False
+    plt.axis(True)
+    assert ax._style["show_yticks"] is True
+    with pytest.raises(ValueError):
+        plt.axis("tight")
+
+
+def test_imshow_keeps_the_frame_unless_aspect_is_given():
+    fig, ax = plt.subplots()
+    ax.imshow(np.ones((2, 8)))
+    assert ax.get_aspect() == "auto"
+    fig, ax = plt.subplots()
+    ax.imshow(np.ones((2, 8)), aspect="equal")
+    assert ax.get_aspect() == 1.0
+    fig, ax = plt.subplots()
+    ax.imshow(np.ones((2, 8)), aspect=0.5)
+    assert ax.get_aspect() == 0.5
+
+
+def test_set_prop_cycle():
+    fig, ax = plt.subplots()
+    ax.set_prop_cycle(color=["red", "k"])
+    ax.plot([0, 1])
+    ax.bar([0], [1])
+    ax.plot([0, 1])
+    ax.plot([0, 1])
+    lines = [color_of(e) for e in ax._log if e[0] == "line"]
+    assert lines == [(1, 0, 0, 1), (0, 0, 0, 1), (1, 0, 0, 1)]
+    assert color_of(next(e for e in ax._log if e[0] == "bar")) == (1, 0, 0, 1)
+
+    class Cycler:
+        def by_key(self):
+            return {"color": ["#00ff00"]}
+
+    ax.set_prop_cycle(Cycler())
+    ax.plot([0, 1])
+    assert color_of(ax._log[-1]) == (0, 1, 0, 1)
+    ax.set_prop_cycle(None)
+    ax.plot([0, 1])
+    assert color_of(ax._log[-1]) == hexrgba(_mpl.TAB10[0])
+    with pytest.raises(TypeError, match="colors only"):
+        ax.set_prop_cycle(linestyle=["-", "--"])
+    ax.set_prop_cycle(color=["red"])
+    ax.cla()
+    ax.plot([0, 1])
+    assert color_of(ax._log[-1]) == hexrgba(_mpl.TAB10[0])
+
+
 # --- showing ------------------------------------------------------------------------------
 
 @window

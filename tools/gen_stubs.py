@@ -35,7 +35,9 @@ def enum_aliases():
     for cls, table in native._enum_tables().items():
         values = list(table["names"]) + [a for a in table["aliases"] if a not in table["names"]]
         literal = ", ".join(json.dumps(v) for v in values)
-        out.append(f"{cls}Like: TypeAlias = sextant._enums.{cls} | Literal[{literal}]")
+        # An open set (Colormap: registered names, "_r") takes any str as well.
+        tail = " | str" if table.get("open") else ""
+        out.append(f"{cls}Like: TypeAlias = sextant._enums.{cls} | Literal[{literal}]{tail}")
     return out
 
 

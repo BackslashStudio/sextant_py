@@ -1,5 +1,6 @@
 #include "options.h"
 
+#include <cctype>
 #include <cmath>
 #include <exception>
 
@@ -47,6 +48,49 @@ namespace sextant_py {
                               static_cast<float>(v[2]), static_cast<float>(v[3])};
     }
 
+    const std::vector<sextant::Colormap>& builtin_colormaps() {
+        using C = sextant::Colormap;
+        static const std::vector<C> all{
+            C::Viridis, C::Plasma, C::Inferno, C::Magma, C::Cividis, C::Turbo, C::Coolwarm, C::Gray,
+            C::Blues, C::Greens, C::Reds, C::Oranges, C::Purples, C::Greys, C::YlOrRd, C::YlGnBu,
+            C::Hot, C::Jet, C::RdBu, C::Spectral, C::BrBG, C::PiYG,
+            C::Twilight, C::TwilightShifted, C::Hsv, C::Phase};
+        return all;
+    }
+
+    std::optional<sextant::Colormap> colormap_from_python(nb::handle h) noexcept {
+        PyObject* o = h.ptr();
+        PyObject* name = nullptr; // new reference when not `o` itself
+        if (!PyUnicode_Check(o)) {
+            // A matplotlib Colormap (or anything else carrying its name).
+            name = PyObject_GetAttrString(o, "name");
+            if (!name || !PyUnicode_Check(name)) {
+                Py_XDECREF(name);
+                PyErr_Clear();
+                return std::nullopt;
+            }
+            o = name;
+        }
+        Py_ssize_t n = 0;
+        const char* s = PyUnicode_AsUTF8AndSize(o, &n);
+        std::string text = s ? std::string(s, static_cast<std::size_t>(n)) : std::string();
+        Py_XDECREF(name);
+        if (!s) {
+            PyErr_Clear();
+            return std::nullopt;
+        }
+        // matplotlib's spelling of gray, which sextant does not take.
+        std::string lower = text;
+        for (char& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        if (lower == "grey") text = "gray";
+        else if (lower == "grey_r") text = "gray_r";
+        try {
+            return sextant::Colormap::from_name(text);
+        } catch (const std::exception&) {
+            return std::nullopt;
+        }
+    }
+
     PyObject* enum_member(const char* cls, std::string_view value) noexcept {
         PyObject* str = PyUnicode_FromStringAndSize(value.data(), static_cast<Py_ssize_t>(value.size()));
         if (!str) return nullptr;
@@ -80,15 +124,31 @@ namespace sextant_py {
             entry["aliases"] = aliases;
             d[EnumNames<E>::py_name] = entry;
         }
+
+        // Colormap is a class, not an enum: its table holds the built-ins (the
+        // _enums members) and is open, since any registered name is taken too.
+        void add_colormaps(nb::dict& d) {
+            nb::list names;
+            for (const auto& c : builtin_colormaps()) names.append(c.name());
+            nb::dict aliases;
+            aliases["grey"] = "gray";
+            nb::dict entry;
+            entry["names"] = names;
+            entry["aliases"] = aliases;
+            entry["open"] = true;
+            d["Colormap"] = entry;
+        }
     } // namespace
 
     nb::dict enum_tables() {
         nb::dict d;
         add_enum<sextant::LineStyle>(d);
         add_enum<sextant::MarkerStyle>(d);
-        add_enum<sextant::Colormap>(d);
+        add_colormaps(d);
         add_enum<sextant::CapStyle>(d);
         add_enum<sextant::AxisPosition>(d);
+        add_enum<sextant::Scale>(d);
+        add_enum<sextant::Adjustable>(d);
         add_enum<sextant::LegendAnchor>(d);
         add_enum<sextant::ColorbarAnchor>(d);
         add_enum<sextant::HAlign>(d);
@@ -123,6 +183,7 @@ namespace sextant_py {
         add_fields<sextant::BarOptions>(d);
         add_fields<sextant::HeatmapOptions>(d);
         add_fields<sextant::GridOptions>(d);
+        add_fields<sextant::ScaleOptions>(d);
         add_fields<sextant::AxesStyle>(d);
         add_fields<sextant::LegendOptions>(d);
         add_fields<sextant::ColorbarOptions>(d);

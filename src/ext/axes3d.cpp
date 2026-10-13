@@ -328,6 +328,15 @@ namespace sextant_py {
                      return chain(self, [&](Axes3D& ax) { ax.set_colorbar_style(std::move(o)); });
                  },
                  "opts"_a, colorbar_doc.c_str())
+            .def("set_color_cycle",
+                 [](Self self, std::vector<sextant::Color> colors) {
+                     return chain(self, [&](Axes3D& ax) { ax.set_color_cycle(std::move(colors)); });
+                 },
+                 "colors"_a,
+                 "The colors an unset `color` takes in turn: bar3d(), surface(), surface_tri(),\n"
+                 "scatter3d(), line3d() and the 2D calls on this axes' planes, which share it. A\n"
+                 "colormapped object takes the next color without advancing. Restarts from the\n"
+                 "first; [] restores the default, matplotlib's tab10.")
 
             // --- camera ----------------------------------------------------
             .def("set_view",

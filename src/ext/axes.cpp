@@ -31,6 +31,13 @@ namespace sextant_py {
             return p;
         }
 
+        // sharex()/sharey() take only an axes of the same figure: another
+        // figure's graph is under another lock, so it is refused before the call.
+        void same_figure(const PyAxes& self, const PyAxes& other, const char* what) {
+            if (self.st != other.st)
+                throw nb::value_error((std::string(what) + ": the axes belong to different figures").c_str());
+        }
+
         template <class T>
         std::string opts_doc(const char* signature, const char* text) {
             return std::string(signature) + "\n\n" + text + "\n\nKeyword options (" + Fields<T>::name +
@@ -123,7 +130,8 @@ namespace sextant_py {
                      },
                      "data"_a, "opts"_a, imshow_doc.c_str())
                 .def("cla", [](Self self) { return chain(self, [](T& t) { t.cla(); }); },
-                     "Clear all plot objects (on Axes, also reset limits).")
+                     "Clear all plot objects (on Axes, also reset limits, the color cycle and the\n"
+                     "aspect; a shared axis stays shared).")
 
                 // --- read-back ---------------------------------------------
                 .def("line_count", [](W& w) { return read(w, [](T& t) { return t.line_count(); }); })
@@ -264,6 +272,14 @@ namespace sextant_py {
             "set_colorbar_style(**opts)", "Style shared by this axes' colorbars; a colorbar itself is asked for "
                                           "with colorbar=True on heatmap/scatter_z.");
 
+        static const std::string xscale_doc = opts_doc<sextant::ScaleOptions>(
+            "set_xscale(scale, **opts)",
+            "The x axis' scale: 'linear', 'log' or 'symlog' (linear within +-linthresh, so it\n"
+            "takes 0 and negatives). Limits stay in data units. ValueError for options the\n"
+            "scale cannot use, and for log/symlog on an axes holding a heatmap.");
+        static const std::string yscale_doc =
+            opts_doc<sextant::ScaleOptions>("set_yscale(scale, **opts)", "set_xscale() for the y axis.");
+
         nb::class_<PyAxes> cls(m, "Axes", nb::is_weak_referenceable());
         bind_plot2d<Axes>(cls);
         cls.def("hist",
@@ -389,6 +405,77 @@ namespace sextant_py {
                      return chain(self, [&](Axes& ax) { ax.set_yticks(positions.span(), std::move(labels)); });
                  },
                  "positions"_a, "labels"_a = std::vector<std::string>{})
+            .def("set_xscale",
+                 [](Self self, sextant::Scale scale, const nb::kwargs& kw) {
+                     auto o = options<sextant::ScaleOptions>("set_xscale()", kw);
+                     return chain(self, [&](Axes& ax) { ax.set_xscale(scale, o); });
+                 },
+                 "scale"_a, "opts"_a, xscale_doc.c_str())
+            .def("set_yscale",
+                 [](Self self, sextant::Scale scale, const nb::kwargs& kw) {
+                     auto o = options<sextant::ScaleOptions>("set_yscale()", kw);
+                     return chain(self, [&](Axes& ax) { ax.set_yscale(scale, o); });
+                 },
+                 "scale"_a, "opts"_a, yscale_doc.c_str())
+            .def("set_xtick_format",
+                 [](Self self, std::string fmt) { return chain(self, [&](Axes& ax) { ax.set_xtick_format(fmt); }); },
+                 "fmt"_a,
+                 "printf's format for one double, used for every x tick label: exactly one %f, %F,\n"
+                 "%e, %E, %g or %G (flags, width, precision allowed) plus any %% and other text:\n"
+                 "'%.1f', '%.0f%%', '$%.2g$ s'. ValueError otherwise. '' restores the default.")
+            .def("set_ytick_format",
+                 [](Self self, std::string fmt) { return chain(self, [&](Axes& ax) { ax.set_ytick_format(fmt); }); },
+                 "fmt"_a, "set_xtick_format() for the y axis.")
+            .def("set_color_cycle",
+                 [](Self self, std::vector<sextant::Color> colors) {
+                     return chain(self, [&](Axes& ax) { ax.set_color_cycle(std::move(colors)); });
+                 },
+                 "colors"_a,
+                 "The colors an unset `color` takes in turn: line(), scatter(), bar(), hist().\n"
+                 "Restarts from the first; [] restores the default, matplotlib's tab10. Objects\n"
+                 "already plotted keep theirs. A twin shares its host's cycle.")
+            .def("sharex",
+                 [](Self self, PyAxes& other) {
+                     same_figure(*self.p, other, "sharex()");
+                     return chain(self, [&](Axes& ax) { ax.sharex(*other.obj); });
+                 },
+                 "other"_a,
+                 "Share the x axis with `other` (and every axes it shares it with): one set of\n"
+                 "limits and one scale, moved together by setters, pan and zoom; this axes takes\n"
+                 "other's. Inner tick labels hide by themselves (AxesStyle.show_xtick_labels).\n"
+                 "ValueError for another figure's axes, or a heatmap's axes taking a log/symlog\n"
+                 "scale. There is no unsharing.")
+            .def("sharey",
+                 [](Self self, PyAxes& other) {
+                     same_figure(*self.p, other, "sharey()");
+                     return chain(self, [&](Axes& ax) { ax.sharey(*other.obj); });
+                 },
+                 "other"_a, "sharex() for the y axis.")
+            .def("twinx",
+                 [](PyAxes& a) {
+                     auto twin = read(a, [](Axes& ax) { return ax.twinx(); });
+                     return wrap<PyAxes>(a.st, std::move(twin));
+                 },
+                 "A second axes over this one's frame, sharing its x axis, its own y axis on the\n"
+                 "right. The same object on every call. The cell's title, legend and colorbars\n"
+                 "stay this axes' (set_title()/legend() on the twin set them; the legend lists\n"
+                 "both axes' series); the twin continues this axes' color cycle. ValueError on a\n"
+                 "twin.")
+            .def("twiny",
+                 [](PyAxes& a) {
+                     auto twin = read(a, [](Axes& ax) { return ax.twiny(); });
+                     return wrap<PyAxes>(a.st, std::move(twin));
+                 },
+                 "twinx() with the axes swapped: shares the y axis, its own x axis at the top.")
+            .def("set_aspect",
+                 [](Self self, double ratio, sextant::Adjustable adjustable) {
+                     return chain(self, [&](Axes& ax) { ax.set_aspect(ratio, adjustable); });
+                 },
+                 "ratio"_a, "adjustable"_a = sextant::Adjustable::Box,
+                 "Draw one y unit `ratio` times as long as one x unit (1: equal; 0: auto, fill the\n"
+                 "frame), in the scales' units. adjustable='box' shrinks the frame, 'datalim'\n"
+                 "widens one axis' limits as drawn. ValueError for a negative or non-finite ratio,\n"
+                 "on a twin, and for 'datalim' when both axes are shared. cla() resets it.")
 
             // --- read-back -------------------------------------------------
             .def("title", [](PyAxes& a) { return read(a, [](Axes& ax) { return ax.title(); }); })
@@ -396,7 +483,12 @@ namespace sextant_py {
             .def("ytitle", [](PyAxes& a) { return read(a, [](Axes& ax) { return ax.ytitle(); }); })
             .def("xlim", [](PyAxes& a) { return read(a, [](Axes& ax) { return ax.xlim(); }); },
                  "The x limits as drawn: set_xlim()'s, or the data's auto scale.")
-            .def("ylim", [](PyAxes& a) { return read(a, [](Axes& ax) { return ax.ylim(); }); });
+            .def("ylim", [](PyAxes& a) { return read(a, [](Axes& ax) { return ax.ylim(); }); })
+            .def("xscale", [](PyAxes& a) { return read(a, [](Axes& ax) { return ax.xscale(); }); })
+            .def("yscale", [](PyAxes& a) { return read(a, [](Axes& ax) { return ax.yscale(); }); })
+            .def("aspect", [](PyAxes& a) { return read(a, [](Axes& ax) { return ax.aspect(); }); },
+                 "set_aspect()'s ratio; 0 is auto.")
+            .def("adjustable", [](PyAxes& a) { return read(a, [](Axes& ax) { return ax.adjustable(); }); });
     }
 
     void bind_plane(nb::module_& m) {

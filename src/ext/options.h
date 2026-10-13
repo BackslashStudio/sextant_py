@@ -67,6 +67,7 @@ namespace sextant_py {
         if constexpr (is_named_enum<F>) return "one of " + enum_choices<F>();
         else if constexpr (std::is_same_v<F, sextant::Color> || std::is_same_v<F, std::optional<sextant::Color>>)
             return kColorHint;
+        else if constexpr (std::is_same_v<F, sextant::Colormap>) return kColormapHint;
         else return input_side(nb::detail::make_caster<F>::Name.text);
     }
 
@@ -157,13 +158,16 @@ namespace sextant_py {
                        F(cmap), F(vmin), F(vmax), F(colorbar), F(name), F(origin), F(contours),
                        F(contour_color), F(contour_linewidth), F(contour_labels),
                        F(contour_fontsize), F(hint_labels))
-    SEXTANT_PY_OPTIONS(GridOptions, F(color), F(linestyle), F(linewidth))
+    SEXTANT_PY_OPTIONS(GridOptions, F(color), F(linestyle), F(linewidth), F(minor), F(minor_color))
+    SEXTANT_PY_OPTIONS(ScaleOptions, F(base), F(linthresh), F(linscale))
     SEXTANT_PY_OPTIONS(AxesStyle,
                        F(background), F(spine_color), F(spine_linewidth), F(spine_bottom), F(spine_left),
                        F(spine_top), F(spine_right), F(xaxis_y), F(xaxis_z), F(yaxis_x),
                        F(yaxis_z), F(zaxis_x), F(zaxis_y), F(origin_x), F(origin_y), F(origin_z),
-                       F(frame_margin), F(show_xticks), F(show_yticks), F(show_zticks), F(tick_color),
-                       F(tick_length), F(tick_linewidth),
+                       F(frame_margin), F(show_xticks), F(show_yticks), F(show_zticks),
+                       F(show_xtick_labels), F(show_ytick_labels), F(tick_color),
+                       F(tick_length), F(tick_linewidth), F(minor_xticks), F(minor_yticks),
+                       F(minor_tick_length),
                        F(label_color), F(label_fontsize), F(title_color), F(title_fontsize),
                        F(xtitle_color), F(xtitle_fontsize), F(ytitle_color), F(ytitle_fontsize),
                        F(ztitle_color), F(ztitle_fontsize), F(font_path))

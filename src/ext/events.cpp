@@ -139,7 +139,9 @@ namespace sextant_py {
                 out += ", x=" + num(e.x) + ", y=" + num(e.y) + ", axes=" + std::to_string(e.axes);
                 if (e.has_data)
                     out += ", xdata=" + num(e.xdata) + ", ydata=" + num(e.ydata) +
-                           (std::isnan(e.zdata) ? "" : ", zdata=" + num(e.zdata));
+                           (std::isnan(e.zdata) ? "" : ", zdata=" + num(e.zdata)) +
+                           (std::isnan(e.x2data) ? "" : ", x2data=" + num(e.x2data)) +
+                           (std::isnan(e.y2data) ? "" : ", y2data=" + num(e.y2data));
             }
             if (e.kind == K::MouseDown || e.kind == K::MouseUp || e.kind == K::Pick)
                 out += ", button=" + std::to_string(e.button) + (e.double_click ? ", double_click=True" : "");
@@ -151,6 +153,7 @@ namespace sextant_py {
                        std::to_string(e.pick_object) + ", pick_index=" + std::to_string(e.pick_index);
                 if (e.pick_row >= 0) out += ", pick_row=" + std::to_string(e.pick_row) + ", pick_col=" + std::to_string(e.pick_col);
                 if (e.pick_plane >= 0) out += ", pick_plane=" + std::to_string(e.pick_plane);
+                if (e.pick_twin != 0) out += ", pick_twin=" + std::to_string(e.pick_twin);
             }
             if (e.consumed != sextant::EventConsumed::None)
                 out += ", consumed='" + std::string(enum_to_string(e.consumed)) + "'";
@@ -186,6 +189,11 @@ namespace sextant_py {
             .def_prop_ro("xdata", [](const PyEvent& ev) { return ev.e.xdata; })
             .def_prop_ro("ydata", [](const PyEvent& ev) { return ev.e.ydata; })
             .def_prop_ro("zdata", [](const PyEvent& ev) { return ev.e.zdata; })
+            .def_prop_ro("x2data", [](const PyEvent& ev) { return ev.e.x2data; },
+                         "Over a 2D axes with a twiny(): the twin's x under (x, y); NaN without one.\n"
+                         "xdata/ydata stay the host's (inaxes).")
+            .def_prop_ro("y2data", [](const PyEvent& ev) { return ev.e.y2data; },
+                         "Over a 2D axes with a twinx(): the twin's y under (x, y); NaN without one.")
             .def_prop_ro("scroll_x", [](const PyEvent& ev) { return ev.e.scroll_x; })
             .def_prop_ro("scroll_y", [](const PyEvent& ev) { return ev.e.scroll_y; },
                          "Wheel notches, positive away from the user; queued ones are summed.")
@@ -204,6 +212,9 @@ namespace sextant_py {
             .def_prop_ro("pick_col", [](const PyEvent& ev) { return ev.e.pick_col; })
             .def_prop_ro("pick_plane", [](const PyEvent& ev) { return ev.e.pick_plane; },
                          "Axes3D.plane_at() index of the plane the picked object is on, or -1.")
+            .def_prop_ro("pick_twin", [](const PyEvent& ev) { return ev.e.pick_twin; },
+                         "Whose object pick_object indexes in a 2D cell with twins: 0 inaxes' own,\n"
+                         "1 inaxes.twinx()'s, 2 inaxes.twiny()'s.")
             .def("__repr__", &repr);
 
         fig.def("connect",

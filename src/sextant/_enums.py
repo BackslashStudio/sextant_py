@@ -57,6 +57,14 @@ class MarkerStyle(_Named):
 
 
 class Colormap(_Named):
+    """The built-in colormaps, by matplotlib's names.
+
+    The set is open: ``cmap=`` also takes any name ``sextant.colormaps()`` lists
+    (registered ones included, see ``sextant.register_colormap()``), any of them
+    with ``"_r"`` for reversed (``cmap="RdBu_r"``), and a matplotlib Colormap
+    object by its ``.name``. Cyclic: TWILIGHT, TWILIGHT_SHIFTED, HSV, PHASE.
+    """
+
     VIRIDIS = "viridis"
     PLASMA = "plasma"
     INFERNO = "inferno"
@@ -65,6 +73,24 @@ class Colormap(_Named):
     TURBO = "turbo"
     COOLWARM = "coolwarm"
     GRAY = "gray"
+    BLUES = "Blues"
+    GREENS = "Greens"
+    REDS = "Reds"
+    ORANGES = "Oranges"
+    PURPLES = "Purples"
+    GREYS = "Greys"
+    YLORRD = "YlOrRd"
+    YLGNBU = "YlGnBu"
+    HOT = "hot"
+    JET = "jet"
+    RDBU = "RdBu"
+    SPECTRAL = "Spectral"
+    BRBG = "BrBG"
+    PIYG = "PiYG"
+    TWILIGHT = "twilight"
+    TWILIGHT_SHIFTED = "twilight_shifted"
+    HSV = "hsv"
+    PHASE = "phase"
 
 
 class CapStyle(_Named):
@@ -77,6 +103,21 @@ class AxisPosition(_Named):
     LOW = "low"
     MID = "mid"
     HIGH = "high"
+
+
+class Scale(_Named):
+    """An axis' scale (Axes.set_xscale())."""
+
+    LINEAR = "linear"
+    LOG = "log"
+    SYMLOG = "symlog"
+
+
+class Adjustable(_Named):
+    """What Axes.set_aspect() changes to keep its ratio: the frame or the limits."""
+
+    BOX = "box"
+    DATALIM = "datalim"
 
 
 class LegendAnchor(_Named):
@@ -183,6 +224,7 @@ class EventConsumed(_Named):
 
 
 __all__ = [
+    "Adjustable",
     "ArrowHead",
     "AxisPosition",
     "CapStyle",
@@ -199,5 +241,6 @@ __all__ = [
     "PanelTheme",
     "PlaneOrientation",
     "Projection",
+    "Scale",
     "VAlign",
 ]

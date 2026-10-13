@@ -17,6 +17,7 @@ record. Data updates (``set_data``, ``set_ydata``, ...) go straight to the core
 
 import math
 import re
+import string
 import sys
 import time
 import warnings
@@ -69,7 +70,7 @@ _LOC_CODES = ["best", "upper right", "upper left", "lower left", "lower right", 
 _IGNORED = {"zorder", "antialiased", "aa", "rasterized", "clip_on", "picker", "pickradius", "gid",
             "url", "snap", "animated", "solid_capstyle", "solid_joinstyle", "dash_capstyle",
             "dash_joinstyle", "markeredgecolor", "mec", "markeredgewidth", "mew", "interpolation",
-            "aspect", "filternorm", "resample", "rstride", "cstride", "ccount", "rcount",
+            "filternorm", "resample", "rstride", "cstride", "ccount", "rcount",
             "antialiaseds", "shade_surface"}
 
 MOUSE_BUTTONS = {0: 1, 1: 3, 2: 2}  # sextant left/right/middle -> matplotlib 1/3/2
@@ -623,7 +624,9 @@ class _AxesBase:
         self._artists = {}  # (kind, index) -> artist, for pick events
         self._line_cycle = 0
         self._patch_cycle = 0
+        self._cycle = None  # set_prop_cycle()'s colours; None is tab10
         self._grid_on = isinstance(self, Axes3D)
+        self._grid_minor = {}  # grid(which='minor'): minor / minor_color, kept across grid() calls
         self._xticks = self._yticks = self._zticks = None
         self._style = {}  # AxesStyle fields set through this adapter (set_axes_style takes the whole struct)
         self.transData = _Transform("data")
@@ -664,18 +667,46 @@ class _AxesBase:
         self.figure._changed()
 
     def _next_color(self, patches=False):
+        # matplotlib's rule, not sextant's single per-axes cycle: lines and
+        # patches count separately, so every call passes its colour explicitly.
         if patches:
             i, self._patch_cycle = self._patch_cycle, self._patch_cycle + 1
         else:
             i, self._line_cycle = self._line_cycle, self._line_cycle + 1
+        if self._cycle is not None:
+            return self._cycle[i % len(self._cycle)]
         return _hex(TAB10[i % 10])
+
+    def set_prop_cycle(self, *args, **kw):
+        """set_prop_cycle(color=[...]), set_prop_cycle(cycler(color=[...])) or
+        set_prop_cycle(None) (back to tab10). Colours only: sextant cycles nothing else.
+        Restarts the cycle, as matplotlib does."""
+        if len(args) == 1 and args[0] is None and not kw:
+            colors = None
+        else:
+            if len(args) == 1 and hasattr(args[0], "by_key"):  # a cycler
+                kw = {**args[0].by_key(), **kw}
+            elif len(args) == 2:
+                kw = {args[0]: args[1], **kw}
+            elif args:
+                raise TypeError("set_prop_cycle(): a cycler, None, or color=[...]")
+            colors = _pop(kw, "color", "c")
+            if kw:
+                raise TypeError(f"set_prop_cycle(): sextant cycles colors only, not {sorted(kw)}")
+            if colors is None or not len(colors):
+                raise ValueError("set_prop_cycle(): color= needs at least one colour")
+            colors = [to_rgba(c) for c in colors]
+        self._cycle = colors
+        self._line_cycle = self._patch_cycle = 0
 
     def cla(self):
         self.core.cla()
         self._log.clear()
         self._artists.clear()
         self._line_cycle = self._patch_cycle = 0
+        self._cycle = None
         self._grid_on = isinstance(self, Axes3D)
+        self._grid_minor = {}
         self._style.clear()
         self.figure._changed()
 
@@ -798,10 +829,27 @@ class _AxesBase:
             opts["linewidth"] = float(lw) * PT
         if kw:
             raise TypeError(f"grid(): unsupported keyword(s) {sorted(kw)}")
-        if visible is None:
-            visible = True if opts else not self._grid_on
-        self._grid_on = bool(visible)
-        self._call("grid", self._grid_on, **opts)
+        if which not in ("major", "minor", "both"):
+            raise ValueError(f"grid(): which must be 'major', 'minor' or 'both', not {which!r}")
+        if which == "minor":
+            # sextant's minor lines take the major lines' style and width, and come
+            # with the major grid: which='minor' sets their visibility and colour.
+            if visible is None:
+                visible = True if opts else not self._grid_minor.get("minor", False)
+            self._grid_minor["minor"] = bool(visible)
+            if "color" in opts:
+                self._grid_minor["minor_color"] = opts.pop("color")
+            on = self._grid_on or self._grid_minor["minor"]
+        else:
+            if visible is None:
+                visible = True if opts else not self._grid_on
+            self._grid_on = bool(visible)
+            if which == "both":
+                self._grid_minor["minor"] = self._grid_on
+                if "color" in opts:
+                    self._grid_minor["minor_color"] = opts["color"]
+            on = self._grid_on
+        self._call("grid", on, **opts, **self._grid_minor)
 
     def legend(self, *args, loc=None, fontsize=None, frameon=None, **kw):
         for k in ("bbox_to_anchor", "ncol", "ncols", "title", "shadow", "fancybox", "framealpha",
@@ -845,6 +893,13 @@ class Axes(_AxesBase):
     """A 2D axes, matplotlib style, over a core sextant.Axes (``.core``)."""
 
     _SERIES = {"line", "scatter", "scatter_z", "bar"}
+
+    def __init__(self, figure, core):
+        super().__init__(figure, core)
+        self._span = None  # ((rows, cols), first cell, last cell) on the figure's grid
+        self._twins = {}  # "x"/"y" -> the twinx()/twiny() adapter, in the order made
+        self._host = None  # on a twin: the axes it twins
+        self._shared = None  # on a twin: the axis it shares with its host, "x" or "y"
 
     # --- plot --------------------------------------------------------------------
 
@@ -1072,7 +1127,9 @@ class Axes(_AxesBase):
         return _sextant.ErrorBar(x_cap_lo=xlo, x_cap_hi=xhi, y_cap_lo=ylo, y_cap_hi=yhi)
 
     def imshow(self, X, cmap=None, vmin=None, vmax=None, origin=None, extent=None, alpha=None,
-               label=None, colorbar=False, **kw):
+               label=None, colorbar=False, aspect=None, **kw):
+        """matplotlib's imshow() for 2-D scalar data. Unlike matplotlib, the frame keeps
+        its shape unless aspect= is given ('equal', 'auto' or a number; see set_aspect())."""
         _drop_ignored(kw)
         kw.pop("norm", None)
         a = np.asarray(X, dtype=float)
@@ -1098,6 +1155,8 @@ class Axes(_AxesBase):
             i, entry = self._add("heatmap", "heatmap", a, (left, right), (bottom, top), origin=origin, **opts)
         if alpha is not None:
             warnings.warn("imshow(): alpha is not supported by sextant heatmaps; ignored", stacklevel=2)
+        if aspect is not None:
+            self.set_aspect(aspect)
         handle = AxesImage(self, "heatmap", i, entry, label)
         self.figure._mappable = handle
         return handle
@@ -1169,6 +1228,259 @@ class Axes(_AxesBase):
         i, entry = self._add("text", "annotate", px, py, str(text), tx, ty, coords=coords,
                              arrow=_arrow_opts(arrowprops), **opts)
         return Text(self, i, entry, (2, 3, 4))
+
+    # --- scales and tick labels ------------------------------------------------------
+
+    def _scale(self, axis, value, kw):
+        for k in ("subs", "nonpositive", "nonposx", "nonposy"):  # log clips v <= 0 by itself
+            kw.pop(k, None)
+        opts = {k: float(kw.pop(k)) for k in ("base", "linthresh", "linscale") if k in kw}
+        if kw:
+            raise TypeError(f"set_{axis}scale(): unsupported keyword(s) {sorted(kw)}")
+        if not isinstance(value, str) or value not in ("linear", "log", "symlog"):
+            raise ValueError(f"set_{axis}scale(): sextant draws 'linear', 'log' and 'symlog' axes, not {value!r}")
+        self._call(f"set_{axis}scale", value, **opts)
+
+    def set_xscale(self, value, **kw):
+        self._scale("x", value, kw)
+
+    def set_yscale(self, value, **kw):
+        self._scale("y", value, kw)
+
+    def get_xscale(self):
+        return self.core.xscale().value
+
+    def get_yscale(self):
+        return self.core.yscale().value
+
+    def _log_plot(self, axes, args, kw):
+        scale = {k: kw.pop(k) for k in ("base", "subs", "nonpositive") if k in kw}
+        for axis in axes:
+            self._scale(axis, "log", dict(scale))
+        return self.line(*args, **kw)
+
+    def semilogx(self, *args, **kw):
+        """plot() on a log x axis: base=, subs= and nonpositive= go to the scale."""
+        return self._log_plot("x", args, kw)
+
+    def semilogy(self, *args, **kw):
+        return self._log_plot("y", args, kw)
+
+    def loglog(self, *args, **kw):
+        return self._log_plot("xy", args, kw)
+
+    @property
+    def xaxis(self):
+        return _Axis(self, "x")
+
+    @property
+    def yaxis(self):
+        return _Axis(self, "y")
+
+    def minorticks_on(self):
+        self._set_style(minor_xticks=True, minor_yticks=True)
+
+    def minorticks_off(self):
+        self._set_style(minor_xticks=False, minor_yticks=False)
+
+    def tick_params(self, axis="both", which="major", reset=False, **kw):
+        """Tick-label visibility only: labelbottom/labeltop for the x labels,
+        labelleft/labelright for the y labels (sextant draws each axis' labels on one
+        side). Tick colours, sizes and directions are not per axis in sextant yet."""
+        del which, reset
+        if axis not in ("x", "y", "both"):
+            raise ValueError(f"tick_params(): axis must be 'x', 'y' or 'both', not {axis!r}")
+        fields = {}
+        for keys, field, own in ((("labelbottom", "labeltop"), "show_xtick_labels", "x"),
+                                 (("labelleft", "labelright"), "show_ytick_labels", "y")):
+            for k in keys:
+                if k in kw:
+                    value = kw.pop(k)
+                    if axis in (own, "both"):
+                        fields[field] = bool(value)
+        if kw:
+            raise TypeError(f"tick_params(): unsupported keyword(s) {sorted(kw)}; sextant takes "
+                            "labelbottom, labeltop, labelleft, labelright")
+        if fields:
+            self._set_style(**fields)
+
+    def label_outer(self, remove_inner_ticks=False):
+        """Hide the x tick labels unless this axes is in the grid's bottom row, and the
+        y tick labels unless it is in the first column."""
+        del remove_inner_ticks
+        if self._span is None:
+            return
+        (rows, cols), first, last = self._span
+        fields = {}
+        if (last - 1) // cols != rows - 1:
+            fields["show_xtick_labels"] = False
+        if (first - 1) % cols != 0:
+            fields["show_ytick_labels"] = False
+        if fields:
+            self._set_style(**fields)
+
+    # --- shared axes and twins ---------------------------------------------------------
+
+    def sharex(self, other):
+        """Share the x axis with `other` (matplotlib 3.3+): one set of limits and one
+        scale, panned and zoomed together; inner tick labels hide by themselves."""
+        self.core.sharex(other.core)  # not in the record: cla() keeps membership
+        self.figure._changed()
+
+    def sharey(self, other):
+        self.core.sharey(other.core)
+        self.figure._changed()
+
+    def _twin(self, which):
+        core = getattr(self.core, f"twin{which}")()
+        ax = axes_for(core)
+        if ax is None:
+            ax = Axes(self.figure, core)
+            ax._host, ax._shared, ax._span = self, which, self._span
+            ax._twin_style()
+            self._twins[which] = ax
+            self.figure.axes.append(ax)
+        return ax
+
+    def twinx(self):
+        """A second axes over this one's frame, sharing the x axis, its y axis on the
+        right. sextant gives one twinx per axes: a second call returns the same one.
+        The cell has one title and one legend, which lists both axes' series."""
+        return self._twin("x")
+
+    def twiny(self):
+        return self._twin("y")
+
+    def _twin_style(self):
+        # The core twin hides its shared axis by style, which set_axes_style()
+        # replaces: keep it in this adapter's fields.
+        self._style[f"show_{self._shared}ticks"] = False
+
+    def cla(self):
+        super().cla()
+        if self._host is not None:
+            self._twin_style()
+
+    # --- aspect ---------------------------------------------------------------------------
+
+    def set_aspect(self, aspect, adjustable=None, anchor=None, share=False):
+        """'auto', 'equal' or a number (y unit over x unit on screen). adjustable is
+        'box' (shrink the frame; the default) or 'datalim' (widen the limits)."""
+        del share
+        if anchor not in (None, "C"):
+            raise ValueError("set_aspect(): sextant centres the frame; anchor must be 'C'")
+        if isinstance(aspect, str):
+            if aspect not in ("auto", "equal"):
+                raise ValueError(f"set_aspect(): 'auto', 'equal' or a number, not {aspect!r}")
+            ratio = 0.0 if aspect == "auto" else 1.0
+        else:
+            ratio = float(aspect)
+        if adjustable is None:
+            adjustable = self.core.adjustable().value
+        if adjustable not in ("box", "datalim"):
+            raise ValueError(f"set_aspect(): adjustable must be 'box' or 'datalim', not {adjustable!r}")
+        self._call("set_aspect", ratio, adjustable)
+
+    def get_aspect(self):
+        ratio = self.core.aspect()
+        return "auto" if ratio == 0 else ratio
+
+    def set_adjustable(self, adjustable, share=False):
+        del share
+        self.set_aspect(self.core.aspect() or "auto", adjustable)
+
+    def get_adjustable(self):
+        return self.core.adjustable().value
+
+    def axis(self, arg=None, /, *, emit=True, **kw):
+        """axis('equal' | 'scaled' | 'square' | 'image' | 'auto' | 'on' | 'off'),
+        axis([xmin, xmax, ymin, ymax]) or axis(xmin=..., ...). Returns the limits."""
+        del emit
+        if isinstance(arg, bool):
+            arg = "on" if arg else "off"
+        if isinstance(arg, str):
+            if arg == "equal":
+                self.set_aspect("equal", "datalim")
+            elif arg in ("scaled", "image"):
+                self.set_aspect("equal", "box")
+            elif arg == "square":
+                self.set_aspect("equal", "box")
+                (x0, x1), (y0, y1) = self.core.xlim(), self.core.ylim()
+                edge = max(abs(x1 - x0), abs(y1 - y0))
+                self._call("set_xlim", x0, x0 + math.copysign(edge, x1 - x0))
+                self._call("set_ylim", y0, y0 + math.copysign(edge, y1 - y0))
+            elif arg == "auto":
+                self.set_aspect("auto")
+            elif arg in ("on", "off"):
+                on = arg == "on"
+                self._set_style(show_xticks=on, show_yticks=on, spine_bottom=on, spine_left=on,
+                                spine_top=on, spine_right=on)
+            else:
+                raise ValueError(f"axis(): {arg!r} is not one sextant has ('equal', 'scaled', 'square', "
+                                 "'image', 'auto', 'on', 'off')")
+        elif arg is not None:
+            xmin, xmax, ymin, ymax = arg
+            kw = dict(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, **kw)
+        lims = {k: kw.pop(k) for k in ("xmin", "xmax", "ymin", "ymax") if k in kw}
+        if kw:
+            raise TypeError(f"axis(): unsupported keyword(s) {sorted(kw)}")
+        if "xmin" in lims or "xmax" in lims:
+            self.set_xlim(lims.get("xmin"), lims.get("xmax"))
+        if "ymin" in lims or "ymax" in lims:
+            self.set_ylim(lims.get("ymin"), lims.get("ymax"))
+        return (*self.core.xlim(), *self.core.ylim())
+
+
+def _printf_format(fmt):
+    """A tick-label format sextant takes (printf, one double) from matplotlib's: a
+    FormatStrFormatter's '%.1f', or a StrMethodFormatter's '{x:.1f}' (also as a str)."""
+    if "{" not in fmt:
+        return fmt  # already printf
+    out, conversions = [], 0
+    for literal, field, spec, _ in string.Formatter().parse(fmt):
+        out.append(literal.replace("%", "%%"))
+        if field is None:
+            continue
+        if field != "x":
+            raise ValueError(f"tick format {fmt!r}: sextant formats the value {{x}} only, not {{{field}}}")
+        m = re.fullmatch(r"([+\- ]?)(#?)(0?)(\d*)(\.\d+)?([eEfFgGd]?)", spec or "")
+        if not m:
+            raise ValueError(f"tick format {fmt!r}: {spec!r} has no printf equivalent")
+        sign, alt, zero, width, prec, kind = m.groups()
+        if kind == "d":
+            kind, prec = "f", ".0"
+        out.append("%" + sign + alt + zero + width + (prec or "") + (kind or "g"))
+        conversions += 1
+    if conversions != 1:
+        raise ValueError(f"tick format {fmt!r}: exactly one {{x}} field")
+    return "".join(out)
+
+
+class _Axis:
+    """ax.xaxis / ax.yaxis: the tick-label formatter and the scale."""
+
+    def __init__(self, axes, axis):
+        self.axes = axes
+        self._axis = axis
+
+    def set_major_formatter(self, formatter):
+        """A format string ('{x:.1f}', '%.1f'), a FormatStrFormatter or a
+        StrMethodFormatter; the default ScalarFormatter/LogFormatter restore sextant's.
+        A FuncFormatter has no equivalent: sextant formats labels in C++."""
+        name = type(formatter).__name__
+        if isinstance(formatter, str):
+            fmt = _printf_format(formatter)
+        elif name in ("FormatStrFormatter", "StrMethodFormatter"):
+            fmt = _printf_format(formatter.fmt)
+        elif name in ("ScalarFormatter", "LogFormatter", "LogFormatterSciNotation", "LogFormatterMathtext"):
+            fmt = ""
+        else:
+            raise TypeError(f"set_major_formatter(): sextant takes a format string, FormatStrFormatter or "
+                            f"StrMethodFormatter, not {name}")
+        self.axes._call(f"set_{self._axis}tick_format", fmt)
+
+    def get_scale(self):
+        return getattr(self.axes, f"get_{self._axis}scale")()
 
 
 def _values(c, n):
@@ -1446,9 +1758,20 @@ class MplEvent:
         self.sextant_event = e
         self.x = e.x
         self.y = figure._size[1] - e.y  # matplotlib counts from the bottom
-        self.inaxes = axes_for(e.inaxes)
+        host = axes_for(e.inaxes)
+        self.inaxes = host
         self.xdata = e.xdata if e.has_data else None
         self.ydata = e.ydata if e.has_data else None
+        twins = getattr(host, "_twins", None)
+        if twins:
+            # matplotlib reports the topmost axes, the last twin made, in its own
+            # coordinates; sextant reports the cell's host, with the twins' as x2/y2.
+            which, self.inaxes = list(twins.items())[-1]
+            if e.has_data:
+                if which == "x":
+                    self.ydata = e.y2data
+                else:
+                    self.xdata = e.x2data
         self.key = e.key or None
         self.dblclick = e.double_click
         self.button = MOUSE_BUTTONS.get(e.button) if e.kind in ("mouse_down", "mouse_up", "pick") else None
@@ -1459,7 +1782,8 @@ class MplEvent:
         if e.kind == "resize":
             self.width, self.height = e.width, e.height
         if e.kind == "pick":
-            ax = self.inaxes
+            # The object's own axes: a twin's objects are indexed in the twin.
+            ax = host._twins.get({1: "x", 2: "y"}[e.pick_twin]) if twins and e.pick_twin else host
             self.artist = ax._artists.get((str(e.pick_kind), e.pick_object)) if ax and e.pick_plane < 0 else None
             self.ind = np.array([e.pick_index])
             self.mouseevent = self
@@ -1522,8 +1846,11 @@ class Figure:
         _drop_ignored(kw)
         kw.pop("label", None)
         facecolor = kw.pop("facecolor", None)
+        sharex, sharey = kw.pop("sharex", None), kw.pop("sharey", None)
         if kw:
             raise TypeError(f"add_subplot(): unsupported keyword(s) {sorted(kw)}")
+        if projection == "3d" and (sharex is not None or sharey is not None):
+            raise ValueError("add_subplot(): sextant shares 2D axes only")
         if not args:
             args = (1, 1, 1)
         elif len(args) == 1:
@@ -1546,6 +1873,13 @@ class Figure:
         if ax is None:
             ax = cls(self, core)
             self.axes.append(ax)
+        if cls is Axes:
+            first, last = (slot, slot) if isinstance(slot, int) else slot
+            ax._span = (self._grid, first, last)
+        if sharex is not None:
+            ax.sharex(sharex)
+        if sharey is not None:
+            ax.sharey(sharey)
         if facecolor is not None and cls is Axes:
             ax.set_facecolor(facecolor)
         return ax
@@ -1571,13 +1905,26 @@ class Figure:
 
     def subplots(self, nrows=1, ncols=1, *, sharex=False, sharey=False, squeeze=True, subplot_kw=None,
                  width_ratios=None, height_ratios=None):
-        if sharex or sharey:
-            warnings.warn("subplots(): sharex/sharey are not supported by sextant; ignored", stacklevel=2)
         kw = dict(subplot_kw or {})
         axs = np.empty((nrows, ncols), dtype=object)
         for r in range(nrows):
             for c in range(ncols):
                 axs[r, c] = self.add_subplot(nrows, ncols, r * ncols + c + 1, **kw)
+        # matplotlib's groups; the inner tick labels hide by themselves, as there.
+        for axis, how in (("x", sharex), ("y", sharey)):
+            if how is True:
+                how = "all"
+            if how in (False, None, "none"):
+                continue
+            ref = {"all": lambda r, c: axs[0, 0], "col": lambda r, c: axs[0, c],
+                   "row": lambda r, c: axs[r, 0]}.get(how)
+            if ref is None:
+                raise ValueError(f"subplots(): share{axis} must be True, False, 'all', 'col', 'row' or 'none', "
+                                 f"not {how!r}")
+            for r in range(nrows):
+                for c in range(ncols):
+                    if ref(r, c) is not axs[r, c]:
+                        getattr(axs[r, c], f"share{axis}")(ref(r, c))
         if width_ratios is not None:
             self.core.set_col_ratios(list(width_ratios))
         if height_ratios is not None:

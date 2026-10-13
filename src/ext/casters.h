@@ -138,14 +138,11 @@ namespace sextant_py {
                      {"diamond", Diamond}),
                     ({"o", Circle}, {"s", Square}, {"^", Triangle}, {"x", Cross},
                      {"+", Plus}, {"D", Diamond}, {"d", Diamond}, {"", None}))
-    SEXTANT_PY_ENUM(Colormap,
-                    ({"viridis", Viridis}, {"plasma", Plasma}, {"inferno", Inferno},
-                     {"magma", Magma}, {"cividis", Cividis}, {"turbo", Turbo},
-                     {"coolwarm", Coolwarm}, {"gray", Gray}),
-                    ({"grey", Gray}))
     SEXTANT_PY_ENUM(CapStyle, ({"flat", Flat}, {"arrow", Arrow}), ())
     SEXTANT_PY_ENUM(AxisPosition,
                     ({"auto", Auto}, {"low", Low}, {"mid", Mid}, {"high", High}), ())
+    SEXTANT_PY_ENUM(Scale, ({"linear", Linear}, {"log", Log}, {"symlog", Symlog}), ())
+    SEXTANT_PY_ENUM(Adjustable, ({"box", Box}, {"datalim", Datalim}), ())
     SEXTANT_PY_ENUM(LegendAnchor,
                     ({"inside_tl", InsideTL}, {"inside_tr", InsideTR},
                      {"inside_bl", InsideBL}, {"inside_br", InsideBR},
@@ -195,6 +192,16 @@ namespace sextant_py {
     constexpr const char* kColorHint =
         "a color: a name (red, blue, green, orange, purple, cyan, black, white, gray), "
         "'#rrggbb', '#rrggbbaa' or an (r, g, b[, a]) tuple of floats in [0, 1]";
+
+    // A colormap by name: sextant's (any case, "_r" for reversed, registered
+    // ones too) or "grey"/"grey_r"; or any object with a str `name` attribute
+    // (a matplotlib Colormap).
+    std::optional<sextant::Colormap> colormap_from_python(nb::handle h) noexcept;
+    constexpr const char* kColormapHint =
+        "a colormap name: one of sextant.colormaps(), optionally ending in '_r' (reversed)";
+
+    // The built-in colormaps, in declaration order (Colormap's id order).
+    const std::vector<sextant::Colormap>& builtin_colormaps();
 
     // A tuple or list of exactly `n` numbers.
     bool numbers_from_python(nb::handle h, std::size_t n, double* out) noexcept;
@@ -280,9 +287,10 @@ namespace nanobind::detail {
     };
     SEXTANT_PY_ENUM_CASTER(LineStyle)
     SEXTANT_PY_ENUM_CASTER(MarkerStyle)
-    SEXTANT_PY_ENUM_CASTER(Colormap)
     SEXTANT_PY_ENUM_CASTER(CapStyle)
     SEXTANT_PY_ENUM_CASTER(AxisPosition)
+    SEXTANT_PY_ENUM_CASTER(Scale)
+    SEXTANT_PY_ENUM_CASTER(Adjustable)
     SEXTANT_PY_ENUM_CASTER(LegendAnchor)
     SEXTANT_PY_ENUM_CASTER(ColorbarAnchor)
     SEXTANT_PY_ENUM_CASTER(HAlign)
@@ -329,6 +337,28 @@ namespace nanobind::detail {
 
         static handle from_cpp(const sextant::Color& c, rv_policy, cleanup_list*) noexcept {
             return make_tuple(c.r, c.g, c.b, c.a).release();
+        }
+    };
+
+    // A name in (see colormap_from_python), the name out: an _enums.Colormap
+    // member for a built-in, the plain string for a reversed or registered map.
+    template <>
+    struct type_caster<sextant::Colormap> {
+        NB_TYPE_CASTER(sextant::Colormap, io_name("ColormapLike", "sextant._enums.Colormap | str"))
+
+        bool from_python(handle src, uint32_t, cleanup_list*) noexcept {
+            auto c = sextant_py::colormap_from_python(src);
+            if (!c) return false;
+            value = *c;
+            return true;
+        }
+
+        static handle from_cpp(const sextant::Colormap& c, rv_policy, cleanup_list*) noexcept {
+            try {
+                return sextant_py::enum_member("Colormap", c.name());
+            } catch (...) {
+                return nullptr;
+            }
         }
     };
 

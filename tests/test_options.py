@@ -102,6 +102,8 @@ def sample(name, ctype):
         return (0.1, 0.2, 0.3)
     if t == "std::optional<double>":
         return 0.5
+    if t == "std::optional<bool>":
+        return True
     if t == "std::string":
         return "x"
     if t == "std::vector<std::string>":
@@ -143,6 +145,7 @@ def apply(struct, kwargs):
         "BarOptions": lambda: ax.bar(x, x, **kwargs),
         "HeatmapOptions": lambda: ax.heatmap(np.ones((2, 2)), (0, 1), (0, 1), **kwargs),
         "GridOptions": lambda: ax.grid(True, **kwargs),
+        "ScaleOptions": lambda: ax.set_xscale("symlog", **kwargs).set_yscale("log", **kwargs),
         "AxesStyle": lambda: ax.set_axes_style(**kwargs),
         "LegendOptions": lambda: ax.legend(**kwargs),
         "ColorbarOptions": lambda: ax.set_colorbar_style(**kwargs),
@@ -194,8 +197,22 @@ def test_enum_spellings(value):
 
 
 def test_bad_enum_lists_the_choices():
-    with pytest.raises(TypeError, match=r"expected one of 'viridis', 'plasma'"):
-        sextant.Figure().axes().scatter_z([0], [0], [0], cmap="jet")
+    with pytest.raises(TypeError, match=r"expected one of 'solid', 'dashed'"):
+        sextant.Figure().axes().line([0, 1], [0, 1], linestyle="wavy")
+
+
+def test_bad_colormap_names_the_list():
+    with pytest.raises(TypeError, match=r"bad value for 'cmap': 'nope' \(expected a colormap name: one of "
+                                        r"sextant.colormaps\(\)"):
+        sextant.Figure().axes().scatter_z([0], [0], [0], cmap="nope")
+
+
+def test_optional_fields_take_none():
+    # None is the C++ default (unset): the color cycle's next color, the
+    # automatic minor ticks and tick labels.
+    ax = sextant.Figure(width=64, height=48).axes()
+    ax.line([0, 1], [0, 1], color=None).bar([0, 1], [1, 2], color=None)
+    ax.set_axes_style(minor_xticks=None, show_ytick_labels=None)
 
 
 @pytest.mark.parametrize("color", ["red", "grey", "#ff000080", (1, 0, 0), [1.0, 0.0, 0.0, 0.5]])

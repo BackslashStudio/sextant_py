@@ -17,11 +17,12 @@ from . import _interactive, _sextant
 from ._mpl import Axes, Axes3D, Figure, axes_for, interactive_session, pause_loop
 
 __all__ = [
-    "Axes", "Axes3D", "Figure", "annotate", "axes", "axes_for", "bar", "cla", "clf", "close", "colorbar", "connect",
-    "disconnect", "draw", "errorbar", "figure", "gca", "gcf", "get_fignums", "grid", "hist", "imshow",
-    "ioff", "ion", "isinteractive", "legend", "line", "pause", "pcolormesh", "plot", "savefig", "sca", "scatter",
-    "show", "subplot", "subplots", "suptitle", "text", "title", "xlabel", "xlim", "xticks", "ylabel", "ylim",
-    "yticks",
+    "Axes", "Axes3D", "Figure", "annotate", "axes", "axes_for", "axis", "bar", "cla", "clf", "close", "colorbar",
+    "connect", "disconnect", "draw", "errorbar", "figure", "gca", "gcf", "get_fignums", "grid", "hist", "imshow",
+    "ioff", "ion", "isinteractive", "legend", "line", "loglog", "minorticks_off", "minorticks_on", "pause",
+    "pcolormesh", "plot", "savefig", "sca", "scatter", "semilogx", "semilogy", "show", "subplot", "subplots",
+    "suptitle", "text", "tick_params", "title", "twinx", "twiny", "xlabel", "xlim", "xscale", "xticks", "ylabel",
+    "ylim", "yscale", "yticks",
 ]
 
 _figs = {}  # number -> Figure, in creation order
@@ -222,6 +223,55 @@ def yticks(ticks=None, labels=None, **kw):
     if ticks is None and labels is None:
         return ax._yticks
     ax.set_yticks(ticks, labels, **kw)
+
+
+def xscale(value, **kw):
+    gca().set_xscale(value, **kw)
+
+
+def yscale(value, **kw):
+    gca().set_yscale(value, **kw)
+
+
+def semilogx(*args, **kw):
+    return gca().semilogx(*args, **kw)
+
+
+def semilogy(*args, **kw):
+    return gca().semilogy(*args, **kw)
+
+
+def loglog(*args, **kw):
+    return gca().loglog(*args, **kw)
+
+
+def minorticks_on():
+    gca().minorticks_on()
+
+
+def minorticks_off():
+    gca().minorticks_off()
+
+
+def tick_params(axis="both", **kw):
+    gca().tick_params(axis, **kw)
+
+
+def axis(arg=None, /, **kw):
+    return gca().axis(arg, **kw)
+
+
+def twinx(ax=None):
+    """A twin of `ax` (default: the current axes) sharing its x axis; it becomes current."""
+    twin = (ax if ax is not None else gca()).twinx()
+    sca(twin)
+    return twin
+
+
+def twiny(ax=None):
+    twin = (ax if ax is not None else gca()).twiny()
+    sca(twin)
+    return twin
 
 
 def grid(visible=None, **kw):

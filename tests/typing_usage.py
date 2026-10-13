@@ -48,11 +48,26 @@ def plots() -> None:
 
     def on_event(ev: sextant.Event) -> None:
         where: sextant.Axes | sextant.Axes3D | None = ev.inaxes
+        twin_y: float = ev.y2data
+        whose: int = ev.pick_twin
 
     fig.connect("button_press_event", on_event)
     prev = sextant.set_message_handler(print)
     with fig as f:
         g: sextant.Figure = f
+
+    # sextant 1.2: color cycle, colormaps by name, scales, sharing, twins, aspect.
+    ax.line([0, 1], color=None).set_color_cycle(["red", (0.0, 0.5, 1.0)])
+    ax.scatter_z([0], [0], [0], cmap="RdBu_r").scatter_z([0], [0], [0], cmap=sextant.Colormap.TWILIGHT)
+    name: str = sextant.register_colormap("typing_map", ["red", "blue"], cyclic=True)
+    names: list[str] = sextant.colormaps()
+    ax.set_xscale("log", base=2.0).set_yscale(sextant.Scale.SYMLOG, linthresh=0.5).set_xtick_format("%.1f")
+    scale: sextant.Scale = ax.xscale()
+    ax.set_axes_style(minor_xticks=True, show_ytick_labels=None).grid(True, minor=True, minor_color="gray")
+    other: sextant.Axes = fig.add_subplot(2, 2, 3).sharex(ax).sharey(ax)
+    twin: sextant.Axes = ax.twinx()
+    ax.set_aspect(1.0, "datalim")
+    adj: sextant.Adjustable = ax.adjustable()
 
     # What the stubs must reject.
     ax.line([0, 1], colour="red")  # type: ignore[call-arg]
@@ -64,3 +79,6 @@ def plots() -> None:
     bad: sextant.Axes3D = ax.grid(True)  # type: ignore[assignment]
     ax.text("t", 0, 0, coords="pixels")  # type: ignore[arg-type]
     ax.annotate(0, 0, "t", 1, 1, arrow={"style": "->"})  # type: ignore[arg-type]
+    ax.set_xscale("logit")  # type: ignore[arg-type]
+    ax.set_xscale("log", subs=[2])  # type: ignore[call-arg]
+    ax.set_aspect(1.0, "frame")  # type: ignore[arg-type]
