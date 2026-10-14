@@ -102,9 +102,23 @@ namespace sextant_py {
     using F64OrNone = NumpyObject<double, true>;
     using U32 = NumpyObject<std::uint32_t>;
     struct PyLineData { F64 x, y; };
-    struct PyScatterData { F64 x, y; };
-    struct PyScatterZData { F64 x, y, z; };
-    struct PyBarData { F64 x, height; };
+    // sizes/bottom: per point, None for none (the uniform size, bars on 0).
+    // to_cpp() is what set_*_data(i, data) sends: None clears them, as in C++.
+    struct PyScatterData {
+        F64 x, y;
+        F64OrNone sizes;
+        sextant::ScatterData to_cpp() const;
+    };
+    struct PyScatterZData {
+        F64 x, y, z;
+        F64OrNone sizes;
+        sextant::ScatterZData to_cpp() const;
+    };
+    struct PyBarData {
+        F64 x, height;
+        F64OrNone bottom;
+        sextant::BarData to_cpp() const;
+    };
     struct PyHeatmapData {
         F64 data; // (rows, cols)
         sextant::Range xrange, yrange;
@@ -119,7 +133,11 @@ namespace sextant_py {
         F64 u, v, heights;
     };
     struct PySurfaceTriData { F64 x, y, z; U32 tri; F64OrNone colors; }; // tri (n, 3)
-    struct PyScatter3DData { F64 x, y, z; F64OrNone colors; };
+    struct PyScatter3DData {
+        F64 x, y, z;
+        F64OrNone colors, sizes;
+        sextant::Scatter3DData to_cpp() const;
+    };
     struct PyLine3DData { F64 x, y, z; F64OrNone colors; };
     // sextant::TextData with each Pos split into a value and its Coords.
     struct PyTextData {
@@ -131,6 +149,8 @@ namespace sextant_py {
         sextant::TextData to_cpp() const;
     };
     using PyText3DData = sextant::Text3DData; // plain fields, bound as they are
+    using PyAxLineData = sextant::AxLineData;
+    using PyAxSpanData = sextant::AxSpanData;
 
     PyLineData to_python(sextant::LineData&& d);
     PyScatterData to_python(sextant::ScatterData&& d);

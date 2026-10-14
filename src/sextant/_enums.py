@@ -47,6 +47,10 @@ class LineStyle(_Named):
 
 
 class MarkerStyle(_Named):
+    """CROSS and PLUS are filled bars (matplotlib's "X", "P"); THIN_CROSS, THIN_PLUS,
+    VLINE and HLINE are strokes in the fill's color, edge_linewidth thick
+    (matplotlib's "x", "+", "|", "_")."""
+
     NONE = "none"
     CIRCLE = "circle"
     SQUARE = "square"
@@ -54,6 +58,35 @@ class MarkerStyle(_Named):
     CROSS = "cross"
     PLUS = "plus"
     DIAMOND = "diamond"
+    TRIANGLE_DOWN = "triangle_down"
+    TRIANGLE_LEFT = "triangle_left"
+    TRIANGLE_RIGHT = "triangle_right"
+    STAR = "star"
+    PENTAGON = "pentagon"
+    HEXAGON = "hexagon"
+    THIN_CROSS = "thin_cross"
+    THIN_PLUS = "thin_plus"
+    VLINE = "vline"
+    HLINE = "hline"
+
+
+class DrawStyle(_Named):
+    """How a line runs between its points (LineOptions.drawstyle): straight, or held
+    flat in steps; matplotlib's "steps" and "steps-pre" are STEPS_PRE."""
+
+    DEFAULT = "default"
+    STEPS_PRE = "steps_pre"
+    STEPS_MID = "steps_mid"
+    STEPS_POST = "steps_post"
+
+
+class Orientation(_Named):
+    """Which way a bar stands (BarOptions.orientation; HORIZONTAL is matplotlib's barh)
+    or a reference line or span runs (HORIZONTAL is axhline/axhspan, VERTICAL
+    axvline/axvspan)."""
+
+    VERTICAL = "vertical"
+    HORIZONTAL = "horizontal"
 
 
 class Colormap(_Named):
@@ -231,6 +264,7 @@ __all__ = [
     "ColorbarAnchor",
     "Colormap",
     "Coords",
+    "DrawStyle",
     "EventConsumed",
     "EventKind",
     "HAlign",
@@ -238,6 +272,7 @@ __all__ = [
     "LegendAnchor",
     "LineStyle",
     "MarkerStyle",
+    "Orientation",
     "PanelTheme",
     "PlaneOrientation",
     "Projection",

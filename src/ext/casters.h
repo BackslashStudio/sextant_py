@@ -132,12 +132,27 @@ namespace sextant_py {
                     ({"solid", Solid}, {"dashed", Dashed}, {"dotted", Dotted},
                      {"dashdot", DashDot}, {"none", None}),
                     ({"-", Solid}, {"--", Dashed}, {":", Dotted}, {"-.", DashDot}, {"", None}))
+    // Aliases: matplotlib's marker codes. Its "x" and "+" are strokes (thin_cross,
+    // thin_plus); its filled cross and plus are "X" and "P".
     SEXTANT_PY_ENUM(MarkerStyle,
                     ({"none", None}, {"circle", Circle}, {"square", Square},
                      {"triangle", Triangle}, {"cross", Cross}, {"plus", Plus},
-                     {"diamond", Diamond}),
-                    ({"o", Circle}, {"s", Square}, {"^", Triangle}, {"x", Cross},
-                     {"+", Plus}, {"D", Diamond}, {"d", Diamond}, {"", None}))
+                     {"diamond", Diamond}, {"triangle_down", TriangleDown},
+                     {"triangle_left", TriangleLeft}, {"triangle_right", TriangleRight},
+                     {"star", Star}, {"pentagon", Pentagon}, {"hexagon", Hexagon},
+                     {"thin_cross", ThinCross}, {"thin_plus", ThinPlus}, {"vline", VLine},
+                     {"hline", HLine}),
+                    ({"o", Circle}, {"s", Square}, {"^", Triangle}, {"v", TriangleDown},
+                     {"<", TriangleLeft}, {">", TriangleRight}, {"*", Star}, {"p", Pentagon},
+                     {"h", Hexagon}, {"x", ThinCross}, {"+", ThinPlus}, {"X", Cross}, {"P", Plus},
+                     {"|", VLine}, {"_", HLine}, {"D", Diamond}, {"d", Diamond}, {"", None}))
+    // Aliases: matplotlib's drawstyle names (its "steps" is steps-pre).
+    SEXTANT_PY_ENUM(DrawStyle,
+                    ({"default", Default}, {"steps_pre", StepsPre}, {"steps_mid", StepsMid},
+                     {"steps_post", StepsPost}),
+                    ({"steps", StepsPre}, {"steps-pre", StepsPre}, {"steps-mid", StepsMid},
+                     {"steps-post", StepsPost}))
+    SEXTANT_PY_ENUM(Orientation, ({"vertical", Vertical}, {"horizontal", Horizontal}), ())
     SEXTANT_PY_ENUM(CapStyle, ({"flat", Flat}, {"arrow", Arrow}), ())
     SEXTANT_PY_ENUM(AxisPosition,
                     ({"auto", Auto}, {"low", Low}, {"mid", Mid}, {"high", High}), ())
@@ -287,6 +302,8 @@ namespace nanobind::detail {
     };
     SEXTANT_PY_ENUM_CASTER(LineStyle)
     SEXTANT_PY_ENUM_CASTER(MarkerStyle)
+    SEXTANT_PY_ENUM_CASTER(DrawStyle)
+    SEXTANT_PY_ENUM_CASTER(Orientation)
     SEXTANT_PY_ENUM_CASTER(CapStyle)
     SEXTANT_PY_ENUM_CASTER(AxisPosition)
     SEXTANT_PY_ENUM_CASTER(Scale)

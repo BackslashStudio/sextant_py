@@ -26,6 +26,25 @@ namespace sextant_py {
         return true;
     }
 
+    bool doubles_from_python(nb::handle h, std::vector<double>& out) {
+        if (h.is_none()) {
+            out.clear();
+            return true;
+        }
+        if (PyUnicode_Check(h.ptr()) || PyBytes_Check(h.ptr())) return false;
+        try {
+            nb::object np = nb::module_::import_("numpy");
+            // ascontiguousarray: C order, and a scalar comes back as one value.
+            nb::object a = np.attr("ascontiguousarray")(h, nb::arg("dtype") = np.attr("float64"));
+            Vec v;
+            if (nb::cast<int>(a.attr("ndim")) != 1 || !nb::try_cast(a, v)) return false;
+            out.assign(v.span().begin(), v.span().end());
+            return true;
+        } catch (const nb::python_error&) {
+            return false;
+        }
+    }
+
     std::optional<sextant::Color> color_from_python(nb::handle h) noexcept {
         if (PyUnicode_Check(h.ptr())) {
             Py_ssize_t n = 0;
@@ -144,6 +163,8 @@ namespace sextant_py {
         nb::dict d;
         add_enum<sextant::LineStyle>(d);
         add_enum<sextant::MarkerStyle>(d);
+        add_enum<sextant::DrawStyle>(d);
+        add_enum<sextant::Orientation>(d);
         add_colormaps(d);
         add_enum<sextant::CapStyle>(d);
         add_enum<sextant::AxisPosition>(d);
@@ -181,6 +202,8 @@ namespace sextant_py {
         add_fields<sextant::ScatterOptions>(d);
         add_fields<sextant::ScatterZOptions>(d);
         add_fields<sextant::BarOptions>(d);
+        add_fields<sextant::AxLineOptions>(d);
+        add_fields<sextant::AxSpanOptions>(d);
         add_fields<sextant::HeatmapOptions>(d);
         add_fields<sextant::GridOptions>(d);
         add_fields<sextant::ScaleOptions>(d);

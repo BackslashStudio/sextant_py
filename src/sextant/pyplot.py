@@ -17,12 +17,12 @@ from . import _interactive, _sextant
 from ._mpl import Axes, Axes3D, Figure, axes_for, interactive_session, pause_loop
 
 __all__ = [
-    "Axes", "Axes3D", "Figure", "annotate", "axes", "axes_for", "axis", "bar", "cla", "clf", "close", "colorbar",
-    "connect", "disconnect", "draw", "errorbar", "figure", "gca", "gcf", "get_fignums", "grid", "hist", "imshow",
-    "ioff", "ion", "isinteractive", "legend", "line", "loglog", "minorticks_off", "minorticks_on", "pause",
-    "pcolormesh", "plot", "savefig", "sca", "scatter", "semilogx", "semilogy", "show", "subplot", "subplots",
-    "suptitle", "text", "tick_params", "title", "twinx", "twiny", "xlabel", "xlim", "xscale", "xticks", "ylabel",
-    "ylim", "yscale", "yticks",
+    "Axes", "Axes3D", "Figure", "annotate", "axes", "axes_for", "axhline", "axhspan", "axis", "axvline", "axvspan",
+    "bar", "barh", "cla", "clf", "close", "colorbar", "connect", "disconnect", "draw", "errorbar", "figure", "gca",
+    "gcf", "get_fignums", "grid", "hist", "imshow", "ioff", "ion", "isinteractive", "legend", "line", "loglog",
+    "minorticks_off", "minorticks_on", "pause", "pcolormesh", "plot", "savefig", "sca", "scatter", "semilogx",
+    "semilogy", "show", "step", "subplot", "subplots", "suptitle", "text", "tick_params", "title", "twinx",
+    "twiny", "xlabel", "xlim", "xscale", "xticks", "ylabel", "ylim", "yscale", "yticks",
 ]
 
 _figs = {}  # number -> Figure, in creation order
@@ -165,8 +165,32 @@ def bar(*args, **kw):
     return gca().bar(*args, **kw)
 
 
+def barh(*args, **kw):
+    return gca().barh(*args, **kw)
+
+
 def hist(*args, **kw):
     return gca().hist(*args, **kw)
+
+
+def step(*args, **kw):
+    return gca().step(*args, **kw)
+
+
+def axhline(*args, **kw):
+    return gca().axhline(*args, **kw)
+
+
+def axvline(*args, **kw):
+    return gca().axvline(*args, **kw)
+
+
+def axhspan(*args, **kw):
+    return gca().axhspan(*args, **kw)
+
+
+def axvspan(*args, **kw):
+    return gca().axvspan(*args, **kw)
 
 
 def errorbar(*args, **kw):

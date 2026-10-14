@@ -69,7 +69,18 @@ def plots() -> None:
     ax.set_aspect(1.0, "datalim")
     adj: sextant.Adjustable = ax.adjustable()
 
+    # sextant 1.2 step 36c: markers, steps, per-point sizes, bar bases, reference lines.
+    ax.scatter([0, 1], [0, 1], marker="x", sizes=[4.0, 8.0]).line([0, 1], drawstyle="steps-mid")
+    ax.bar([0, 1], [1, 2], bottom=0.5, orientation=sextant.Orientation.HORIZONTAL)
+    ax.axline(0.5, orientation="vertical", from_=0.2, to=0.8).axspan(0, 1, edgecolor="k", linewidth=1.0)
+    level: float = ax.axline_data(0).value
+    sizes = ax.scatter_data(0).sizes
+    ax.set_bar_data(0, sextant.BarData([0, 1], [1, 2], bottom=None)).set_axspan_data(0, 1.0, 2.0)
+    style: sextant.DrawStyle = sextant.DrawStyle.STEPS_PRE
+
     # What the stubs must reject.
+    ax.axline(0.5, orientation="diagonal")  # type: ignore[arg-type]
+    ax.axline(0.5, xmin=0.2)  # type: ignore[call-arg]
     ax.line([0, 1], colour="red")  # type: ignore[call-arg]
     ax.line([0, 1], linestyle="dashy")  # type: ignore[arg-type]
     ax.line([0, 1], linewidth="thick")  # type: ignore[arg-type]

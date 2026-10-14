@@ -50,12 +50,14 @@ _CSS = {"red": "#ff0000", "green": "#008000", "blue": "#0000ff", "orange": "#ffa
         "salmon": "#fa8072", "violet": "#ee82ee", "indigo": "#4b0082", "crimson": "#dc143c",
         "coral": "#ff7f50", "tomato": "#ff6347", "turquoise": "#40e0d0"}
 
-# matplotlib marker -> sextant marker (sextant draws seven shapes).
-_MARKERS = {".": "circle", ",": "circle", "o": "circle", "8": "circle", "h": "circle", "H": "circle",
-            "v": "triangle", "^": "triangle", "<": "triangle", ">": "triangle",
-            "1": "triangle", "2": "triangle", "3": "triangle", "4": "triangle",
-            "s": "square", "p": "square", "+": "plus", "P": "plus", "|": "plus", "_": "plus",
-            "x": "cross", "X": "cross", "*": "diamond", "D": "diamond", "d": "diamond"}
+# matplotlib marker -> sextant marker. Stand-ins: "." "," "8" draw circles, the tri
+# markers "1"-"4" filled triangles pointing the same way, "H" a hexagon, "d" a diamond.
+_MARKERS = {".": "circle", ",": "circle", "o": "circle", "8": "circle",
+            "v": "triangle_down", "^": "triangle", "<": "triangle_left", ">": "triangle_right",
+            "1": "triangle_down", "2": "triangle", "3": "triangle_left", "4": "triangle_right",
+            "s": "square", "p": "pentagon", "h": "hexagon", "H": "hexagon", "*": "star",
+            "+": "thin_plus", "x": "thin_cross", "P": "plus", "X": "cross", "|": "vline", "_": "hline",
+            "D": "diamond", "d": "diamond"}
 _LINESTYLES = {"-": "solid", "--": "dashed", ":": "dotted", "-.": "dashdot", "": "none", " ": "none",
                "None": "none", "none": "none", "solid": "solid", "dashed": "dashed",
                "dotted": "dotted", "dashdot": "dashdot"}
@@ -192,6 +194,11 @@ def _linestyle(ls):
     return None if ls is None else _LINESTYLES.get(ls, ls)
 
 
+def _drawstyle(ds):
+    # sextant takes matplotlib's names ("steps", "steps-mid", ...) as they are.
+    return None if ds is None else str(ds)
+
+
 def _vec(a):
     return np.asarray(a, dtype=float).ravel()
 
@@ -314,6 +321,23 @@ class Line2D(_Artist):
             self._markers[1][2]["alpha"] = a
         self.axes._rebuild()
 
+    def get_drawstyle(self):
+        return str(self._entry[2].get("drawstyle", "default")) if self._kind == "line" else "default"
+
+    def set_drawstyle(self, ds):
+        """'default', 'steps' / 'steps-pre', 'steps-mid' or 'steps-post'."""
+        if self._kind == "line":
+            self._set_options(drawstyle=_drawstyle(ds))
+
+    set_ds = set_drawstyle
+
+
+def _keep_point_sizes(entry, n):
+    """A new point count drops per-point sizes, as sextant's (x, y) setters do."""
+    sizes = entry[2].get("sizes")
+    if sizes is not None and np.size(sizes) != n:
+        del entry[2]["sizes"]
+
 
 class PathCollection(_Artist):
     """ax.scatter()'s return."""
@@ -325,6 +349,7 @@ class PathCollection(_Artist):
 
     def set_offsets(self, xy):
         xy = np.asarray(xy, dtype=float).reshape(-1, 2)
+        _keep_point_sizes(self._entry, len(xy))
         if self._kind == "scatter":
             self._set_args("set_scatter_data", xy[:, 0], xy[:, 1])
         else:
@@ -333,6 +358,18 @@ class PathCollection(_Artist):
 
     def get_array(self):
         return self.axes.core.scatter_z_data(self._index).z if self._kind == "scatter_z" else None
+
+    def get_sizes(self):
+        """Marker areas in points^2, matplotlib's unit: one per point, or one value."""
+        sizes = self._entry[2].get("sizes")
+        if sizes is None:
+            return np.array([(self._entry[2]["size"] / PT) ** 2])
+        return (np.asarray(sizes, dtype=float) / PT) ** 2
+
+    def set_sizes(self, sizes):
+        n = len(self.get_offsets())
+        self._entry[2].pop("sizes", None)
+        self._set_options(**Axes._marker_size(sizes, n))
 
     def set_array(self, values):
         d = self.axes.core.scatter_z_data(self._index)
@@ -371,7 +408,7 @@ class AxesImage(_Artist):
 
 
 class BarContainer(_Artist):
-    """ax.bar()/hist()'s bars."""
+    """ax.bar()/barh()/hist()'s bars."""
 
     @property
     def datavalues(self):
@@ -381,6 +418,87 @@ class BarContainer(_Artist):
         """Not matplotlib (there, each bar is a Rectangle): new heights, same x."""
         x = self.axes.core.bar_data(self._index).x
         self._set_args("set_bar_data", x, _vec(heights))
+
+
+class RefLine(_Artist):
+    """axhline()/axvline()'s return (a Line2D in matplotlib). Along the line its data
+    are the ends as fractions of the frame (xmin/xmax or ymin/ymax); across it, the
+    value twice."""
+
+    def _horizontal(self):
+        return self._entry[2]["orientation"] == "horizontal"
+
+    def _ends(self):
+        return [self._entry[2]["from_"], self._entry[2]["to"]]
+
+    def _value(self):
+        return self.axes.core.axline_data(self._index).value
+
+    def get_xdata(self):
+        return self._ends() if self._horizontal() else [self._value()] * 2
+
+    def get_ydata(self):
+        return [self._value()] * 2 if self._horizontal() else self._ends()
+
+    def _set(self, across, data):
+        d = np.ravel(np.asarray(data, dtype=float))
+        if across:
+            self._set_args("set_axline_data", float(d[0]))
+        else:
+            self._set_options(from_=float(d[0]), to=float(d[-1]))
+
+    def set_xdata(self, x):
+        self._set(not self._horizontal(), x)
+
+    def set_ydata(self, y):
+        self._set(self._horizontal(), y)
+
+    def get_color(self):
+        return self._entry[2].get("color")
+
+    def set_color(self, c):
+        self._set_options(color=to_rgba(c))
+
+    def set_linewidth(self, lw):
+        self._set_options(linewidth=lw * PT)
+
+    def set_linestyle(self, ls):
+        self._set_options(linestyle=_linestyle(ls))
+
+    def set_alpha(self, a):
+        self._set_options(alpha=1.0 if a is None else float(a))
+
+
+class Span(_Artist):
+    """axhspan()/axvspan()'s return (a Rectangle in matplotlib): its colors, alpha and
+    outline; get_span()/set_span() (not matplotlib) read and move its two ends."""
+
+    def get_span(self):
+        d = self.axes.core.axspan_data(self._index)
+        return d.lo, d.hi
+
+    def set_span(self, lo, hi):
+        self._set_args("set_axspan_data", float(lo), float(hi))
+
+    def get_facecolor(self):
+        return self._entry[2].get("color")
+
+    def set_facecolor(self, c):
+        self._set_options(color=to_rgba(c))
+
+    set_color = set_facecolor
+
+    def set_edgecolor(self, c):
+        opts = {"edgecolor": to_rgba(c)}
+        if not self._entry[2].get("linewidth"):
+            opts["linewidth"] = PT
+        self._set_options(**opts)
+
+    def set_linewidth(self, lw):
+        self._set_options(linewidth=float(lw) * PT)
+
+    def set_alpha(self, a):
+        self._set_options(alpha=1.0 if a is None else float(a))
 
 
 class Surface3D(_Artist):
@@ -399,6 +517,7 @@ class Path3D(_Artist):
         return d.x, d.y, d.z
 
     def set_data_3d(self, x, y, z):
+        _keep_point_sizes(self._entry, len(_vec(x)))
         method = "set_line3d_data" if self._kind == "line3d" else "set_scatter3d_data"
         self._set_args(method, _vec(x), _vec(y), _vec(z))
 
@@ -979,6 +1098,14 @@ class Axes(_AxesBase):
 
     plot = line
 
+    def step(self, x, y, *args, where="pre", data=None, **kw):
+        """matplotlib's step(): plot() with drawstyle 'steps-<where>' ('pre', 'mid' or
+        'post'). Returns a list of Line2D."""
+        if where not in ("pre", "mid", "post"):
+            raise ValueError(f"step(): where must be 'pre', 'mid' or 'post', not {where!r}")
+        kw["drawstyle"] = "steps-" + where
+        return self.line(x, y, *args, data=data, **kw)
+
     def _line(self, x, y, fmt, kw):
         ls, mk, fc = parse_fmt(fmt)
         color = to_rgba(_pop(kw, "color", "c", default=fc))
@@ -989,6 +1116,9 @@ class Axes(_AxesBase):
         mk = kw.pop("marker", mk)
         ms = _pop(kw, "markersize", "ms")
         mfc = to_rgba(_pop(kw, "markerfacecolor", "mfc"))
+        ds = _drawstyle(_pop(kw, "drawstyle", "ds"))
+        if ds is not None:
+            kw["drawstyle"] = ds
         if ls is None:
             ls = "-" if mk is None else "none"
         ls = _linestyle(ls)
@@ -1033,8 +1163,7 @@ class Axes(_AxesBase):
         facecolors = _pop(kw, "facecolors", "facecolor", "fc")
         color = _pop(kw, "color", default=None)
         x, y = _vec(x), _vec(y)
-        size = self._size(s)
-        opts = dict(kw, size=size, alpha=1.0 if alpha is None else alpha)
+        opts = dict(kw, **self._marker_size(s, len(x)), alpha=1.0 if alpha is None else alpha)
         # An outline only when asked for (matplotlib's default 'face' outline is invisible here).
         if isinstance(edgecolors, str) and edgecolors.lower() == "none":
             edgecolors, linewidths = None, None
@@ -1065,33 +1194,48 @@ class Axes(_AxesBase):
         return PathCollection(self, "scatter", i, entry, label)
 
     @staticmethod
-    def _size(s):
-        if s is None:
-            s = 36.0  # matplotlib's lines.markersize ** 2
-        if np.ndim(s) > 0:
-            s = np.asarray(s, dtype=float)
-            if s.size and not np.all(s == s.flat[0]):
-                raise ValueError("scatter(): sextant draws one marker size per series; s must be a scalar")
-            s = float(s.flat[0]) if s.size else 36.0
-        return math.sqrt(float(s)) * PT  # s is an area in points^2; sextant takes a diameter in px
+    def _marker_size(s, n):
+        """scatter()'s s, an area in points^2 (one, or one per point), as sextant's
+        diameters in px: {"size": d}, or {"sizes": [d, ...]} per point (an area of 0
+        draws nothing, as in matplotlib)."""
+        a = np.ravel(np.asarray(36.0 if s is None else s, dtype=float))  # 36: lines.markersize ** 2
+        if a.size == 1:
+            return {"size": math.sqrt(max(float(a[0]), 0.0)) * PT}
+        if a.size != n:
+            raise ValueError(f"scatter(): s must be a scalar or one value per point ({n}), not {a.size}")
+        return {"sizes": np.sqrt(np.clip(a, 0.0, None)) * PT}
 
-    def bar(self, x, height, width=0.8, bottom=None, *, align="center", color=None, edgecolor=None,
-            linewidth=None, label=None, alpha=None, yerr=None, xerr=None, ecolor=None, capsize=None,
-            error_kw=None, tick_label=None, **kw):
+    def bar(self, x, height, width=0.8, bottom=None, *, align="center", **kw):
+        return self._bar_series("bar", x, height, width, bottom, align, "vertical", **kw)
+
+    def barh(self, y, width, height=0.8, left=None, *, align="center", **kw):
+        """matplotlib's barh(): bars along x from `left`, `height` thick along y; xerr is
+        the error on the lengths."""
+        return self._bar_series("barh", y, width, height, left, align, "horizontal", **kw)
+
+    def _bar_series(self, method, x, height, width, bottom, align, orientation, color=None, edgecolor=None,
+                    linewidth=None, label=None, alpha=None, yerr=None, xerr=None, ecolor=None, capsize=None,
+                    error_kw=None, tick_label=None, data=None, **kw):
+        """bar(), barh() and hist(): `x` the positions, `height` the lengths, `width` the
+        thickness and `bottom` the bases, whichever way the bars lie."""
         _drop_ignored(kw)
-        if bottom is not None and np.any(np.asarray(bottom) != 0):
-            raise ValueError("bar(): sextant bars stand on 0; bottom= is not supported")
+        del data
         x, h = _vec(x), _vec(height)
         if np.ndim(width) > 0:
             w = np.asarray(width, dtype=float)
             if not np.all(w == w.flat[0]):
-                raise ValueError("bar(): sextant draws one width per series")
+                raise ValueError(f"{method}(): sextant draws one {'width' if method == 'bar' else 'height'} "
+                                 "per series")
             width = float(w.flat[0])
         spacing = float(np.min(np.diff(np.unique(x)))) if len(np.unique(x)) > 1 else 1.0
         if align == "edge":
             x = x + width / 2
         opts = dict(kw, width=float(width) / spacing,
                     color=to_rgba(color) if color is not None else self._next_color(patches=True))
+        if orientation != "vertical":
+            opts["orientation"] = orientation
+        if bottom is not None:
+            opts["bottom"] = np.ravel(np.asarray(bottom, dtype=float))
         opts["edgecolor"] = to_rgba(edgecolor) if edgecolor is not None else opts["color"]
         opts["linewidth"] = float(linewidth) * PT if linewidth is not None else (0.0 if edgecolor is None else PT)
         if alpha is not None:
@@ -1102,12 +1246,12 @@ class Axes(_AxesBase):
         i, entry = self._add("bar", "bar", x, h, err=err, **opts)
         if tick_label is not None:
             labels = [tick_label] * len(x) if isinstance(tick_label, str) else list(tick_label)
-            self.set_xticks(x, labels)
+            (self.set_xticks if orientation == "vertical" else self.set_yticks)(x, labels)
         return BarContainer(self, "bar", i, entry, label)
 
-    def hist(self, x, bins=10, range=None, density=False, weights=None, cumulative=False,
-             histtype="bar", color=None, label=None, alpha=None, rwidth=None, edgecolor=None,
-             linewidth=None, **kw):
+    def hist(self, x, bins=10, range=None, density=False, weights=None, cumulative=False, bottom=None,
+             histtype="bar", orientation="vertical", color=None, label=None, alpha=None, rwidth=None,
+             edgecolor=None, linewidth=None, **kw):
         _drop_ignored(kw)
         if histtype not in ("bar", "stepfilled"):
             raise ValueError(f"hist(): histtype={histtype!r} is not supported ('bar')")
@@ -1120,10 +1264,72 @@ class Axes(_AxesBase):
         widths = np.diff(edges)
         if not np.allclose(widths, widths[0]):
             raise ValueError("hist(): sextant draws equal-width bins")
-        bars = self.bar(centers, n, width=widths[0] * (rwidth if rwidth is not None else 1.0),
-                        color=color, label=label, alpha=alpha, edgecolor=edgecolor, linewidth=linewidth,
-                        **kw)
+        if orientation not in ("vertical", "horizontal"):
+            raise ValueError(f"hist(): orientation must be 'vertical' or 'horizontal', not {orientation!r}")
+        bars = self._bar_series("hist", centers, n, widths[0] * (rwidth if rwidth is not None else 1.0), bottom,
+                                "center", orientation, color=color, label=label, alpha=alpha,
+                                edgecolor=edgecolor, linewidth=linewidth, **kw)
         return n, edges, bars
+
+    def _c0(self):
+        """matplotlib's 'C0': the cycle's first colour, which axhline() and axhspan()
+        take without moving the cycle on."""
+        return self._cycle[0] if self._cycle is not None else _hex(TAB10[0])
+
+    def axhline(self, y=0, xmin=0, xmax=1, **kw):
+        """A line across the axes at y, from xmin to xmax (fractions of the frame)."""
+        return self._axline(y, xmin, xmax, "horizontal", kw)
+
+    def axvline(self, x=0, ymin=0, ymax=1, **kw):
+        """A line across the axes at x, from ymin to ymax (fractions of the frame)."""
+        return self._axline(x, ymin, ymax, "vertical", kw)
+
+    def _axline(self, value, lo, hi, orientation, kw):
+        _drop_ignored(kw)
+        color = to_rgba(_pop(kw, "color", "c")) or self._c0()
+        lw = _pop(kw, "linewidth", "lw")
+        ls = _linestyle(_pop(kw, "linestyle", "ls"))
+        alpha = kw.pop("alpha", None)
+        label = kw.pop("label", None)
+        opts = dict(kw, orientation=orientation, color=color, linewidth=(1.5 if lw is None else float(lw)) * PT,
+                    from_=float(lo), to=float(hi))
+        if ls is not None:
+            opts["linestyle"] = ls
+        if alpha is not None:
+            opts["alpha"] = float(alpha)
+        if label is not None:
+            opts["name"] = str(label)
+        i, entry = self._add("axline", "axline", float(value), **opts)
+        return RefLine(self, "axline", i, entry, label)
+
+    def axhspan(self, ymin, ymax, xmin=0, xmax=1, **kw):
+        """A band over y in [ymin, ymax], from xmin to xmax (fractions of the frame).
+        Opaque C0 by default, as in matplotlib; pass alpha= to see through it."""
+        return self._axspan(ymin, ymax, xmin, xmax, "horizontal", kw)
+
+    def axvspan(self, xmin, xmax, ymin=0, ymax=1, **kw):
+        """A band over x in [xmin, xmax], from ymin to ymax (fractions of the frame)."""
+        return self._axspan(xmin, xmax, ymin, ymax, "vertical", kw)
+
+    def _axspan(self, lo, hi, flo, fhi, orientation, kw):
+        _drop_ignored(kw)
+        color = _pop(kw, "color", "c")
+        face = _pop(kw, "facecolor", "fc", default=color)
+        edge = _pop(kw, "edgecolor", "ec")
+        lw = _pop(kw, "linewidth", "lw")
+        alpha = kw.pop("alpha", None)
+        label = kw.pop("label", None)
+        opts = dict(kw, orientation=orientation, color=to_rgba(face) if face is not None else self._c0(),
+                    alpha=1.0 if alpha is None else float(alpha), from_=float(flo), to=float(fhi))
+        # An outline only when one is asked for: matplotlib's default edge is invisible.
+        if edge is not None and not (isinstance(edge, str) and edge.lower() == "none"):
+            opts.update(edgecolor=to_rgba(edge), linewidth=(1.0 if lw is None else float(lw)) * PT)
+        elif color is not None and lw is not None:  # color= is the edge's too
+            opts["linewidth"] = float(lw) * PT
+        if label is not None:
+            opts["name"] = str(label)
+        i, entry = self._add("axspan", "axspan", float(lo), float(hi), **opts)
+        return Span(self, "axspan", i, entry, label)
 
     def errorbar(self, x, y, yerr=None, xerr=None, fmt="", ecolor=None, elinewidth=None, capsize=None,
                  label=None, **kw):
@@ -1629,7 +1835,7 @@ class Axes3D(_AxesBase):
             kw.pop(k, None)
         xs, ys = _vec(xs), _vec(ys)
         zs = np.broadcast_to(np.asarray(zs, dtype=float), xs.shape).astype(float)
-        opts = dict(kw, size=Axes._size(s), depthshade=0.4 if depthshade else 0.0)
+        opts = dict(kw, **Axes._marker_size(s, len(xs)), depthshade=0.4 if depthshade else 0.0)
         if alpha is not None:
             opts["alpha"] = alpha
         if marker is not None:

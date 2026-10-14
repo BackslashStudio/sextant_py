@@ -495,15 +495,8 @@ namespace sextant_py {
                  "i"_a, "x"_a, "y"_a, "z"_a, "triangles"_a, "colors"_a = nb::none())
             .def("set_scatter3d_data",
                  [](Self self, std::int64_t i, const PyScatter3DData& d) {
-                     const auto x = as_array<1>(d.x, "Scatter3DData.x"), y = as_array<1>(d.y, "Scatter3DData.y"),
-                                z = as_array<1>(d.z, "Scatter3DData.z");
-                     std::optional<Vec> c;
-                     if (!d.colors.is_none()) c = as_array<1>(d.colors, "Scatter3DData.colors");
-                     return chain(self, [&](Axes3D& ax) {
-                         const std::size_t k = index(i, ax.scatter3d_count());
-                         if (c) ax.set_scatter3d_data(k, x.span(), y.span(), z.span(), c->span());
-                         else ax.set_scatter3d_data(k, x.span(), y.span(), z.span());
-                     });
+                     const sextant::Scatter3DData cd = d.to_cpp();
+                     return chain(self, [&](Axes3D& ax) { ax.set_scatter3d_data(index(i, ax.scatter3d_count()), cd); });
                  },
                  "i"_a, "data"_a)
             .def("set_scatter3d_data",

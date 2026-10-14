@@ -180,10 +180,8 @@ namespace sextant_py {
                      "i"_a, "x"_a, "y"_a)
                 .def("set_scatter_data",
                      [](Self self, std::int64_t i, const PyScatterData& d) {
-                         const auto x = as_array<1>(d.x, "ScatterData.x"), y = as_array<1>(d.y, "ScatterData.y");
-                         return chain(self, [&](T& t) {
-                             t.set_scatter_data(index(i, t.scatter_count()), x.span(), y.span());
-                         });
+                         const sextant::ScatterData cd = d.to_cpp();
+                         return chain(self, [&](T& t) { t.set_scatter_data(index(i, t.scatter_count()), cd); });
                      },
                      "i"_a, "data"_a)
                 .def("set_scatter_data",
@@ -195,11 +193,8 @@ namespace sextant_py {
                      "i"_a, "x"_a, "y"_a)
                 .def("set_scatter_z_data",
                      [](Self self, std::int64_t i, const PyScatterZData& d) {
-                         const auto x = as_array<1>(d.x, "ScatterZData.x"), y = as_array<1>(d.y, "ScatterZData.y"),
-                                    z = as_array<1>(d.z, "ScatterZData.z");
-                         return chain(self, [&](T& t) {
-                             t.set_scatter_z_data(index(i, t.scatter_z_count()), x.span(), y.span(), z.span());
-                         });
+                         const sextant::ScatterZData cd = d.to_cpp();
+                         return chain(self, [&](T& t) { t.set_scatter_z_data(index(i, t.scatter_z_count()), cd); });
                      },
                      "i"_a, "data"_a)
                 .def("set_scatter_z_data",
@@ -211,8 +206,8 @@ namespace sextant_py {
                      "i"_a, "x"_a, "y"_a, "z"_a)
                 .def("set_bar_data",
                      [](Self self, std::int64_t i, const PyBarData& d) {
-                         const auto x = as_array<1>(d.x, "BarData.x"), h = as_array<1>(d.height, "BarData.height");
-                         return chain(self, [&](T& t) { t.set_bar_data(index(i, t.bar_count()), x.span(), h.span()); });
+                         const sextant::BarData cd = d.to_cpp();
+                         return chain(self, [&](T& t) { t.set_bar_data(index(i, t.bar_count()), cd); });
                      },
                      "i"_a, "data"_a)
                 .def("set_bar_data",
@@ -251,6 +246,17 @@ namespace sextant_py {
         static const std::string hist_doc = opts_doc<BarOptions>(
             "hist(data, bins=10, *, density=False, cumulative=False, **opts)",
             "Histogram as bars. width defaults to 1.0 here (bins touch), not bar()'s 0.8.");
+        static const std::string axline_doc = opts_doc<sextant::AxLineOptions>(
+            "axline(value, **opts)",
+            "A line across the frame at y = value (matplotlib's axhline), or at x = value with\n"
+            "orientation='vertical' (axvline). It runs from from_ to to, fractions of the frame,\n"
+            "whatever the limits. Automatic limits take value as a point on its axis. Not\n"
+            "hovered or picked. ValueError for a non-finite value, from_ or to.");
+        static const std::string axspan_doc = opts_doc<sextant::AxSpanOptions>(
+            "axspan(lo, hi, **opts)",
+            "A band across the frame over y in [lo, hi] (matplotlib's axhspan), or over x with\n"
+            "orientation='vertical' (axvspan); lo > hi is stored swapped. Limits take both ends\n"
+            "as axline() takes its value. Takes no color from the color cycle (unset: blue).");
         static const std::string grid_doc = opts_doc<sextant::GridOptions>("grid(enable=True, **opts)", "Grid lines.");
         static const std::string style_doc = opts_doc<sextant::AxesStyle>(
             "set_axes_style(**opts)", "Spines, ticks, labels and titles. Unnamed fields reset to their defaults.");
@@ -293,6 +299,52 @@ namespace sextant_py {
                 },
                 "data"_a, "bins"_a = 10, nb::kw_only(), "density"_a = false, "cumulative"_a = false, "opts"_a,
                 hist_doc.c_str())
+
+            // --- reference lines and spans -----------------------------------
+            .def("axline",
+                 [](Self self, double value, const nb::kwargs& kw) {
+                     auto o = options<sextant::AxLineOptions>("axline()", kw);
+                     return chain(self, [&](Axes& ax) { ax.axline(value, std::move(o)); });
+                 },
+                 "value"_a, "opts"_a, axline_doc.c_str())
+            .def("axspan",
+                 [](Self self, double lo, double hi, const nb::kwargs& kw) {
+                     auto o = options<sextant::AxSpanOptions>("axspan()", kw);
+                     return chain(self, [&](Axes& ax) { ax.axspan(lo, hi, std::move(o)); });
+                 },
+                 "lo"_a, "hi"_a, "opts"_a, axspan_doc.c_str())
+            .def("axline_count", [](PyAxes& a) { return read(a, [](Axes& ax) { return ax.axline_count(); }); })
+            .def("axspan_count", [](PyAxes& a) { return read(a, [](Axes& ax) { return ax.axspan_count(); }); })
+            .def("axline_data",
+                 [](PyAxes& a, std::int64_t i) {
+                     return read(a, [&](Axes& ax) { return ax.axline_data(index(i, ax.axline_count())); });
+                 },
+                 "i"_a)
+            .def("axspan_data",
+                 [](PyAxes& a, std::int64_t i) {
+                     return read(a, [&](Axes& ax) { return ax.axspan_data(index(i, ax.axspan_count())); });
+                 },
+                 "i"_a)
+            .def("set_axline_data",
+                 [](Self self, std::int64_t i, const PyAxLineData& d) {
+                     return chain(self, [&](Axes& ax) { ax.set_axline_data(index(i, ax.axline_count()), d); });
+                 },
+                 "i"_a, "data"_a)
+            .def("set_axline_data",
+                 [](Self self, std::int64_t i, double value) {
+                     return chain(self, [&](Axes& ax) { ax.set_axline_data(index(i, ax.axline_count()), {value}); });
+                 },
+                 "i"_a, "value"_a, "Move reference line i (validated as axline()).")
+            .def("set_axspan_data",
+                 [](Self self, std::int64_t i, const PyAxSpanData& d) {
+                     return chain(self, [&](Axes& ax) { ax.set_axspan_data(index(i, ax.axspan_count()), d); });
+                 },
+                 "i"_a, "data"_a)
+            .def("set_axspan_data",
+                 [](Self self, std::int64_t i, double lo, double hi) {
+                     return chain(self, [&](Axes& ax) { ax.set_axspan_data(index(i, ax.axspan_count()), {lo, hi}); });
+                 },
+                 "i"_a, "lo"_a, "hi"_a, "Move span i (validated as axspan(); lo > hi stored swapped).")
 
             // --- text ----------------------------------------------------------
             .def("text",
@@ -431,7 +483,8 @@ namespace sextant_py {
                      return chain(self, [&](Axes& ax) { ax.set_color_cycle(std::move(colors)); });
                  },
                  "colors"_a,
-                 "The colors an unset `color` takes in turn: line(), scatter(), bar(), hist().\n"
+                 "The colors an unset `color` takes in turn: line(), scatter(), bar(), hist(),\n"
+                 "axline() (not axspan()).\n"
                  "Restarts from the first; [] restores the default, matplotlib's tab10. Objects\n"
                  "already plotted keep theirs. A twin shares its host's cycle.")
             .def("sharex",

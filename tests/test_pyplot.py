@@ -141,8 +141,8 @@ def test_kwarg_aliases_and_passthrough():
     kw = h._entry[2]
     assert kw["linestyle"] == "dotted" and kw["linewidth"] == pytest.approx(3 * _mpl.PT)
     assert kw["name"] == "x" and kw["loop"] is True  # sextant's own options pass through
-    with pytest.raises(TypeError):
-        ax.plot([0, 1], drawstyle="steps")
+    with pytest.raises(TypeError, match="drawstyle"):
+        ax.plot([0, 1], drawstyle="wavy")
 
 
 def test_line_setters_rebuild_everything():
@@ -181,8 +181,8 @@ def test_scatter_colormapped():
     assert kw["size"] == pytest.approx(6 * _mpl.PT)  # s is points^2
     sc.set_offsets([[1, 1], [2, 2], [3, 3]])
     np.testing.assert_array_equal(ax.core.scatter_z_data(0).x, [1, 2, 3])
-    with pytest.raises(ValueError, match="one marker size"):
-        ax.scatter([0, 1], [0, 1], s=[10, 20])
+    with pytest.raises(ValueError, match="one value per point"):
+        ax.scatter([0, 1], [0, 1], s=[10, 20, 30])
 
 
 def test_bar_width_errors_and_tick_labels():
@@ -194,8 +194,6 @@ def test_bar_width_errors_and_tick_labels():
     assert b._entry[2]["linewidth"] == 0.0  # no edge by default, as matplotlib
     assert ax._log[-1][0] == "set_xticks"
     np.testing.assert_array_equal(b.datavalues, [1, 2, 3])
-    with pytest.raises(ValueError, match="bottom"):
-        ax.bar([0], [1], bottom=[1])
 
 
 def test_hist_returns_numpys_counts():
@@ -794,6 +792,145 @@ def test_set_prop_cycle():
     ax.cla()
     ax.plot([0, 1])
     assert color_of(ax._log[-1]) == hexrgba(_mpl.TAB10[0])
+
+
+# --- markers, steps, sizes, bar bases, barh, reference lines (sextant 1.2 step 36c) -------
+
+@pytest.mark.parametrize("code, shape", [
+    ("v", "triangle_down"), ("<", "triangle_left"), (">", "triangle_right"), ("*", "star"),
+    ("p", "pentagon"), ("h", "hexagon"), ("x", "thin_cross"), ("+", "thin_plus"), ("X", "cross"),
+    ("P", "plus"), ("|", "vline"), ("_", "hline"), ("1", "triangle_down"), ("o", "circle"),
+])
+def test_matplotlib_markers(code, shape):
+    ax = plt.gca()
+    ax.plot([0, 1], [0, 1], code)
+    ax.scatter([0], [0], marker=code)
+    assert ax._log[-2][2]["marker"] == shape and ax._log[-1][2]["marker"] == shape
+    ax.figure.core.render_rgba()
+
+
+def test_drawstyle_and_step():
+    ax = plt.gca()
+    h = ax.plot([0, 1, 2], [0, 1, 0], ds="steps-post")[0]
+    assert h._entry[2]["drawstyle"] == "steps-post" and h.get_drawstyle() == "steps-post"
+    h.set_drawstyle("default")
+    assert h._entry[2]["drawstyle"] == "default"
+    s = ax.step([0, 1, 2], [0, 1, 0], "r--", where="mid", label="s")[0]
+    kw = s._entry[2]
+    assert kw["drawstyle"] == "steps-mid" and kw["linestyle"] == "dashed" and kw["name"] == "s"
+    assert ax.step([0, 1], [1, 0])[0]._entry[2]["drawstyle"] == "steps-pre"  # matplotlib's default
+    plt.step([0, 1], [0, 1], where="post")
+    assert ax._log[-1][2]["drawstyle"] == "steps-post"
+    with pytest.raises(ValueError, match="where"):
+        ax.step([0, 1], [0, 1], where="center")
+    ax.figure.core.render_rgba()
+
+
+def test_scatter_sizes_per_point():
+    ax = plt.gca()
+    sc = ax.scatter([0, 1, 2], [0, 1, 2], s=[4, 16, 64])
+    np.testing.assert_allclose(sc._entry[2]["sizes"], np.array([2, 4, 8]) * _mpl.PT)  # s: points^2
+    np.testing.assert_allclose(ax.core.scatter_data(0).sizes, np.array([2, 4, 8]) * _mpl.PT)
+    np.testing.assert_allclose(sc.get_sizes(), [4, 16, 64])
+    assert "sizes" not in ax.scatter([0, 1], [0, 1], s=[25])._entry[2]  # one value: uniform
+    sc.set_sizes([1, 1, 1])
+    np.testing.assert_allclose(ax.core.scatter_data(0).sizes, np.full(3, _mpl.PT))
+    sc.set_sizes(9)
+    assert ax.core.scatter_data(0).sizes is None and sc.get_sizes() == pytest.approx([9])
+    sc.set_sizes([4, 16, 64])
+    sc.set_offsets([[0, 0], [1, 1]])  # a new count drops the per-point sizes, as sextant does
+    sc.set_label("x")  # a rebuild must not resend three sizes for two points
+    assert ax.core.scatter_data(0).sizes is None and len(ax.core.scatter_data(0).x) == 2
+    z = ax.scatter([0, 1], [0, 1], c=[1, 2], s=[9, 36])
+    np.testing.assert_allclose(ax.core.scatter_z_data(0).sizes, np.array([3, 6]) * _mpl.PT)
+    np.testing.assert_allclose(z.get_sizes(), [9, 36])
+
+    a3 = plt.figure().add_subplot(projection="3d")
+    a3.scatter([0, 1], [0, 1], [0, 1], s=[4, 16])
+    np.testing.assert_allclose(a3.core.scatter3d_data(0).sizes, np.array([2, 4]) * _mpl.PT)
+
+
+def test_bar_bottom_barh_and_hist_orientation():
+    ax = plt.gca()
+    b = ax.bar([0, 1, 2], [1, 2, 3], bottom=[3, 2, 1])
+    np.testing.assert_array_equal(ax.core.bar_data(0).bottom, [3, 2, 1])
+    ax.bar([0, 1, 2], [1, 1, 1], bottom=4)
+    np.testing.assert_array_equal(ax.core.bar_data(1).bottom, [4, 4, 4])
+    b.set_heights([2, 2, 2])
+    np.testing.assert_array_equal(ax.core.bar_data(0).bottom, [3, 2, 1])  # same count: bases kept
+
+    h = ax.barh([1, 2, 3], [10, 20, 30], height=0.5, left=1, xerr=[1, 2, 3], tick_label=["a", "b", "c"])
+    kw = h._entry[2]
+    assert kw["orientation"] == "horizontal" and kw["width"] == pytest.approx(0.5)
+    np.testing.assert_array_equal(ax.core.bar_data(2).bottom, [1, 1, 1])
+    assert ax._log[-1][0] == "set_yticks" and ax._log[-1][1][1] == ["a", "b", "c"]
+    np.testing.assert_array_equal(h.datavalues, [10, 20, 30])
+    plt.barh([0], [5])
+    assert ax._log[-1][2]["orientation"] == "horizontal"
+    with pytest.raises(ValueError, match="one height per series"):
+        ax.barh([0, 1], [1, 1], height=[0.5, 0.6])
+
+    n, _, hb = ax.hist([1, 2, 2, 3, 3, 3], bins=3, orientation="horizontal", bottom=1)
+    assert hb._entry[2]["orientation"] == "horizontal"
+    np.testing.assert_array_equal(ax.core.bar_data(4).bottom, [1, 1, 1])
+    with pytest.raises(ValueError, match="orientation"):
+        ax.hist([1, 2], orientation="sideways")
+    ax.figure.core.render_rgba()
+
+
+def test_axhline_axvline():
+    ax = plt.gca()
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 10)
+    h = ax.axhline(5, xmin=0.25, xmax=0.75, ls="--", label="limit")
+    kw = h._entry[2]
+    assert ax.core.axline_count() == 1 and ax.core.axline_data(0).value == 5
+    assert kw["orientation"] == "horizontal" and (kw["from_"], kw["to"]) == (0.25, 0.75)
+    assert kw["linestyle"] == "dashed" and kw["name"] == "limit"
+    assert kw["linewidth"] == pytest.approx(1.5 * _mpl.PT)
+    assert color_of(h._entry) == hexrgba(_mpl.TAB10[0])  # 'C0', as matplotlib ...
+    assert color_of(ax.plot([0, 1])[0]._entry) == hexrgba(_mpl.TAB10[0])  # ... without moving the cycle
+    assert h.get_ydata() == [5, 5] and h.get_xdata() == [0.25, 0.75]
+    h.set_ydata(6)
+    assert ax.core.axline_data(0).value == 6
+    h.set_xdata([0, 1])
+    assert (h._entry[2]["from_"], h._entry[2]["to"]) == (0, 1)
+    h.set_color("red")  # a rebuild replays the move
+    assert ax.core.axline_data(0).value == 6 and color_of(h._entry) == (1, 0, 0, 1)
+
+    v = plt.axvline(2, color="k", lw=3, alpha=0.5)
+    kw = v._entry[2]
+    assert kw["orientation"] == "vertical" and kw["alpha"] == 0.5 and kw["linewidth"] == pytest.approx(3 * _mpl.PT)
+    assert v.get_xdata() == [2, 2]
+    ax.set_prop_cycle(color=["#00ff00"])
+    assert color_of(ax.axhline(1)._entry) == (0, 1, 0, 1)  # C0 is the cycle's first
+    ax.figure.core.render_rgba()
+
+
+def test_axhspan_axvspan():
+    ax = plt.gca()
+    s = ax.axhspan(1, 2, xmin=0.1, label="band")
+    kw = s._entry[2]
+    assert ax.core.axspan_count() == 1 and s.get_span() == (1, 2)
+    assert kw["orientation"] == "horizontal" and kw["from_"] == 0.1 and kw["name"] == "band"
+    assert kw["alpha"] == 1.0 and "linewidth" not in kw  # opaque, no outline, as matplotlib
+    assert color_of(s._entry) == hexrgba(_mpl.TAB10[0])
+    assert color_of(ax.bar([0], [1])._entry) == hexrgba(_mpl.TAB10[0])  # the patch cycle did not move
+    s.set_span(3, 4)
+    assert (ax.core.axspan_data(0).lo, ax.core.axspan_data(0).hi) == (3, 4)
+
+    v = plt.axvspan(5, 4, fc="red", ec="k", alpha=0.3)
+    kw = v._entry[2]
+    assert kw["orientation"] == "vertical" and kw["alpha"] == 0.3
+    assert color_of(v._entry) == (1, 0, 0, 1) and kw["linewidth"] == pytest.approx(_mpl.PT)
+    assert (ax.core.axspan_data(1).lo, ax.core.axspan_data(1).hi) == (4, 5)
+    assert "linewidth" not in ax.axvspan(0, 1, ec="none")._entry[2]
+    v.set_alpha(None)
+    v.set_facecolor("blue")
+    assert v._entry[2]["alpha"] == 1.0 and ax.core.axspan_data(0).lo == 3  # replay kept the move
+    ax.legend()
+    svg, _ = ax.figure.core.render_svg()
+    assert "band" in svg
 
 
 # --- showing ------------------------------------------------------------------------------

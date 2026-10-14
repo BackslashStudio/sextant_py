@@ -5,6 +5,7 @@ and not to src/ext/options.h fails here. Then every field is set through the
 call that takes it, with a value of its C++ type.
 """
 
+import keyword
 import pathlib
 import re
 
@@ -68,6 +69,11 @@ def header_structs():
     return out
 
 
+def py_name(name):
+    """A field named after a Python keyword takes a trailing underscore (from -> from_)."""
+    return name + "_" if keyword.iskeyword(name) else name
+
+
 BINDING = {k: list(v) for k, v in sextant._sextant._option_fields().items()}
 HEADER = header_structs()
 THREE_D = {"Plane2DOptions", "Bar3DOptions", "SurfaceOptions", "SurfaceTriOptions", "Scatter3DOptions",
@@ -76,13 +82,14 @@ THREE_D = {"Plane2DOptions", "Bar3DOptions", "SurfaceOptions", "SurfaceTriOption
 
 @pytest.mark.parametrize("struct", sorted(BINDING))
 def test_binding_lists_every_header_field(struct):
-    assert BINDING[struct] == [name for name, _ in HEADER[struct]]
+    assert BINDING[struct] == [py_name(name) for name, _ in HEADER[struct]]
 
 
 ENUM_SAMPLE = {
     "LineStyle": "dashed", "MarkerStyle": "square", "Colormap": "plasma", "CapStyle": "arrow",
     "AxisPosition": "mid", "LegendAnchor": "inside_br", "ColorbarAnchor": "top", "HAlign": "left",
     "PanelTheme": "dark", "Projection": "perspective", "VAlign": "top", "ArrowHead": "open",
+    "DrawStyle": "steps_mid", "Orientation": "vertical",
 }
 BY_NAME = {  # values a generic one would make invalid
     "width": 64, "height": 48, "supersample": 1, "peel_layers": 2, "dpi": 96, "origin": "upper",
@@ -108,8 +115,8 @@ def sample(name, ctype):
         return "x"
     if t == "std::vector<std::string>":
         return ["a", "b"]
-    if t == "std::vector<double>":
-        return [0.5]
+    if t == "std::vector<double>":  # per point: sizes one per point (3), bottom one for every bar
+        return [10.0, 20.0, 30.0] if name == "sizes" else [0.5]
     if t == "bool":
         return True
     if t in ("float", "double", "int", "std::size_t"):
@@ -143,6 +150,8 @@ def apply(struct, kwargs):
         "ScatterOptions": lambda: ax.scatter(x, x, **kwargs),
         "ScatterZOptions": lambda: ax.scatter_z(x, x, x, **kwargs),
         "BarOptions": lambda: ax.bar(x, x, **kwargs),
+        "AxLineOptions": lambda: ax.axline(1.0, **kwargs),
+        "AxSpanOptions": lambda: ax.axspan(0.5, 1.5, **kwargs),
         "HeatmapOptions": lambda: ax.heatmap(np.ones((2, 2)), (0, 1), (0, 1), **kwargs),
         "GridOptions": lambda: ax.grid(True, **kwargs),
         "ScaleOptions": lambda: ax.set_xscale("symlog", **kwargs).set_yscale("log", **kwargs),
@@ -165,12 +174,12 @@ def apply(struct, kwargs):
 @pytest.mark.parametrize("struct", sorted(BINDING))
 def test_every_field_is_accepted(struct):
     for name, ctype in HEADER[struct]:
-        apply(struct, {name: sample(name, ctype)})
+        apply(struct, {py_name(name): sample(name, ctype)})
 
 
 @pytest.mark.parametrize("struct", sorted(BINDING))
 def test_all_fields_at_once(struct):
-    apply(struct, {name: sample(name, ctype) for name, ctype in HEADER[struct]})
+    apply(struct, {py_name(name): sample(name, ctype) for name, ctype in HEADER[struct]})
 
 
 def test_unknown_keyword_lists_the_fields():

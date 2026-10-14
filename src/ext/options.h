@@ -51,6 +51,7 @@ namespace sextant_py {
     template <class F>
     std::string annotation() {
         if constexpr (has_fields<F>) return Fields<F>::name;
+        else if constexpr (std::is_same_v<F, std::vector<double>>) return "ArrayLike | float | None";
         else return input_side(nb::detail::make_caster<F>::Name.text);
     }
 
@@ -68,15 +69,25 @@ namespace sextant_py {
         else if constexpr (std::is_same_v<F, sextant::Color> || std::is_same_v<F, std::optional<sextant::Color>>)
             return kColorHint;
         else if constexpr (std::is_same_v<F, sextant::Colormap>) return kColormapHint;
+        else if constexpr (std::is_same_v<F, std::vector<double>>) return "a 1-D array of numbers, a number or None";
         else return input_side(nb::detail::make_caster<F>::Name.text);
     }
 
     template <class T>
     void apply(T& o, nb::handle mapping, const std::string& ctx, const std::string& prefix = "");
 
+    // A per-point field (sizes, bottom): any 1-D array-like through numpy, a
+    // single number as one value, None as empty.
+    bool doubles_from_python(nb::handle h, std::vector<double>& out);
+
     template <class F>
     void assign(F& dst, nb::handle v, const std::string& ctx, const std::string& path) {
-        if constexpr (has_fields<F>) {
+        if constexpr (std::is_same_v<F, std::vector<double>>) {
+            if (!doubles_from_python(v, dst))
+                throw nb::type_error((ctx + ": bad value for '" + path + "': " +
+                                      nb::cast<std::string>(nb::repr(v)) + " (expected " +
+                                      expected<F>() + ")").c_str());
+        } else if constexpr (has_fields<F>) {
             if (!PyDict_Check(v.ptr()))
                 throw nb::type_error((ctx + ": '" + path + "' takes a dict of " + Fields<F>::name +
                                       " fields: " + field_names<F>()).c_str());
@@ -117,10 +128,11 @@ namespace sextant_py {
         return init;
     }
 
-#define SEXTANT_PY_FIELD(f)                                                          \
-    Field<Self>{#f, [](Self& o, nb::handle v, const std::string& ctx, const std::string& path) { \
+#define SEXTANT_PY_FIELD_AS(f, py)                                                   \
+    Field<Self>{py, [](Self& o, nb::handle v, const std::string& ctx, const std::string& path) { \
         assign(o.f, v, ctx, path);                                                   \
     }, [] { return annotation<decltype(Self::f)>(); }}
+#define SEXTANT_PY_FIELD(f) SEXTANT_PY_FIELD_AS(f, #f)
 #define SEXTANT_PY_OPTIONS(T, ...)                                                   \
     template <>                                                                      \
     struct Fields<sextant::T> {                                                      \
@@ -132,6 +144,9 @@ namespace sextant_py {
         }                                                                            \
     };
 #define F SEXTANT_PY_FIELD
+// A field named after a Python keyword takes a trailing underscore (PEP 8):
+// AxLineOptions' `from` is from_=.
+#define F_KW(f) SEXTANT_PY_FIELD_AS(f, #f "_")
 
     // Nested ones first: their Fields must exist where a parent's assign() is
     // instantiated.
@@ -144,16 +159,22 @@ namespace sextant_py {
 
     SEXTANT_PY_OPTIONS(LineOptions,
                        F(color), F(linewidth), F(linestyle), F(name), F(show_legend), F(alpha),
-                       F(loop), F(errorbar), F(hint_labels))
+                       F(loop), F(drawstyle), F(errorbar), F(hint_labels))
     SEXTANT_PY_OPTIONS(ScatterOptions,
-                       F(color), F(size), F(marker), F(name), F(show_legend), F(alpha),
+                       F(color), F(size), F(sizes), F(marker), F(name), F(show_legend), F(alpha),
                        F(edgecolor), F(edge_alpha), F(edge_linewidth), F(errorbar), F(hint_labels))
     SEXTANT_PY_OPTIONS(ScatterZOptions,
-                       F(cmap), F(size), F(marker), F(alpha), F(edgecolor), F(edge_alpha), F(edge_linewidth),
-                       F(vmin), F(vmax), F(colorbar), F(name), F(show_legend), F(errorbar), F(hint_labels))
+                       F(cmap), F(size), F(sizes), F(marker), F(alpha), F(edgecolor), F(edge_alpha),
+                       F(edge_linewidth), F(vmin), F(vmax), F(colorbar), F(name), F(show_legend), F(errorbar), F(hint_labels))
     SEXTANT_PY_OPTIONS(BarOptions,
-                       F(color), F(width), F(alpha), F(name), F(show_legend), F(edgecolor),
-                       F(linewidth), F(errorbar), F(hint_labels))
+                       F(color), F(orientation), F(bottom), F(width), F(alpha), F(name), F(show_legend),
+                       F(edgecolor), F(linewidth), F(errorbar), F(hint_labels))
+    SEXTANT_PY_OPTIONS(AxLineOptions,
+                       F(orientation), F(color), F(linewidth), F(linestyle), F(alpha), F_KW(from), F(to),
+                       F(name), F(show_legend))
+    SEXTANT_PY_OPTIONS(AxSpanOptions,
+                       F(orientation), F(color), F(alpha), F(edgecolor), F(linewidth), F_KW(from), F(to),
+                       F(name), F(show_legend))
     SEXTANT_PY_OPTIONS(HeatmapOptions,
                        F(cmap), F(vmin), F(vmax), F(colorbar), F(name), F(origin), F(contours),
                        F(contour_color), F(contour_linewidth), F(contour_labels),
@@ -216,16 +237,18 @@ namespace sextant_py {
                        F(alpha), F(shading), F(edges), F(edgecolor), F(edge_alpha), F(edge_linewidth),
                        F(hint_labels))
     SEXTANT_PY_OPTIONS(Scatter3DOptions,
-                       F(color), F(size), F(marker), F(alpha), F(edgecolor), F(edge_alpha), F(edge_linewidth),
-                       F(depthshade), F(cmap), F(vmin), F(vmax), F(colorbar), F(name), F(show_legend), F(errorbar),
+                       F(color), F(size), F(sizes), F(marker), F(alpha), F(edgecolor), F(edge_alpha),
+                       F(edge_linewidth), F(depthshade), F(cmap), F(vmin), F(vmax), F(colorbar), F(name), F(show_legend), F(errorbar),
                        F(hint_labels))
     SEXTANT_PY_OPTIONS(Line3DOptions,
                        F(color), F(linewidth), F(alpha), F(loop), F(depthshade), F(cmap), F(vmin),
                        F(vmax), F(colorbar), F(name), F(show_legend), F(errorbar), F(hint_labels))
     SEXTANT_PY_OPTIONS(Box3DStyle, F(panes), F(pane_color), F(pane_edge_color), F(margin))
     SEXTANT_PY_OPTIONS(Camera3D, F(azimuth), F(elevation), F(target), F(zoom), F(projection), F(fov))
+#undef F_KW
 #undef F
 #undef SEXTANT_PY_OPTIONS
+#undef SEXTANT_PY_FIELD_AS
 #undef SEXTANT_PY_FIELD
 
     // An option struct passed as one dict-valued argument (annotate()'s

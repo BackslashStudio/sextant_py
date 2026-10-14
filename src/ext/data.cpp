@@ -23,6 +23,13 @@ namespace sextant_py {
 
         std::span<const double> s(const std::optional<Vec>& v) { return v ? v->span() : std::span<const double>{}; }
 
+        // A read-back field as the C++ vector (empty for None).
+        std::vector<double> owned(const nb::object& o, const char* what) {
+            if (o.is_none()) return {};
+            const auto a = as_array<1>(o, what);
+            return {a.span().begin(), a.span().end()};
+        }
+
         std::string repr_fields(const char* cls, std::initializer_list<std::pair<const char*, nb::handle>> fields) {
             std::string out = std::string(cls) + "(";
             bool first = true;
@@ -54,13 +61,35 @@ namespace sextant_py {
 
     PyLineData to_python(sextant::LineData&& d) { return {vec(std::move(d.x)), vec(std::move(d.y))}; }
 
-    PyScatterData to_python(sextant::ScatterData&& d) { return {vec(std::move(d.x)), vec(std::move(d.y))}; }
-
-    PyScatterZData to_python(sextant::ScatterZData&& d) {
-        return {vec(std::move(d.x)), vec(std::move(d.y)), vec(std::move(d.z))};
+    PyScatterData to_python(sextant::ScatterData&& d) {
+        return {vec(std::move(d.x)), vec(std::move(d.y)), vec_or_none(std::move(d.sizes))};
     }
 
-    PyBarData to_python(sextant::BarData&& d) { return {vec(std::move(d.x)), vec(std::move(d.height))}; }
+    PyScatterZData to_python(sextant::ScatterZData&& d) {
+        return {vec(std::move(d.x)), vec(std::move(d.y)), vec(std::move(d.z)), vec_or_none(std::move(d.sizes))};
+    }
+
+    PyBarData to_python(sextant::BarData&& d) {
+        return {vec(std::move(d.x)), vec(std::move(d.height)), vec_or_none(std::move(d.bottom))};
+    }
+
+    sextant::ScatterData PyScatterData::to_cpp() const {
+        return {owned(x, "ScatterData.x"), owned(y, "ScatterData.y"), owned(sizes, "ScatterData.sizes")};
+    }
+
+    sextant::ScatterZData PyScatterZData::to_cpp() const {
+        return {owned(x, "ScatterZData.x"), owned(y, "ScatterZData.y"), owned(z, "ScatterZData.z"),
+                owned(sizes, "ScatterZData.sizes")};
+    }
+
+    sextant::BarData PyBarData::to_cpp() const {
+        return {owned(x, "BarData.x"), owned(height, "BarData.height"), owned(bottom, "BarData.bottom")};
+    }
+
+    sextant::Scatter3DData PyScatter3DData::to_cpp() const {
+        return {owned(x, "Scatter3DData.x"), owned(y, "Scatter3DData.y"), owned(z, "Scatter3DData.z"),
+                owned(colors, "Scatter3DData.colors"), owned(sizes, "Scatter3DData.sizes")};
+    }
 
     PyHeatmapData to_python(sextant::HeatmapData&& d) {
         const auto rows = static_cast<std::size_t>(d.rows), cols = static_cast<std::size_t>(d.cols);
@@ -85,7 +114,8 @@ namespace sextant_py {
     }
 
     PyScatter3DData to_python(sextant::Scatter3DData&& d) {
-        return {vec(std::move(d.x)), vec(std::move(d.y)), vec(std::move(d.z)), vec_or_none(std::move(d.colors))};
+        return {vec(std::move(d.x)), vec(std::move(d.y)), vec(std::move(d.z)), vec_or_none(std::move(d.colors)),
+                vec_or_none(std::move(d.sizes))};
     }
 
     PyLine3DData to_python(sextant::Line3DData&& d) {
@@ -135,28 +165,56 @@ namespace sextant_py {
             .def_rw("y", &PyLineData::y)
             .def("__repr__", [](const PyLineData& d) { return repr_fields("LineData", {{"x", d.x}, {"y", d.y}}); });
 
-        nb::class_<PyScatterData>(m, "ScatterData")
-            .def(nb::init<F64, F64>(), "x"_a, "y"_a)
+        nb::class_<PyScatterData>(m, "ScatterData",
+                                  "sizes is None when every marker takes the call's `size`, else one\n"
+                                  "diameter per point. set_scatter_data(i, data) takes it as given (None\n"
+                                  "clears it); the (x, y) form keeps it while the count holds.")
+            .def(nb::init<F64, F64, F64OrNone>(), "x"_a, "y"_a, "sizes"_a.none() = nb::none())
             .def_rw("x", &PyScatterData::x)
             .def_rw("y", &PyScatterData::y)
-            .def("__repr__",
-                 [](const PyScatterData& d) { return repr_fields("ScatterData", {{"x", d.x}, {"y", d.y}}); });
+            .def_rw("sizes", &PyScatterData::sizes, nb::arg().none())
+            .def("__repr__", [](const PyScatterData& d) {
+                return repr_fields("ScatterData", {{"x", d.x}, {"y", d.y}, {"sizes", d.sizes}});
+            });
 
-        nb::class_<PyScatterZData>(m, "ScatterZData")
-            .def(nb::init<F64, F64, F64>(), "x"_a, "y"_a, "z"_a)
+        nb::class_<PyScatterZData>(m, "ScatterZData", "sizes as ScatterData's.")
+            .def(nb::init<F64, F64, F64, F64OrNone>(), "x"_a, "y"_a, "z"_a, "sizes"_a.none() = nb::none())
             .def_rw("x", &PyScatterZData::x)
             .def_rw("y", &PyScatterZData::y)
             .def_rw("z", &PyScatterZData::z)
+            .def_rw("sizes", &PyScatterZData::sizes, nb::arg().none())
             .def("__repr__", [](const PyScatterZData& d) {
-                return repr_fields("ScatterZData", {{"x", d.x}, {"y", d.y}, {"z", d.z}});
+                return repr_fields("ScatterZData", {{"x", d.x}, {"y", d.y}, {"z", d.z}, {"sizes", d.sizes}});
             });
 
-        nb::class_<PyBarData>(m, "BarData")
-            .def(nb::init<F64, F64>(), "x"_a, "height"_a)
+        nb::class_<PyBarData>(m, "BarData",
+                              "bottom is None when the bars stand on 0, else one base per bar (a single\n"
+                              "bottom= value comes back repeated). set_bar_data(i, data) takes it as\n"
+                              "given (None clears it); the (x, height) form keeps it while the count holds.")
+            .def(nb::init<F64, F64, F64OrNone>(), "x"_a, "height"_a, "bottom"_a.none() = nb::none())
             .def_rw("x", &PyBarData::x)
             .def_rw("height", &PyBarData::height)
-            .def("__repr__",
-                 [](const PyBarData& d) { return repr_fields("BarData", {{"x", d.x}, {"height", d.height}}); });
+            .def_rw("bottom", &PyBarData::bottom, nb::arg().none())
+            .def("__repr__", [](const PyBarData& d) {
+                return repr_fields("BarData", {{"x", d.x}, {"height", d.height}, {"bottom", d.bottom}});
+            });
+
+        nb::class_<PyAxLineData>(m, "AxLineData",
+                                 "Axes.axline(): where the line is, on the axis its orientation names.")
+            .def("__init__", [](PyAxLineData* p, double value) { new (p) PyAxLineData{value}; }, "value"_a)
+            .def_rw("value", &PyAxLineData::value)
+            .def("__repr__", [](const PyAxLineData& d) {
+                return repr_fields("AxLineData", {{"value", nb::cast(d.value)}});
+            });
+
+        nb::class_<PyAxSpanData>(m, "AxSpanData", "Axes.axspan(): the band's ends, lo <= hi as stored.")
+            .def("__init__", [](PyAxSpanData* p, double lo, double hi) { new (p) PyAxSpanData{lo, hi}; },
+                 "lo"_a, "hi"_a)
+            .def_rw("lo", &PyAxSpanData::lo)
+            .def_rw("hi", &PyAxSpanData::hi)
+            .def("__repr__", [](const PyAxSpanData& d) {
+                return repr_fields("AxSpanData", {{"lo", nb::cast(d.lo)}, {"hi", nb::cast(d.hi)}});
+            });
 
         nb::class_<PyHeatmapData>(m, "HeatmapData",
                                   "data is (rows, cols), row-major as passed; values come back rounded\n"
@@ -213,15 +271,18 @@ namespace sextant_py {
                                                       {"colors", d.colors}});
             });
 
-        nb::class_<PyScatter3DData>(m, "Scatter3DData", "colors is None for a flat series.")
-            .def(nb::init<F64, F64, F64, F64OrNone>(),
-                 "x"_a, "y"_a, "z"_a, "colors"_a.none() = nb::none())
+        nb::class_<PyScatter3DData>(m, "Scatter3DData",
+                                    "colors is None for a flat series; sizes as ScatterData's.")
+            .def(nb::init<F64, F64, F64, F64OrNone, F64OrNone>(),
+                 "x"_a, "y"_a, "z"_a, "colors"_a.none() = nb::none(), "sizes"_a.none() = nb::none())
             .def_rw("x", &PyScatter3DData::x)
             .def_rw("y", &PyScatter3DData::y)
             .def_rw("z", &PyScatter3DData::z)
             .def_rw("colors", &PyScatter3DData::colors, nb::arg().none())
+            .def_rw("sizes", &PyScatter3DData::sizes, nb::arg().none())
             .def("__repr__", [](const PyScatter3DData& d) {
-                return repr_fields("Scatter3DData", {{"x", d.x}, {"y", d.y}, {"z", d.z}, {"colors", d.colors}});
+                return repr_fields("Scatter3DData", {{"x", d.x}, {"y", d.y}, {"z", d.z}, {"colors", d.colors},
+                                                     {"sizes", d.sizes}});
             });
 
         nb::class_<PyLine3DData>(m, "Line3DData", "colors is None for a flat path.")
