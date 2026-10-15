@@ -18,10 +18,11 @@ from ._mpl import Axes, Axes3D, Figure, axes_for, interactive_session, pause_loo
 
 __all__ = [
     "Axes", "Axes3D", "Figure", "annotate", "axes", "axes_for", "axhline", "axhspan", "axis", "axvline", "axvspan",
-    "bar", "barh", "cla", "clf", "close", "colorbar", "connect", "disconnect", "draw", "errorbar", "figure", "gca",
-    "gcf", "get_fignums", "grid", "hist", "imshow", "ioff", "ion", "isinteractive", "legend", "line", "loglog",
-    "minorticks_off", "minorticks_on", "pause", "pcolormesh", "plot", "savefig", "sca", "scatter", "semilogx",
-    "semilogy", "show", "step", "subplot", "subplots", "suptitle", "text", "tick_params", "title", "twinx",
+    "bar", "barh", "cla", "clf", "close", "colorbar", "connect", "disconnect", "draw", "errorbar", "figure",
+    "fill_between", "fill_betweenx", "gca", "gcf", "get_fignums", "grid", "hist", "imshow", "ioff", "ion",
+    "isinteractive", "legend", "line", "loglog", "minorticks_off", "minorticks_on", "pause", "pcolormesh", "plot",
+    "quiver", "savefig", "sca", "scatter", "semilogx", "semilogy", "show", "stackplot", "step", "subplot",
+    "subplots", "suptitle", "text", "tick_params", "title", "twinx",
     "twiny", "xlabel", "xlim", "xscale", "xticks", "ylabel", "ylim", "yscale", "yticks",
 ]
 
@@ -191,6 +192,22 @@ def axhspan(*args, **kw):
 
 def axvspan(*args, **kw):
     return gca().axvspan(*args, **kw)
+
+
+def fill_between(*args, **kw):
+    return gca().fill_between(*args, **kw)
+
+
+def fill_betweenx(*args, **kw):
+    return gca().fill_betweenx(*args, **kw)
+
+
+def stackplot(*args, **kw):
+    return gca().stackplot(*args, **kw)
+
+
+def quiver(*args, **kw):
+    return gca().quiver(*args, **kw)
 
 
 def errorbar(*args, **kw):

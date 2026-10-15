@@ -52,6 +52,7 @@ namespace sextant_py {
     std::string annotation() {
         if constexpr (has_fields<F>) return Fields<F>::name;
         else if constexpr (std::is_same_v<F, std::vector<double>>) return "ArrayLike | float | None";
+        else if constexpr (std::is_same_v<F, std::vector<bool>>) return "ArrayLike | None";
         else return input_side(nb::detail::make_caster<F>::Name.text);
     }
 
@@ -70,6 +71,7 @@ namespace sextant_py {
             return kColorHint;
         else if constexpr (std::is_same_v<F, sextant::Colormap>) return kColormapHint;
         else if constexpr (std::is_same_v<F, std::vector<double>>) return "a 1-D array of numbers, a number or None";
+        else if constexpr (std::is_same_v<F, std::vector<bool>>) return "a 1-D array of booleans or None";
         else return input_side(nb::detail::make_caster<F>::Name.text);
     }
 
@@ -80,10 +82,18 @@ namespace sextant_py {
     // single number as one value, None as empty.
     bool doubles_from_python(nb::handle h, std::vector<double>& out);
 
+    // A per-point mask (FillOptions::exclude): any 1-D array-like numpy makes
+    // booleans of, None as empty.
+    bool bools_from_python(nb::handle h, std::vector<bool>& out);
+
     template <class F>
     void assign(F& dst, nb::handle v, const std::string& ctx, const std::string& path) {
-        if constexpr (std::is_same_v<F, std::vector<double>>) {
-            if (!doubles_from_python(v, dst))
+        if constexpr (std::is_same_v<F, std::vector<double>> || std::is_same_v<F, std::vector<bool>>) {
+            const bool ok = [&] {
+                if constexpr (std::is_same_v<F, std::vector<double>>) return doubles_from_python(v, dst);
+                else return bools_from_python(v, dst);
+            }();
+            if (!ok)
                 throw nb::type_error((ctx + ": bad value for '" + path + "': " +
                                       nb::cast<std::string>(nb::repr(v)) + " (expected " +
                                       expected<F>() + ")").c_str());
@@ -175,6 +185,15 @@ namespace sextant_py {
     SEXTANT_PY_OPTIONS(AxSpanOptions,
                        F(orientation), F(color), F(alpha), F(edgecolor), F(linewidth), F_KW(from), F(to),
                        F(name), F(show_legend))
+    SEXTANT_PY_OPTIONS(FillOptions,
+                       F(orientation), F(color), F(alpha), F(edgecolor), F(linewidth), F(linestyle),
+                       F(drawstyle), F(exclude), F(interpolate), F(name), F(show_legend))
+    SEXTANT_PY_OPTIONS(StackOptions,
+                       F(orientation), F(baseline), F(colors), F(names), F(alpha), F(edgecolor), F(linewidth),
+                       F(linestyle), F(drawstyle), F(show_legend))
+    SEXTANT_PY_OPTIONS(QuiverOptions,
+                       F(color), F(alpha), F(cmap), F(vmin), F(vmax), F(colorbar), F(amp), F(pivot), F(width),
+                       F(head_width), F(head_length), F(name), F(show_legend), F(hint_labels))
     SEXTANT_PY_OPTIONS(HeatmapOptions,
                        F(cmap), F(vmin), F(vmax), F(colorbar), F(name), F(origin), F(contours),
                        F(contour_color), F(contour_linewidth), F(contour_labels),

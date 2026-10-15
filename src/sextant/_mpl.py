@@ -501,6 +501,154 @@ class Span(_Artist):
         self._set_options(alpha=1.0 if a is None else float(a))
 
 
+class FillBetweenPolyCollection(_Artist):
+    """fill_between()/fill_betweenx()'s return, and each stackplot() layer's: its
+    curves (set_data, as matplotlib 3.10's), colours, outline and alpha."""
+
+    def __init__(self, axes, kind, index, entry, label, alpha=None, linewidth=PT):
+        super().__init__(axes, kind, index, entry, label)
+        self._alpha = alpha  # matplotlib's alpha, which the outline takes as well
+        self._linewidth = linewidth  # the outline's, in px, whenever there is one
+
+    def get_data(self):
+        """Not matplotlib: (t, f1, f2), the run coordinate and the two curves."""
+        d = self.axes.core.fill_data(self._index)
+        return d.x, d.y1, d.y2
+
+    def set_data(self, t, f1, f2, *, where=None):
+        t = _vec(t)
+        f1 = np.broadcast_to(np.asarray(f1, dtype=float), t.shape).astype(float)
+        f2 = np.broadcast_to(np.asarray(f2, dtype=float), t.shape).astype(float)
+        exclude = _exclude(where, len(t), "set_data")
+        self.axes.core.set_fill_data(self._index, _sextant.FillData(t, f1, f2, exclude))
+        self._entry[1][:3] = [t, f1, f2]
+        self._entry[2].pop("exclude", None)
+        if exclude is not None:
+            self._entry[2]["exclude"] = exclude
+        self.axes.figure._changed()
+
+    def get_facecolor(self):
+        return self._entry[2].get("color")
+
+    def set_facecolor(self, c):
+        self._set_options(color=to_rgba(c))
+
+    def set_color(self, c):
+        """Face and outline, as matplotlib's."""
+        rgba = to_rgba(c)
+        self._entry[2]["color"] = rgba
+        self.set_edgecolor(c)
+
+    def get_edgecolor(self):
+        return self._entry[2].get("edgecolor") if self._entry[2].get("linewidth") else None
+
+    def set_edgecolor(self, c):
+        opts = self._entry[2]
+        if c is None or (isinstance(c, str) and c.lower() == "none"):
+            opts.pop("edgecolor", None)
+            opts.pop("linewidth", None)
+        else:
+            opts["edgecolor"] = to_rgba(c, self._alpha)
+            opts["linewidth"] = self._linewidth
+        self.axes._rebuild()
+
+    def set_linewidth(self, lw):
+        self._linewidth = float(lw) * PT
+        if "edgecolor" in self._entry[2]:
+            self._set_options(linewidth=self._linewidth)
+
+    def set_linestyle(self, ls):
+        self._set_options(linestyle=_linestyle(ls))
+
+    def set_alpha(self, a):
+        opts = self._entry[2]
+        self._alpha = a
+        opts["alpha"] = 1.0 if a is None else float(a)
+        if "edgecolor" in opts:  # matplotlib fades the outline too
+            opts["edgecolor"] = to_rgba(opts["edgecolor"], 1.0 if a is None else a)
+        self.axes._rebuild()
+
+
+class Quiver(_Artist):
+    """quiver()'s return: the arrows' anchors (X, Y, set_offsets) and vectors (U, V,
+    set_UVC), and for a colormapped one its values (get_array, set_clim, set_cmap)."""
+
+    def _data(self):
+        return self.axes.core.quiver_data(self._index)
+
+    @property
+    def X(self):
+        return self._data().x
+
+    @property
+    def Y(self):
+        return self._data().y
+
+    @property
+    def U(self):
+        return self._data().u
+
+    @property
+    def V(self):
+        return self._data().v
+
+    @property
+    def N(self):
+        return len(self._data().x)
+
+    def get_offsets(self):
+        d = self._data()
+        return np.column_stack([d.x, d.y])
+
+    def set_offsets(self, xy):
+        """New anchors: the same number keeps the vectors and values; another drops the
+        values, as the core's setter does."""
+        xy = np.asarray(xy, dtype=float).reshape(-1, 2)
+        d = self._data()
+        if len(xy) != len(d.x):
+            raise ValueError(f"set_offsets(): {len(d.x)} arrows, got {len(xy)} offsets")
+        self._set_args("set_quiver_data", xy[:, 0].copy(), xy[:, 1].copy(), d.u, d.v)
+
+    def set_UVC(self, U, V, C=None):
+        """New vectors (and values), the anchors and the amp kept."""
+        d = self._data()
+        u = np.broadcast_to(np.asarray(U, dtype=float).ravel(), d.x.shape).astype(float)
+        v = np.broadcast_to(np.asarray(V, dtype=float).ravel(), d.x.shape).astype(float)
+        c = d.c if C is None else _vec(C)
+        self.axes.core.set_quiver_data(self._index, _sextant.QuiverData(d.x, d.y, u, v, c))
+        args = self._entry[1]
+        args[2:4] = [u, v]
+        if C is not None:
+            args[4:] = [c]
+        self.axes.figure._changed()
+
+    def get_array(self):
+        return self._data().c
+
+    def set_array(self, values):
+        d = self._data()
+        self.set_UVC(d.u, d.v, values)
+
+    def set_clim(self, vmin=None, vmax=None):
+        if isinstance(vmin, (tuple, list)):
+            vmin, vmax = vmin
+        self._set_options(vmin=vmin, vmax=vmax)
+
+    def set_cmap(self, cmap):
+        self._set_options(cmap=cmap)
+
+    def get_facecolor(self):
+        return self._entry[2].get("color")
+
+    def set_color(self, c):
+        self._set_options(color=to_rgba(c))
+
+    set_facecolor = set_color
+
+    def set_alpha(self, a):
+        self._set_options(alpha=1.0 if a is None else float(a))
+
+
 class Surface3D(_Artist):
     """plot_surface()/plot_trisurf()/plot_wireframe()'s return."""
 
@@ -1068,7 +1216,7 @@ class _AxesBase:
 class Axes(_AxesBase):
     """A 2D axes, matplotlib style, over a core sextant.Axes (``.core``)."""
 
-    _SERIES = {"line", "scatter", "scatter_z", "bar"}
+    _SERIES = {"line", "scatter", "scatter_z", "bar", "fill", "quiver"}
 
     def __init__(self, figure, core):
         super().__init__(figure, core)
@@ -1330,6 +1478,155 @@ class Axes(_AxesBase):
             opts["name"] = str(label)
         i, entry = self._add("axspan", "axspan", float(lo), float(hi), **opts)
         return Span(self, "axspan", i, entry, label)
+
+    # --- filled areas --------------------------------------------------------------
+
+    def fill_between(self, x, y1, y2=0, where=None, interpolate=False, step=None, *, data=None, **kw):
+        """The area between y1(x) and y2(x), as matplotlib's. Returns a
+        FillBetweenPolyCollection."""
+        return self._fill_between("fill_between", x, y1, y2, where, interpolate, step, "horizontal", data, kw)
+
+    def fill_betweenx(self, y, x1, x2=0, where=None, step=None, interpolate=False, *, data=None, **kw):
+        """The area between x1(y) and x2(y), as matplotlib's."""
+        return self._fill_between("fill_betweenx", y, x1, x2, where, interpolate, step, "vertical", data, kw)
+
+    def _fill_between(self, method, t, f1, f2, where, interpolate, step, orientation, data, kw):
+        if data is not None:
+            t, f1, f2, where = (data[a] if isinstance(a, str) and a in data else a for a in (t, f1, f2, where))
+        t = _vec(t)
+        f1 = np.broadcast_to(np.asarray(f1, dtype=float), t.shape).astype(float)
+        f2 = float(f2) if np.ndim(f2) == 0 else _vec(f2)
+        color = kw.pop("color", None)
+        face = _pop(kw, "facecolor", "facecolors", "fc", default=color)
+        edge = _pop(kw, "edgecolor", "edgecolors", "ec", default=color)  # color= is the outline's too
+        label = kw.pop("label", None)
+        face = to_rgba(face) if face is not None else self._next_color(patches=True)
+        if isinstance(edge, str) and edge == "face":
+            edge = face
+        opts = _area_style(method, kw, edge, step)
+        opts["color"] = face
+        if orientation != "horizontal":
+            opts["orientation"] = orientation
+        exclude = _exclude(where, len(t), method)
+        if exclude is not None:
+            opts["exclude"] = exclude
+        if interpolate:
+            opts["interpolate"] = True
+        if label is not None:
+            opts["name"] = str(label)
+        alpha, lw = opts.pop("_alpha"), opts.pop("_linewidth")
+        i, entry = self._add("fill", "fill", t, f1, f2, **opts)
+        return FillBetweenPolyCollection(self, "fill", i, entry, label, alpha, lw)
+
+    def stackplot(self, x, *args, labels=(), colors=None, hatch=None, baseline="zero", data=None, **kw):
+        """Stacked areas, as matplotlib's: one FillBetweenPolyCollection per layer, in a
+        list. Layers past `labels` are unnamed; `colors` repeats as needed (unset: the
+        line colour cycle, one per layer)."""
+        if hatch is not None:
+            raise ValueError("stackplot(): sextant draws no hatching")
+        if data is not None:
+            x = data[x] if isinstance(x, str) and x in data else x
+            args = [data[a] if isinstance(a, str) and a in data else a for a in args]
+        if not args:
+            raise TypeError("stackplot(x, y): no layers given")
+        x = _vec(x)
+        ys = np.vstack([np.asarray(a, dtype=float) for a in args])
+        n = len(ys)
+        edge = _pop(kw, "edgecolor", "edgecolors", "ec")
+        opts = _area_style("stackplot", kw, edge, kw.pop("step", None))
+        alpha, lw = opts.pop("_alpha"), opts.pop("_linewidth")
+        if colors is not None:
+            colors = list(colors)
+            fill_colors = [to_rgba(colors[k % len(colors)]) for k in range(n)]
+        else:
+            fill_colors = [self._next_color() for _ in range(n)]
+        labels = [str(s) for s in labels][:n]
+        names = labels + [""] * (n - len(labels))
+        # The core computes the curves; each layer is then recorded as the plain fill it
+        # is, so a layer's own setters and a replay act on it alone.
+        i0 = self.core.fill_count()
+        self.core.stack(x, ys, baseline=baseline, colors=fill_colors, names=names, **opts)
+        handles = []
+        for k in range(n):
+            d = self.core.fill_data(i0 + k)
+            fopts = dict(opts, color=fill_colors[k])
+            if names[k]:
+                fopts["name"] = names[k]
+            if d.exclude is not None:
+                fopts["exclude"] = d.exclude
+            entry = ["fill", [d.x, d.y1, d.y2], fopts]
+            self._log.append(entry)
+            handles.append(FillBetweenPolyCollection(self, "fill", i0 + k, entry, names[k] or None, alpha, lw))
+        self.figure._changed()
+        return handles
+
+    # --- arrow fields ---------------------------------------------------------------
+
+    def quiver(self, *args, scale=None, scale_units=None, units="width", angles="uv", width=None, headwidth=3,
+               headlength=5, pivot="tail", color=None, cmap=None, norm=None, clim=None, alpha=None, label=None,
+               colorbar=False, data=None, **kw):
+        """quiver([X, Y], U, V, [C], **kwargs), as matplotlib's, drawn in data units: an
+        arrow runs from (x, y) by (u, v) / scale (angles='uv' draws as 'xy', which is the
+        same at equal aspect). Unset scale picks matplotlib's mean arrow length; a scale
+        is read in scale_units 'xy', 'x', 'y', 'width' or 'height'. Returns a Quiver."""
+        _drop_ignored(kw)
+        for k in ("headaxislength", "minshaft", "minlength"):  # shape details sextant has no knob for
+            kw.pop(k, None)
+        if data is not None:
+            args = [data[a] if isinstance(a, str) and a in data else a for a in args]
+        x, y, u, v, c = _quiver_args(args)
+        if not (isinstance(angles, str) and angles in ("uv", "xy")):
+            raise ValueError("quiver(): sextant draws angles='xy' (and 'uv' as 'xy'), not per-arrow angles")
+        lw = _pop(kw, "linewidths", "linewidth", "lw")
+        edge = _pop(kw, "edgecolors", "edgecolor", "ec")
+        if lw is not None and np.any(np.asarray(lw, dtype=float) > 0):
+            raise ValueError("quiver(): sextant draws arrows without an outline")
+        del edge
+        face = _pop(kw, "facecolors", "facecolor", "fc", default=color)
+        w_px, h_px = self._frame_px()
+        if width is None:
+            shaft = 0.06 / min(max(math.sqrt(len(x)), 8.0), 25.0) * w_px
+        else:
+            per = {"width": w_px, "height": h_px, "dots": 100.0 / self.figure._dpi, "inches": 100.0}.get(units)
+            if per is None:
+                raise ValueError(f"quiver(): sextant sizes arrows in pixels; width= in units {units!r} needs "
+                                 "'width', 'height', 'dots' or 'inches'")
+            shaft = float(width) * per
+        opts = dict(kw, amp=_quiver_amp(x, y, u, v, scale, scale_units or units), pivot=pivot, width=shaft,
+                    head_width=float(headwidth) * shaft, head_length=float(headlength) * shaft)
+        if alpha is not None:
+            opts["alpha"] = float(alpha)
+        if label is not None:
+            opts["name"] = str(label)
+        if c is not None:
+            if norm is not None and clim is None:
+                clim = (getattr(norm, "vmin", None), getattr(norm, "vmax", None))
+            lo, hi = _auto_limits(c, *(clim if clim is not None else (None, None)))
+            opts.update(vmin=lo, vmax=hi, colorbar=bool(colorbar))
+            if cmap is not None:
+                opts["cmap"] = cmap
+            i, entry = self._add("quiver", "quiver", x, y, u, v, c, **opts)
+        else:
+            opts["color"] = to_rgba(face) if face is not None else (0.0, 0.0, 0.0, 1.0)  # matplotlib's black
+            i, entry = self._add("quiver", "quiver", x, y, u, v, **opts)
+        handle = Quiver(self, "quiver", i, entry, label)
+        if c is not None:
+            self.figure._mappable = handle
+        return handle
+
+    def _frame_px(self):
+        """The frame's (width, height) in px at matplotlib's default subplot layout
+        (left .125, right .9, bottom .11, top .88, wspace = hspace = .2): what quiver's
+        'width'/'height' units are measured against."""
+        ax = self._host or self
+        (R, C), first, last = ax._span if ax._span is not None else ((1, 1), 1, 1)
+        W, H = self.figure._size
+        r0, c0 = divmod(first - 1, C)
+        r1, c1 = divmod(last - 1, C)
+        cw = 0.775 * W / (C + 0.2 * (C - 1))
+        ch = 0.77 * H / (R + 0.2 * (R - 1))
+        k, m = c1 - c0 + 1, r1 - r0 + 1
+        return k * cw + (k - 1) * 0.2 * cw, m * ch + (m - 1) * 0.2 * ch
 
     def errorbar(self, x, y, yerr=None, xerr=None, fmt="", ecolor=None, elinewidth=None, capsize=None,
                  label=None, **kw):
@@ -1774,6 +2071,93 @@ def _values(c, n):
     if a.dtype.kind in "fiu" and a.ndim == 1 and a.size == n and not (isinstance(c, tuple) and n not in (3, 4)):
         return a.astype(float)
     return None
+
+
+def _area_style(method, kw, edge, step):
+    """fill_between()'s and stackplot()'s shared keywords as FillOptions fields, plus
+    "_alpha" (matplotlib's alpha) and "_linewidth" (the outline's px) for the handle,
+    which the caller pops. matplotlib draws no outline unless edgecolor (or color=) is
+    given, and fades it with alpha; sextant draws it at its colour's own alpha, so
+    alpha goes into that colour. edge 'face' is each fill's own colour."""
+    _drop_ignored(kw)
+    alpha = kw.pop("alpha", None)
+    lw = _pop(kw, "linewidth", "linewidths", "lw")
+    ls = _pop(kw, "linestyle", "linestyles", "ls")
+    opts = dict(kw)
+    linewidth = (1.0 if lw is None else float(np.ravel(lw)[0])) * PT
+    if alpha is not None:
+        opts["alpha"] = float(alpha)
+    if edge is not None and not (isinstance(edge, str) and edge.lower() == "none") and linewidth > 0:
+        if not (isinstance(edge, str) and edge == "face"):
+            opts["edgecolor"] = to_rgba(edge, alpha)
+        opts["linewidth"] = linewidth
+    if ls is not None:
+        opts["linestyle"] = _linestyle(ls)
+    if step is not None:
+        if step not in ("pre", "post", "mid"):
+            raise ValueError(f"{method}(): step must be 'pre', 'post' or 'mid', not {step!r}")
+        opts["drawstyle"] = "steps-" + step
+    opts["_alpha"], opts["_linewidth"] = alpha, linewidth
+    return opts
+
+
+def _exclude(where, n, method):
+    """matplotlib's `where` as sextant's exclude mask (its inverse); None for none."""
+    if where is None:
+        return None
+    w = np.asarray(where, dtype=bool).ravel()
+    if w.size != n:
+        raise ValueError(f"{method}(): where has {w.size} values, x has {n}")
+    return ~w if not w.all() else None
+
+
+def _quiver_args(args):
+    """quiver([X, Y], U, V, [C]) as flat x, y, u, v and c (None without C), as
+    matplotlib reads them: no X, Y is U's index grid; 1-D X, Y spanning a 2-D U's
+    columns and rows are a meshgrid."""
+    if len(args) not in (2, 3, 4, 5):
+        raise TypeError(f"quiver(): quiver([X, Y], U, V, [C]) takes 2 to 5 arrays, got {len(args)}")
+    xy, rest = (args[:2], args[2:]) if len(args) >= 4 else (None, args)
+    U = np.asarray(rest[0], dtype=float)
+    V = np.asarray(rest[1], dtype=float)
+    nr, nc = (1, U.size) if U.ndim < 2 else U.shape[:2]
+    if xy is None:
+        X, Y = np.meshgrid(np.arange(nc, dtype=float), np.arange(nr, dtype=float))
+    else:
+        X, Y = (np.asarray(a, dtype=float).ravel() for a in xy)
+        if len(X) == nc and len(Y) == nr:
+            X, Y = np.meshgrid(X, Y)
+    x, y = X.ravel(), Y.ravel()
+    u = np.broadcast_to(U.ravel(), x.shape).astype(float) if U.size == 1 else U.ravel()
+    v = np.broadcast_to(V.ravel(), x.shape).astype(float) if V.size == 1 else V.ravel()
+    c = None if len(rest) < 3 or rest[2] is None else _vec(rest[2])
+    return x, y, u, v, c
+
+
+def _quiver_amp(x, y, u, v, scale, units):
+    """sextant's amp (data units of arrow per unit of vector) for matplotlib's scale in
+    `units`. Unset scale: sextant's own rule, matplotlib's mean arrow length with the
+    anchors' extent standing for the view's, computed here so that a replay after
+    set_UVC() keeps it."""
+    ok = np.isfinite(x) & np.isfinite(y) & np.isfinite(u) & np.isfinite(v)
+    xe = float(np.ptp(x[ok])) if ok.any() else 0.0
+    ye = float(np.ptp(y[ok])) if ok.any() else 0.0
+    wide = xe if xe > 0 else ye if ye > 0 else 1.0
+    high = ye if ye > 0 else xe if xe > 0 else 1.0
+    if scale is None:
+        lengths = np.hypot(u[ok], v[ok])
+        lengths = lengths[(lengths > 0) & np.isfinite(lengths)]
+        if not lengths.size:
+            return 1.0
+        return wide / (1.8 * max(10.0, math.sqrt(int(ok.sum()))) * float(lengths.mean()))
+    per = {"xy": 1.0, "x": 1.0, "y": 1.0, "width": wide, "height": high}.get(units)
+    if per is None:
+        raise ValueError(f"quiver(): sextant draws arrows in data units; a scale in units {units!r} needs "
+                         "scale_units 'xy', 'x', 'y', 'width' or 'height'")
+    scale = float(scale)
+    if not (math.isfinite(scale) and scale > 0):
+        raise ValueError(f"quiver(): scale must be finite and > 0, not {scale!r}")
+    return per / scale
 
 
 def _plot_groups(args, data):

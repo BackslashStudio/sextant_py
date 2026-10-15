@@ -20,6 +20,39 @@ namespace sextant_py {
         using sextant::ScatterOptions;
         using sextant::ScatterZOptions;
 
+        // fill()'s y2: a number (one value for every point) or one per point.
+        using NumberOrArray = nb::typed<nb::object, Named<"float | ArrayLike">>;
+
+        bool is_number(nb::handle h) {
+            if (PyFloat_Check(h.ptr()) || PyLong_Check(h.ptr())) return !PyBool_Check(h.ptr());
+            // A numpy scalar or 0-d array.
+            return nb::hasattr(h, "ndim") && nb::cast<int>(h.attr("ndim")) == 0;
+        }
+
+        // stack()'s layers: a 2-D array-like, one layer per row (a 1-D one is one
+        // layer), as the C++ vectors.
+        std::vector<std::vector<double>> layers(nb::handle ys) {
+            nb::object a;
+            try {
+                nb::object np = nb::module_::import_("numpy");
+                a = np.attr("asarray")(ys, nb::arg("dtype") = np.attr("float64"));
+            } catch (const nb::python_error&) {
+                throw nb::type_error(("stack(): ys must be a 2-D array of numbers (one row per layer) or a "
+                                      "sequence of equally long 1-D arrays, got " +
+                                      nb::cast<std::string>(nb::repr(ys))).c_str());
+            }
+            const int nd = nb::cast<int>(a.attr("ndim"));
+            if (nd == 1) a = a.attr("reshape")(1, -1);
+            else if (nd != 2)
+                throw nb::type_error("stack(): ys must be 2-D (one row per layer)");
+            const Mat m = as_array<2>(a, "stack() ys");
+            std::vector<std::vector<double>> out(m.shape(0));
+            const auto s = m.span();
+            const std::size_t n = m.shape(1);
+            for (std::size_t k = 0; k < out.size(); ++k) out[k].assign(s.begin() + k * n, s.begin() + (k + 1) * n);
+            return out;
+        }
+
         sextant::ErrorBar spans(const PyErrorBar* err) { return err ? err->spans() : sextant::ErrorBar{}; }
 
         using sextant::Coords;
@@ -64,6 +97,24 @@ namespace sextant_py {
                 "A 2-D array (rows, cols) drawn over xrange x yrange, (lo, hi) tuples of outer cell edges.");
             static const std::string imshow_doc = opts_doc<HeatmapOptions>(
                 "imshow(data, **opts)", "heatmap() over x in [0, cols], y in [0, rows].");
+            static const std::string fill_doc = opts_doc<sextant::FillOptions>(
+                "fill(x, y1, y2=0, **opts)",
+                "The area between y1(x) and y2(x) (matplotlib's fill_between); y2 is a number or one\n"
+                "value per point. With orientation='vertical', between x1(y) and x2(y), the arrays\n"
+                "then reading y, x1, x2 (fill_betweenx). exclude= leaves points out (the inverse of\n"
+                "matplotlib's where); a NaN splits the fill. ValueError for lengths that differ.");
+            static const std::string stack_doc = opts_doc<sextant::StackOptions>(
+                "stack(x, ys, **opts)",
+                "Stacked areas (matplotlib's stackplot): ys is a 2-D array, one row per layer (or a\n"
+                "sequence of 1-D arrays), each one value per x. Each layer is added as an ordinary\n"
+                "fill(), read back and edited as one. colors/names: empty, or one per layer.");
+            static const std::string quiver_doc = opts_doc<sextant::QuiverOptions>(
+                "quiver(x, y, u, v, c=None, **opts)",
+                "An arrow per point from (x, y) along amp * (u, v) in data units (matplotlib's quiver\n"
+                "with angles='xy', scale_units='xy'; amp is its 1/scale); unset amp is chosen from the\n"
+                "data and kept. With c (one value per arrow), each arrow is colored through\n"
+                "cmap/vmin/vmax. width, head_width and head_length are pixels. ValueError for\n"
+                "lengths that differ or an amp that is not finite and > 0.");
 
             cls.def("line",
                     [](Self self, const Vec& x, const std::optional<Vec>& y, const PyErrorBar* err,
@@ -129,6 +180,34 @@ namespace sextant_py {
                          });
                      },
                      "data"_a, "opts"_a, imshow_doc.c_str())
+                .def("fill",
+                     [](Self self, const Vec& x, const Vec& y1, NumberOrArray y2, const nb::kwargs& kw) {
+                         auto o = options<sextant::FillOptions>("fill()", kw);
+                         if (is_number(y2)) {
+                             const double v = nb::cast<double>(y2);
+                             return chain(self, [&](T& t) { t.fill(x.span(), y1.span(), v, std::move(o)); });
+                         }
+                         const auto a = as_array<1>(y2, "fill() y2");
+                         return chain(self, [&](T& t) { t.fill(x.span(), y1.span(), a.span(), std::move(o)); });
+                     },
+                     "x"_a, "y1"_a, "y2"_a = 0.0, "opts"_a, fill_doc.c_str())
+                .def("stack",
+                     [](Self self, const Vec& x, nb::typed<nb::object, Named<"ArrayLike">> ys, const nb::kwargs& kw) {
+                         auto o = options<sextant::StackOptions>("stack()", kw);
+                         const auto l = layers(ys);
+                         return chain(self, [&](T& t) { t.stack(x.span(), l, std::move(o)); });
+                     },
+                     "x"_a, "ys"_a, "opts"_a, stack_doc.c_str())
+                .def("quiver",
+                     [](Self self, const Vec& x, const Vec& y, const Vec& u, const Vec& v, const std::optional<Vec>& c,
+                        const nb::kwargs& kw) {
+                         auto o = options<sextant::QuiverOptions>("quiver()", kw);
+                         return chain(self, [&](T& t) {
+                             if (c) t.quiver(x.span(), y.span(), u.span(), v.span(), c->span(), std::move(o));
+                             else t.quiver(x.span(), y.span(), u.span(), v.span(), std::move(o));
+                         });
+                     },
+                     "x"_a, "y"_a, "u"_a, "v"_a, "c"_a.none() = nb::none(), "opts"_a, quiver_doc.c_str())
                 .def("cla", [](Self self) { return chain(self, [](T& t) { t.cla(); }); },
                      "Clear all plot objects (on Axes, also reset limits, the color cycle and the\n"
                      "aspect; a shared axis stays shared).")
@@ -139,6 +218,9 @@ namespace sextant_py {
                 .def("scatter_z_count", [](W& w) { return read(w, [](T& t) { return t.scatter_z_count(); }); })
                 .def("bar_count", [](W& w) { return read(w, [](T& t) { return t.bar_count(); }); })
                 .def("heatmap_count", [](W& w) { return read(w, [](T& t) { return t.heatmap_count(); }); })
+                .def("fill_count", [](W& w) { return read(w, [](T& t) { return t.fill_count(); }); },
+                     "fill() and each stack() layer alike.")
+                .def("quiver_count", [](W& w) { return read(w, [](T& t) { return t.quiver_count(); }); })
                 .def("line_data",
                      [](W& w, std::int64_t i) {
                          return to_python(read(w, [&](T& t) { return t.line_data(index(i, t.line_count())); }));
@@ -165,6 +247,16 @@ namespace sextant_py {
                          return to_python(read(w, [&](T& t) { return t.heatmap_data(index(i, t.heatmap_count())); }));
                      },
                      "i"_a, "heatmap() and imshow() alike.")
+                .def("fill_data",
+                     [](W& w, std::int64_t i) {
+                         return to_python(read(w, [&](T& t) { return t.fill_data(index(i, t.fill_count())); }));
+                     },
+                     "i"_a)
+                .def("quiver_data",
+                     [](W& w, std::int64_t i) {
+                         return to_python(read(w, [&](T& t) { return t.quiver_data(index(i, t.quiver_count())); }));
+                     },
+                     "i"_a)
 
                 // --- updating plotted data ------------------------------------
                 .def("set_line_data",
@@ -235,7 +327,33 @@ namespace sextant_py {
                                                 xrange, yrange);
                          });
                      },
-                     "i"_a, "data"_a, "xrange"_a, "yrange"_a);
+                     "i"_a, "data"_a, "xrange"_a, "yrange"_a)
+                .def("set_fill_data",
+                     [](Self self, std::int64_t i, const PyFillData& d) {
+                         const sextant::FillData cd = d.to_cpp();
+                         return chain(self, [&](T& t) { t.set_fill_data(index(i, t.fill_count()), cd); });
+                     },
+                     "i"_a, "data"_a)
+                .def("set_fill_data",
+                     [](Self self, std::int64_t i, const Vec& x, const Vec& y1, const Vec& y2) {
+                         return chain(self, [&](T& t) {
+                             t.set_fill_data(index(i, t.fill_count()), x.span(), y1.span(), y2.span());
+                         });
+                     },
+                     "i"_a, "x"_a, "y1"_a, "y2"_a)
+                .def("set_quiver_data",
+                     [](Self self, std::int64_t i, const PyQuiverData& d) {
+                         const sextant::QuiverData cd = d.to_cpp();
+                         return chain(self, [&](T& t) { t.set_quiver_data(index(i, t.quiver_count()), cd); });
+                     },
+                     "i"_a, "data"_a)
+                .def("set_quiver_data",
+                     [](Self self, std::int64_t i, const Vec& x, const Vec& y, const Vec& u, const Vec& v) {
+                         return chain(self, [&](T& t) {
+                             t.set_quiver_data(index(i, t.quiver_count()), x.span(), y.span(), u.span(), v.span());
+                         });
+                     },
+                     "i"_a, "x"_a, "y"_a, "u"_a, "v"_a);
         }
     } // namespace
 
@@ -484,7 +602,7 @@ namespace sextant_py {
                  },
                  "colors"_a,
                  "The colors an unset `color` takes in turn: line(), scatter(), bar(), hist(),\n"
-                 "axline() (not axspan()).\n"
+                 "fill() (stack() one per layer), quiver() without c, axline() (not axspan()).\n"
                  "Restarts from the first; [] restores the default, matplotlib's tab10. Objects\n"
                  "already plotted keep theirs. A twin shares its host's cycle.")
             .def("sharex",

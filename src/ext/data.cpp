@@ -1,4 +1,5 @@
 // ErrorBar/ErrorBar3D and the read-back data classes.
+#include "options.h"
 #include "wrappers.h"
 
 #include <nanobind/stl/optional.h>
@@ -15,6 +16,16 @@ namespace sextant_py {
 
         // None for an empty optional part (bottoms, colors).
         F64OrNone vec_or_none(std::vector<double>&& v) { return v.empty() ? nb::none() : nb::object(vec(std::move(v))); }
+
+        // A mask as a numpy bool array, None when empty.
+        BoolOrNone bools_or_none(const std::vector<bool>& v) {
+            if (v.empty()) return nb::none();
+            const std::size_t n = v.size();
+            auto* heap = new bool[n];
+            for (std::size_t i = 0; i < n; ++i) heap[i] = v[i];
+            nb::capsule owner(heap, [](void* p) noexcept { delete[] static_cast<bool*>(p); });
+            return nb::cast(nb::ndarray<nb::numpy, bool>(heap, {n}, owner));
+        }
 
         // Bar3D/surface heights as a (len(u), len(v)) array: the C++ layout, u major.
         F64 grid(std::vector<double>&& v, std::size_t nu, std::size_t nv) {
@@ -71,6 +82,28 @@ namespace sextant_py {
 
     PyBarData to_python(sextant::BarData&& d) {
         return {vec(std::move(d.x)), vec(std::move(d.height)), vec_or_none(std::move(d.bottom))};
+    }
+
+    PyFillData to_python(sextant::FillData&& d) {
+        return {vec(std::move(d.x)), vec(std::move(d.y1)), vec(std::move(d.y2)), bools_or_none(d.exclude)};
+    }
+
+    PyQuiverData to_python(sextant::QuiverData&& d) {
+        return {vec(std::move(d.x)), vec(std::move(d.y)), vec(std::move(d.u)), vec(std::move(d.v)),
+                vec_or_none(std::move(d.c))};
+    }
+
+    sextant::FillData PyFillData::to_cpp() const {
+        sextant::FillData d{owned(x, "FillData.x"), owned(y1, "FillData.y1"), owned(y2, "FillData.y2"), {}};
+        if (!bools_from_python(exclude, d.exclude))
+            throw nb::type_error(("FillData.exclude: expected a 1-D array of booleans or None, got " +
+                                  nb::cast<std::string>(nb::repr(exclude))).c_str());
+        return d;
+    }
+
+    sextant::QuiverData PyQuiverData::to_cpp() const {
+        return {owned(x, "QuiverData.x"), owned(y, "QuiverData.y"), owned(u, "QuiverData.u"),
+                owned(v, "QuiverData.v"), owned(c, "QuiverData.c")};
     }
 
     sextant::ScatterData PyScatterData::to_cpp() const {
@@ -197,6 +230,36 @@ namespace sextant_py {
             .def_rw("bottom", &PyBarData::bottom, nb::arg().none())
             .def("__repr__", [](const PyBarData& d) {
                 return repr_fields("BarData", {{"x", d.x}, {"height", d.height}, {"bottom", d.bottom}});
+            });
+
+        nb::class_<PyFillData>(m, "FillData",
+                               "fill(): the run coordinate x (y for a vertical fill) and the two curves,\n"
+                               "one value each per point (a number y2 comes back repeated). exclude is\n"
+                               "None when no point is left out, else one bool per point.\n"
+                               "set_fill_data(i, data) takes it as given (None clears it); the\n"
+                               "(x, y1, y2) form keeps it while the count holds.")
+            .def(nb::init<F64, F64, F64, BoolOrNone>(), "x"_a, "y1"_a, "y2"_a, "exclude"_a.none() = nb::none())
+            .def_rw("x", &PyFillData::x)
+            .def_rw("y1", &PyFillData::y1)
+            .def_rw("y2", &PyFillData::y2)
+            .def_rw("exclude", &PyFillData::exclude, nb::arg().none())
+            .def("__repr__", [](const PyFillData& d) {
+                return repr_fields("FillData", {{"x", d.x}, {"y1", d.y1}, {"y2", d.y2}, {"exclude", d.exclude}});
+            });
+
+        nb::class_<PyQuiverData>(m, "QuiverData",
+                                 "quiver(): each arrow's anchor (x, y) and vector (u, v); c is None for a\n"
+                                 "flat quiver, else one value per arrow, colormapped.\n"
+                                 "set_quiver_data(i, data) takes c as given (None makes it flat); the\n"
+                                 "(x, y, u, v) form keeps it while the count holds. The amp stays.")
+            .def(nb::init<F64, F64, F64, F64, F64OrNone>(), "x"_a, "y"_a, "u"_a, "v"_a, "c"_a.none() = nb::none())
+            .def_rw("x", &PyQuiverData::x)
+            .def_rw("y", &PyQuiverData::y)
+            .def_rw("u", &PyQuiverData::u)
+            .def_rw("v", &PyQuiverData::v)
+            .def_rw("c", &PyQuiverData::c, nb::arg().none())
+            .def("__repr__", [](const PyQuiverData& d) {
+                return repr_fields("QuiverData", {{"x", d.x}, {"y", d.y}, {"u", d.u}, {"v", d.v}, {"c", d.c}});
             });
 
         nb::class_<PyAxLineData>(m, "AxLineData",

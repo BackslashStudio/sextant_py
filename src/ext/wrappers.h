@@ -101,6 +101,7 @@ namespace sextant_py {
     using F64 = NumpyObject<double>;
     using F64OrNone = NumpyObject<double, true>;
     using U32 = NumpyObject<std::uint32_t>;
+    using BoolOrNone = NumpyObject<bool, true>;
     struct PyLineData { F64 x, y; };
     // sizes/bottom: per point, None for none (the uniform size, bars on 0).
     // to_cpp() is what set_*_data(i, data) sends: None clears them, as in C++.
@@ -118,6 +119,18 @@ namespace sextant_py {
         F64 x, height;
         F64OrNone bottom;
         sextant::BarData to_cpp() const;
+    };
+    // exclude: one bool per point, None for none (FillOptions::exclude).
+    struct PyFillData {
+        F64 x, y1, y2;
+        BoolOrNone exclude;
+        sextant::FillData to_cpp() const;
+    };
+    // c: one value per arrow to colormap, None for a flat quiver.
+    struct PyQuiverData {
+        F64 x, y, u, v;
+        F64OrNone c;
+        sextant::QuiverData to_cpp() const;
     };
     struct PyHeatmapData {
         F64 data; // (rows, cols)
@@ -156,6 +169,8 @@ namespace sextant_py {
     PyScatterData to_python(sextant::ScatterData&& d);
     PyScatterZData to_python(sextant::ScatterZData&& d);
     PyBarData to_python(sextant::BarData&& d);
+    PyFillData to_python(sextant::FillData&& d);
+    PyQuiverData to_python(sextant::QuiverData&& d);
     PyHeatmapData to_python(sextant::HeatmapData&& d);
     PyBar3DData to_python(sextant::Bar3DData&& d);
     PySurfaceData to_python(sextant::SurfaceData&& d);

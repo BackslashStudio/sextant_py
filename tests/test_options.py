@@ -89,7 +89,7 @@ ENUM_SAMPLE = {
     "LineStyle": "dashed", "MarkerStyle": "square", "Colormap": "plasma", "CapStyle": "arrow",
     "AxisPosition": "mid", "LegendAnchor": "inside_br", "ColorbarAnchor": "top", "HAlign": "left",
     "PanelTheme": "dark", "Projection": "perspective", "VAlign": "top", "ArrowHead": "open",
-    "DrawStyle": "steps_mid", "Orientation": "vertical",
+    "DrawStyle": "steps_mid", "Orientation": "vertical", "StackBaseline": "wiggle", "QuiverPivot": "middle",
 }
 BY_NAME = {  # values a generic one would make invalid
     "width": 64, "height": 48, "supersample": 1, "peel_layers": 2, "dpi": 96, "origin": "upper",
@@ -117,6 +117,10 @@ def sample(name, ctype):
         return ["a", "b"]
     if t == "std::vector<double>":  # per point: sizes one per point (3), bottom one for every bar
         return [10.0, 20.0, 30.0] if name == "sizes" else [0.5]
+    if t == "std::vector<bool>":  # a fill's exclude: one per point
+        return [False, True, False]
+    if t == "std::vector<Color>":  # a stack's colors: one per layer (2)
+        return ["red", (0.0, 0.0, 1.0)]
     if t == "bool":
         return True
     if t in ("float", "double", "int", "std::size_t"):
@@ -152,6 +156,9 @@ def apply(struct, kwargs):
         "BarOptions": lambda: ax.bar(x, x, **kwargs),
         "AxLineOptions": lambda: ax.axline(1.0, **kwargs),
         "AxSpanOptions": lambda: ax.axspan(0.5, 1.5, **kwargs),
+        "FillOptions": lambda: ax.fill(x, x, 0.0, **kwargs),
+        "StackOptions": lambda: ax.stack(x, [x, x], **kwargs),
+        "QuiverOptions": lambda: ax.quiver(x, x, x, x, **kwargs),
         "HeatmapOptions": lambda: ax.heatmap(np.ones((2, 2)), (0, 1), (0, 1), **kwargs),
         "GridOptions": lambda: ax.grid(True, **kwargs),
         "ScaleOptions": lambda: ax.set_xscale("symlog", **kwargs).set_yscale("log", **kwargs),

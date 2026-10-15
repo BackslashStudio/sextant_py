@@ -78,6 +78,15 @@ def plots() -> None:
     ax.set_bar_data(0, sextant.BarData([0, 1], [1, 2], bottom=None)).set_axspan_data(0, 1.0, 2.0)
     style: sextant.DrawStyle = sextant.DrawStyle.STEPS_PRE
 
+    # sextant 1.2 steps 36d/36e: filled areas and arrow fields.
+    ax.fill([0, 1], [1, 2], 0.5, exclude=[False, True], drawstyle="steps-post").fill([0, 1], [1, 2], [0, 1])
+    ax.stack([0, 1], [[1, 2], [3, 4]], baseline="weighted_wiggle", colors=["red", (0.0, 0.0, 1.0)])
+    ax.quiver([0, 1], [0, 1], [1, 1], [0, 1], [0.5, 1.0], amp=0.5, pivot="mid", cmap="plasma")
+    mask = ax.fill_data(0).exclude
+    arrows: sextant.QuiverData = ax.quiver_data(0)
+    ax.set_fill_data(0, sextant.FillData([0, 1], [1, 2], [0, 0], exclude=None)).set_quiver_data(0, arrows)
+    base: sextant.StackBaseline = sextant.StackBaseline.SYM
+
     # What the stubs must reject.
     ax.axline(0.5, orientation="diagonal")  # type: ignore[arg-type]
     ax.axline(0.5, xmin=0.2)  # type: ignore[call-arg]
@@ -93,3 +102,6 @@ def plots() -> None:
     ax.set_xscale("logit")  # type: ignore[arg-type]
     ax.set_xscale("log", subs=[2])  # type: ignore[call-arg]
     ax.set_aspect(1.0, "frame")  # type: ignore[arg-type]
+    ax.stack([0, 1], [[1, 2]], baseline="silhouette")  # type: ignore[arg-type]
+    ax.quiver([0], [0], [1], [0], pivot="head")  # type: ignore[arg-type]
+    ax.quiver([0], [0], [1], [0], scale=2.0)  # type: ignore[call-arg]

@@ -81,12 +81,33 @@ class DrawStyle(_Named):
 
 
 class Orientation(_Named):
-    """Which way a bar stands (BarOptions.orientation; HORIZONTAL is matplotlib's barh)
-    or a reference line or span runs (HORIZONTAL is axhline/axhspan, VERTICAL
-    axvline/axvspan)."""
+    """Which way a bar stands (BarOptions.orientation; HORIZONTAL is matplotlib's barh),
+    a reference line or span runs (HORIZONTAL is axhline/axhspan, VERTICAL
+    axvline/axvspan), or a fill runs (HORIZONTAL is fill_between, VERTICAL
+    fill_betweenx)."""
 
     VERTICAL = "vertical"
     HORIZONTAL = "horizontal"
+
+
+class StackBaseline(_Named):
+    """Where the bottom layer of a stack() starts (StackOptions.baseline), as
+    matplotlib's stackplot baselines: ZERO at 0; SYM centred on 0; WIGGLE and
+    WEIGHTED_WIGGLE (a streamgraph) minimising the layers' slopes."""
+
+    ZERO = "zero"
+    SYM = "sym"
+    WIGGLE = "wiggle"
+    WEIGHTED_WIGGLE = "weighted_wiggle"
+
+
+class QuiverPivot(_Named):
+    """Which part of a quiver arrow sits on its (x, y) (QuiverOptions.pivot);
+    matplotlib's "mid" is MIDDLE."""
+
+    TAIL = "tail"
+    MIDDLE = "middle"
+    TIP = "tip"
 
 
 class Colormap(_Named):
@@ -247,6 +268,7 @@ class PickKind(_Named):
     SURFACE_TRI = "surface_tri"
     SCATTER3D = "scatter3d"
     LINE3D = "line3d"
+    QUIVER = "quiver"
 
 
 class EventConsumed(_Named):
@@ -276,6 +298,8 @@ __all__ = [
     "PanelTheme",
     "PlaneOrientation",
     "Projection",
+    "QuiverPivot",
     "Scale",
+    "StackBaseline",
     "VAlign",
 ]

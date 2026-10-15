@@ -45,6 +45,29 @@ namespace sextant_py {
         }
     }
 
+    bool bools_from_python(nb::handle h, std::vector<bool>& out) {
+        if (h.is_none()) {
+            out.clear();
+            return true;
+        }
+        if (PyUnicode_Check(h.ptr()) || PyBytes_Check(h.ptr())) return false;
+        try {
+            nb::object np = nb::module_::import_("numpy");
+            nb::object a = np.attr("ascontiguousarray")(h);
+            // Booleans, or numbers read as numpy reads them (0 is False); not strings.
+            const std::string kind = nb::cast<std::string>(a.attr("dtype").attr("kind"));
+            if (kind != "b" && kind != "i" && kind != "u" && kind != "f") return false;
+            if (nb::cast<int>(a.attr("ndim")) != 1) return false;
+            a = np.attr("ascontiguousarray")(a, nb::arg("dtype") = np.attr("bool_"));
+            nb::ndarray<const bool, nb::ndim<1>, nb::c_contig, nb::device::cpu> v;
+            if (!nb::try_cast(a, v)) return false;
+            out.assign(v.data(), v.data() + v.size());
+            return true;
+        } catch (const nb::python_error&) {
+            return false;
+        }
+    }
+
     std::optional<sextant::Color> color_from_python(nb::handle h) noexcept {
         if (PyUnicode_Check(h.ptr())) {
             Py_ssize_t n = 0;
@@ -165,6 +188,8 @@ namespace sextant_py {
         add_enum<sextant::MarkerStyle>(d);
         add_enum<sextant::DrawStyle>(d);
         add_enum<sextant::Orientation>(d);
+        add_enum<sextant::StackBaseline>(d);
+        add_enum<sextant::QuiverPivot>(d);
         add_colormaps(d);
         add_enum<sextant::CapStyle>(d);
         add_enum<sextant::AxisPosition>(d);
@@ -204,6 +229,9 @@ namespace sextant_py {
         add_fields<sextant::BarOptions>(d);
         add_fields<sextant::AxLineOptions>(d);
         add_fields<sextant::AxSpanOptions>(d);
+        add_fields<sextant::FillOptions>(d);
+        add_fields<sextant::StackOptions>(d);
+        add_fields<sextant::QuiverOptions>(d);
         add_fields<sextant::HeatmapOptions>(d);
         add_fields<sextant::GridOptions>(d);
         add_fields<sextant::ScaleOptions>(d);

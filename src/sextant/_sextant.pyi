@@ -22,6 +22,8 @@ LineStyleLike: TypeAlias = sextant._enums.LineStyle | Literal["solid", "dashed",
 MarkerStyleLike: TypeAlias = sextant._enums.MarkerStyle | Literal["none", "circle", "square", "triangle", "cross", "plus", "diamond", "triangle_down", "triangle_left", "triangle_right", "star", "pentagon", "hexagon", "thin_cross", "thin_plus", "vline", "hline", "o", "s", "^", "v", "<", ">", "*", "p", "h", "x", "+", "X", "P", "|", "_", "D", "d", ""]
 DrawStyleLike: TypeAlias = sextant._enums.DrawStyle | Literal["default", "steps_pre", "steps_mid", "steps_post", "steps", "steps-pre", "steps-mid", "steps-post"]
 OrientationLike: TypeAlias = sextant._enums.Orientation | Literal["vertical", "horizontal"]
+StackBaselineLike: TypeAlias = sextant._enums.StackBaseline | Literal["zero", "sym", "wiggle", "weighted_wiggle"]
+QuiverPivotLike: TypeAlias = sextant._enums.QuiverPivot | Literal["tail", "middle", "tip", "mid"]
 ColormapLike: TypeAlias = sextant._enums.Colormap | Literal["viridis", "plasma", "inferno", "magma", "cividis", "turbo", "coolwarm", "gray", "Blues", "Greens", "Reds", "Oranges", "Purples", "Greys", "YlOrRd", "YlGnBu", "hot", "jet", "RdBu", "Spectral", "BrBG", "PiYG", "twilight", "twilight_shifted", "hsv", "phase", "grey"] | str
 CapStyleLike: TypeAlias = sextant._enums.CapStyle | Literal["flat", "arrow"]
 AxisPositionLike: TypeAlias = sextant._enums.AxisPosition | Literal["auto", "low", "mid", "high"]
@@ -37,7 +39,7 @@ PanelThemeLike: TypeAlias = sextant._enums.PanelTheme | Literal["dark", "light",
 ProjectionLike: TypeAlias = sextant._enums.Projection | Literal["orthographic", "perspective", "ortho", "persp"]
 PlaneOrientationLike: TypeAlias = sextant._enums.PlaneOrientation | Literal["xy", "yz", "zx"]
 EventKindLike: TypeAlias = sextant._enums.EventKind | Literal["close", "mouse_down", "mouse_up", "mouse_move", "scroll", "key_down", "key_up", "resize", "pick", "close_event", "button_press_event", "button_release_event", "motion_notify_event", "scroll_event", "key_press_event", "key_release_event", "resize_event", "pick_event"]
-PickKindLike: TypeAlias = sextant._enums.PickKind | Literal["none", "line", "scatter", "scatter_z", "bar", "heatmap", "bar3d", "surface", "surface_tri", "scatter3d", "line3d"]
+PickKindLike: TypeAlias = sextant._enums.PickKind | Literal["none", "line", "scatter", "scatter_z", "bar", "heatmap", "bar3d", "surface", "surface_tri", "scatter3d", "line3d", "quiver"]
 EventConsumedLike: TypeAlias = sextant._enums.EventConsumed | Literal["none", "select", "navigate", "grid_drag"]
 
 
@@ -132,6 +134,47 @@ class AxSpanOptions(TypedDict, total=False):
     to: float
     name: str
     show_legend: bool
+
+class FillOptions(TypedDict, total=False):
+    orientation: OrientationLike
+    color: str | tuple[float, ...] | None
+    alpha: float
+    edgecolor: str | tuple[float, ...] | None
+    linewidth: float
+    linestyle: LineStyleLike
+    drawstyle: DrawStyleLike
+    exclude: ArrayLike | None
+    interpolate: bool
+    name: str
+    show_legend: bool
+
+class StackOptions(TypedDict, total=False):
+    orientation: OrientationLike
+    baseline: StackBaselineLike
+    colors: collections.abc.Sequence[str | tuple[float, ...]]
+    names: collections.abc.Sequence[str]
+    alpha: float
+    edgecolor: str | tuple[float, ...] | None
+    linewidth: float
+    linestyle: LineStyleLike
+    drawstyle: DrawStyleLike
+    show_legend: bool
+
+class QuiverOptions(TypedDict, total=False):
+    color: str | tuple[float, ...] | None
+    alpha: float
+    cmap: ColormapLike
+    vmin: float
+    vmax: float
+    colorbar: bool
+    amp: float | None
+    pivot: QuiverPivotLike
+    width: float
+    head_width: float
+    head_length: float
+    name: str
+    show_legend: bool
+    hint_labels: collections.abc.Sequence[str]
 
 class HeatmapOptions(TypedDict, total=False):
     cmap: ColormapLike
@@ -536,6 +579,85 @@ class BarData:
 
     @bottom.setter
     def bottom(self, arg: ArrayLike | None, /) -> None: ...
+
+    def __repr__(self) -> str: ...
+
+class FillData:
+    """
+    fill(): the run coordinate x (y for a vertical fill) and the two curves,
+    one value each per point (a number y2 comes back repeated). exclude is
+    None when no point is left out, else one bool per point.
+    set_fill_data(i, data) takes it as given (None clears it); the
+    (x, y1, y2) form keeps it while the count holds.
+    """
+
+    def __init__(self, x: ArrayLike, y1: ArrayLike, y2: ArrayLike, exclude: ArrayLike | None = None) -> None: ...
+
+    @property
+    def x(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @x.setter
+    def x(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def y1(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @y1.setter
+    def y1(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def y2(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @y2.setter
+    def y2(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def exclude(self) -> numpy.typing.NDArray[numpy.bool] | None: ...
+
+    @exclude.setter
+    def exclude(self, arg: ArrayLike | None, /) -> None: ...
+
+    def __repr__(self) -> str: ...
+
+class QuiverData:
+    """
+    quiver(): each arrow's anchor (x, y) and vector (u, v); c is None for a
+    flat quiver, else one value per arrow, colormapped.
+    set_quiver_data(i, data) takes c as given (None makes it flat); the
+    (x, y, u, v) form keeps it while the count holds. The amp stays.
+    """
+
+    def __init__(self, x: ArrayLike, y: ArrayLike, u: ArrayLike, v: ArrayLike, c: ArrayLike | None = None) -> None: ...
+
+    @property
+    def x(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @x.setter
+    def x(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def y(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @y.setter
+    def y(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def u(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @u.setter
+    def u(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def v(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @v.setter
+    def v(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def c(self) -> numpy.typing.NDArray[numpy.float64] | None: ...
+
+    @c.setter
+    def c(self, arg: ArrayLike | None, /) -> None: ...
 
     def __repr__(self) -> str: ...
 
@@ -953,6 +1075,42 @@ class Axes:
         Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
         """
 
+    def fill(self, x: ArrayLike, y1: ArrayLike, y2: float | ArrayLike = 0.0, **opts: Unpack[FillOptions]) -> Axes:
+        """
+        fill(x, y1, y2=0, **opts)
+
+        The area between y1(x) and y2(x) (matplotlib's fill_between); y2 is a number or one
+        value per point. With orientation='vertical', between x1(y) and x2(y), the arrays
+        then reading y, x1, x2 (fill_betweenx). exclude= leaves points out (the inverse of
+        matplotlib's where); a NaN splits the fill. ValueError for lengths that differ.
+
+        Keyword options (FillOptions): orientation, color, alpha, edgecolor, linewidth, linestyle, drawstyle, exclude, interpolate, name, show_legend.
+        """
+
+    def stack(self, x: ArrayLike, ys: ArrayLike, **opts: Unpack[StackOptions]) -> Axes:
+        """
+        stack(x, ys, **opts)
+
+        Stacked areas (matplotlib's stackplot): ys is a 2-D array, one row per layer (or a
+        sequence of 1-D arrays), each one value per x. Each layer is added as an ordinary
+        fill(), read back and edited as one. colors/names: empty, or one per layer.
+
+        Keyword options (StackOptions): orientation, baseline, colors, names, alpha, edgecolor, linewidth, linestyle, drawstyle, show_legend.
+        """
+
+    def quiver(self, x: ArrayLike, y: ArrayLike, u: ArrayLike, v: ArrayLike, c: ArrayLike | None = None, **opts: Unpack[QuiverOptions]) -> Axes:
+        """
+        quiver(x, y, u, v, c=None, **opts)
+
+        An arrow per point from (x, y) along amp * (u, v) in data units (matplotlib's quiver
+        with angles='xy', scale_units='xy'; amp is its 1/scale); unset amp is chosen from the
+        data and kept. With c (one value per arrow), each arrow is colored through
+        cmap/vmin/vmax. width, head_width and head_length are pixels. ValueError for
+        lengths that differ or an amp that is not finite and > 0.
+
+        Keyword options (QuiverOptions): color, alpha, cmap, vmin, vmax, colorbar, amp, pivot, width, head_width, head_length, name, show_legend, hint_labels.
+        """
+
     def cla(self) -> Axes:
         """
         Clear all plot objects (on Axes, also reset limits, the color cycle and the
@@ -969,6 +1127,11 @@ class Axes:
 
     def heatmap_count(self) -> int: ...
 
+    def fill_count(self) -> int:
+        """fill() and each stack() layer alike."""
+
+    def quiver_count(self) -> int: ...
+
     def line_data(self, i: int) -> LineData: ...
 
     def scatter_data(self, i: int) -> ScatterData: ...
@@ -980,6 +1143,10 @@ class Axes:
 
     def heatmap_data(self, i: int) -> HeatmapData:
         """heatmap() and imshow() alike."""
+
+    def fill_data(self, i: int) -> FillData: ...
+
+    def quiver_data(self, i: int) -> QuiverData: ...
 
     @overload
     def set_line_data(self, i: int, data: LineData) -> Axes: ...
@@ -1010,6 +1177,18 @@ class Axes:
 
     @overload
     def set_heatmap_data(self, i: int, data: ArrayLike, xrange: tuple[float, float], yrange: tuple[float, float]) -> Axes: ...
+
+    @overload
+    def set_fill_data(self, i: int, data: FillData) -> Axes: ...
+
+    @overload
+    def set_fill_data(self, i: int, x: ArrayLike, y1: ArrayLike, y2: ArrayLike) -> Axes: ...
+
+    @overload
+    def set_quiver_data(self, i: int, data: QuiverData) -> Axes: ...
+
+    @overload
+    def set_quiver_data(self, i: int, x: ArrayLike, y: ArrayLike, u: ArrayLike, v: ArrayLike) -> Axes: ...
 
     def hist(self, data: ArrayLike, bins: int = 10, *, density: bool = False, cumulative: bool = False, **opts: Unpack[BarOptions]) -> Axes:
         """
@@ -1191,7 +1370,7 @@ class Axes:
     def set_color_cycle(self, colors: Sequence[str | tuple[float, ...]]) -> Axes:
         """
         The colors an unset `color` takes in turn: line(), scatter(), bar(), hist(),
-        axline() (not axspan()).
+        fill() (stack() one per layer), quiver() without c, axline() (not axspan()).
         Restarts from the first; [] restores the default, matplotlib's tab10. Objects
         already plotted keep theirs. A twin shares its host's cycle.
         """
@@ -1311,6 +1490,42 @@ class Plane2D:
         Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
         """
 
+    def fill(self, x: ArrayLike, y1: ArrayLike, y2: float | ArrayLike = 0.0, **opts: Unpack[FillOptions]) -> Plane2D:
+        """
+        fill(x, y1, y2=0, **opts)
+
+        The area between y1(x) and y2(x) (matplotlib's fill_between); y2 is a number or one
+        value per point. With orientation='vertical', between x1(y) and x2(y), the arrays
+        then reading y, x1, x2 (fill_betweenx). exclude= leaves points out (the inverse of
+        matplotlib's where); a NaN splits the fill. ValueError for lengths that differ.
+
+        Keyword options (FillOptions): orientation, color, alpha, edgecolor, linewidth, linestyle, drawstyle, exclude, interpolate, name, show_legend.
+        """
+
+    def stack(self, x: ArrayLike, ys: ArrayLike, **opts: Unpack[StackOptions]) -> Plane2D:
+        """
+        stack(x, ys, **opts)
+
+        Stacked areas (matplotlib's stackplot): ys is a 2-D array, one row per layer (or a
+        sequence of 1-D arrays), each one value per x. Each layer is added as an ordinary
+        fill(), read back and edited as one. colors/names: empty, or one per layer.
+
+        Keyword options (StackOptions): orientation, baseline, colors, names, alpha, edgecolor, linewidth, linestyle, drawstyle, show_legend.
+        """
+
+    def quiver(self, x: ArrayLike, y: ArrayLike, u: ArrayLike, v: ArrayLike, c: ArrayLike | None = None, **opts: Unpack[QuiverOptions]) -> Plane2D:
+        """
+        quiver(x, y, u, v, c=None, **opts)
+
+        An arrow per point from (x, y) along amp * (u, v) in data units (matplotlib's quiver
+        with angles='xy', scale_units='xy'; amp is its 1/scale); unset amp is chosen from the
+        data and kept. With c (one value per arrow), each arrow is colored through
+        cmap/vmin/vmax. width, head_width and head_length are pixels. ValueError for
+        lengths that differ or an amp that is not finite and > 0.
+
+        Keyword options (QuiverOptions): color, alpha, cmap, vmin, vmax, colorbar, amp, pivot, width, head_width, head_length, name, show_legend, hint_labels.
+        """
+
     def cla(self) -> Plane2D:
         """
         Clear all plot objects (on Axes, also reset limits, the color cycle and the
@@ -1327,6 +1542,11 @@ class Plane2D:
 
     def heatmap_count(self) -> int: ...
 
+    def fill_count(self) -> int:
+        """fill() and each stack() layer alike."""
+
+    def quiver_count(self) -> int: ...
+
     def line_data(self, i: int) -> LineData: ...
 
     def scatter_data(self, i: int) -> ScatterData: ...
@@ -1338,6 +1558,10 @@ class Plane2D:
 
     def heatmap_data(self, i: int) -> HeatmapData:
         """heatmap() and imshow() alike."""
+
+    def fill_data(self, i: int) -> FillData: ...
+
+    def quiver_data(self, i: int) -> QuiverData: ...
 
     @overload
     def set_line_data(self, i: int, data: LineData) -> Plane2D: ...
@@ -1368,6 +1592,18 @@ class Plane2D:
 
     @overload
     def set_heatmap_data(self, i: int, data: ArrayLike, xrange: tuple[float, float], yrange: tuple[float, float]) -> Plane2D: ...
+
+    @overload
+    def set_fill_data(self, i: int, data: FillData) -> Plane2D: ...
+
+    @overload
+    def set_fill_data(self, i: int, x: ArrayLike, y1: ArrayLike, y2: ArrayLike) -> Plane2D: ...
+
+    @overload
+    def set_quiver_data(self, i: int, data: QuiverData) -> Plane2D: ...
+
+    @overload
+    def set_quiver_data(self, i: int, x: ArrayLike, y: ArrayLike, u: ArrayLike, v: ArrayLike) -> Plane2D: ...
 
     def set_offset(self, offset: float) -> Plane2D:
         """Position along the plane's normal axis, in data units."""

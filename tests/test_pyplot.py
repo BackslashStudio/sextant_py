@@ -933,6 +933,189 @@ def test_axhspan_axvspan():
     assert "band" in svg
 
 
+def test_fill_between():
+    ax = plt.gca()
+    x = np.arange(5.0)
+    f = ax.fill_between(x, x, label="area")
+    kw = f._entry[2]
+    assert f._entry[0] == "fill" and f._entry[1][2] == 0.0  # y2 = 0, a number
+    assert color_of(f._entry) == hexrgba(_mpl.TAB10[0]) and kw["name"] == "area"
+    assert "linewidth" not in kw and "edgecolor" not in kw and "exclude" not in kw  # no outline, as matplotlib
+    # The patch cycle moved, the line cycle did not (matplotlib 3.10).
+    assert color_of(ax.bar([0], [1])._entry) == hexrgba(_mpl.TAB10[1])
+    assert color_of(ax.plot([0, 1])[0]._entry) == hexrgba(_mpl.TAB10[0])
+
+    g = ax.fill_between(x, x, x + 1, where=x != 2, step="mid", interpolate=True, color="r", alpha=0.5)
+    kw = g._entry[2]
+    assert kw["exclude"].tolist() == [False, False, True, False, False]  # the inverse of where
+    assert kw["drawstyle"] == "steps-mid" and kw["interpolate"] is True and kw["alpha"] == 0.5
+    assert color_of(g._entry) == (1, 0, 0, 1)
+    # color= is the outline's too, at 1 pt, faded by alpha as matplotlib fades it.
+    assert kw["edgecolor"] == (1, 0, 0, 0.5) and kw["linewidth"] == pytest.approx(_mpl.PT)
+    assert "exclude" not in ax.fill_between(x, x, where=np.ones(5, bool))._entry[2]
+    e = ax.fill_between(x, x, fc="b", ec="k", lw=2, ls="--")
+    kw = e._entry[2]
+    assert kw["edgecolor"] == (0, 0, 0, 1) and kw["linewidth"] == pytest.approx(2 * _mpl.PT)
+    assert kw["linestyle"] == "dashed"
+    assert ax.core.fill_count() == 4
+    for bad in (lambda: ax.fill_between(x, x, step="side"), lambda: ax.fill_between(x, x, where=[True])):
+        with pytest.raises(ValueError):
+            bad()
+
+    # Handles: set_data as matplotlib 3.10's (where included); a rebuild replays it.
+    g.set_data(x, 2 * x, 0, where=x < 3)
+    d = ax.core.fill_data(1)
+    np.testing.assert_array_equal(d.y1, 2 * x)
+    assert d.exclude.tolist() == [False, False, False, True, True]
+    g.set_alpha(0.25)
+    assert g._entry[2]["edgecolor"] == (1, 0, 0, 0.25)
+    g.set_facecolor("g")
+    d = ax.core.fill_data(1)
+    np.testing.assert_array_equal(d.y1, 2 * x)
+    assert d.exclude.tolist() == [False, False, False, True, True]
+    g.set_data(x, x, 1)
+    assert ax.core.fill_data(1).exclude is None and "exclude" not in g._entry[2]
+    g.set_edgecolor("none")
+    assert "linewidth" not in g._entry[2]
+    np.testing.assert_array_equal(g.get_data()[2], np.ones(5))
+    ax.legend()
+    svg, _ = ax.figure.core.render_svg()
+    assert "area" in svg
+
+
+def test_fill_betweenx():
+    ax = plt.gca()
+    y = np.arange(4.0)
+    f = ax.fill_betweenx(y, y, 3, where=[True, True, False, True])
+    kw = f._entry[2]
+    assert kw["orientation"] == "vertical" and kw["exclude"].tolist() == [False, False, True, False]
+    d = ax.core.fill_data(0)  # the core's arrays read y, x1, x2
+    np.testing.assert_array_equal(d.x, y)
+    np.testing.assert_array_equal(d.y2, np.full(4, 3.0))
+    ax.figure.core.render_rgba()
+
+
+def test_stackplot():
+    ax = plt.gca()
+    x = np.arange(4.0)
+    ys = np.array([[1.0, 2, 3, 4], [1, 1, 1, 1], [2, 0, 2, 0]])
+    layers = ax.stackplot(x, *ys, labels=["a", "b"])
+    assert len(layers) == 3 and ax.core.fill_count() == 3
+    assert all(isinstance(h, _mpl.FillBetweenPolyCollection) and h._entry[0] == "fill" for h in layers)
+    # One line-cycle colour per layer; the patch cycle untouched (matplotlib 3.10).
+    assert [color_of(h._entry) for h in layers] == [hexrgba(c) for c in _mpl.TAB10[:3]]
+    assert color_of(ax.plot([0, 1])[0]._entry) == hexrgba(_mpl.TAB10[3])
+    assert color_of(ax.bar([0], [1])._entry) == hexrgba(_mpl.TAB10[0])
+    # Labels past the given ones are unnamed.
+    assert [h.get_label() for h in layers] == ["a", "b", ""] and "name" not in layers[2]._entry[2]
+    np.testing.assert_array_equal(ax.core.fill_data(2).y2, ys.sum(axis=0))
+    # Each layer is its own fill: its setters and a replay act on it alone.
+    layers[0].set_data(x, 0, 9)
+    layers[2].set_color("k")
+    np.testing.assert_array_equal(ax.core.fill_data(0).y2, np.full(4, 9.0))
+    np.testing.assert_array_equal(ax.core.fill_data(1).y1, ys[0])
+    ax.legend()
+    svg, _ = ax.figure.core.render_svg()
+    assert ">a<" in svg and ">b<" in svg
+
+    ax.cla()
+    sym = ax.stackplot(x, ys[:2], colors=["r"], baseline="sym", alpha=0.5, ec="k", step="post")
+    assert [color_of(h._entry) for h in sym] == [(1, 0, 0, 1)] * 2  # colors repeat
+    kw = sym[0]._entry[2]
+    assert kw["alpha"] == 0.5 and kw["edgecolor"] == (0, 0, 0, 0.5) and kw["drawstyle"] == "steps-post"
+    np.testing.assert_allclose(ax.core.fill_data(0).y1, -ys[:2].sum(axis=0) / 2)
+    with pytest.raises(ValueError, match="hatch"):
+        ax.stackplot(x, ys, hatch="//")
+    with pytest.raises(TypeError):
+        ax.stackplot(x)
+    ax.figure.core.render_rgba()
+
+
+def test_quiver():
+    ax = plt.gca()
+    x, y = np.array([0.0, 1.0]), np.array([0.0, 1.0])
+    u, v = np.array([1.0, 1.0]), np.array([1.0, 0.0])
+    q = ax.quiver(x, y, u, v, label="flow")
+    kw = q._entry[2]
+    assert q._entry[0] == "quiver" and len(q._entry[1]) == 4
+    assert color_of(q._entry) == (0, 0, 0, 1)  # matplotlib's black ...
+    assert color_of(ax.plot([0, 1])[0]._entry) == hexrgba(_mpl.TAB10[0])  # ... taking no cycle colour
+    # The amp: sextant's rule (matplotlib's mean arrow), computed here and passed.
+    mean = (math.sqrt(2) + 1) / 2
+    assert kw["amp"] == pytest.approx(1.0 / (1.8 * 10 * mean))
+    # Shape: matplotlib's default shaft, 0.06 / clip(sqrt(N), 8, 25) of the frame
+    # (0.0075 of 496 px for a lone 6.4 in axes), a head 3 wide and 5 long.
+    assert kw["width"] == pytest.approx(0.0075 * 496)
+    assert kw["head_width"] == pytest.approx(3 * kw["width"]) and kw["head_length"] == pytest.approx(5 * kw["width"])
+    assert kw["pivot"] == "tail" and kw["name"] == "flow"
+    assert ax._artists[("quiver", 0)] is q  # pick events find it
+    np.testing.assert_array_equal(q.U, u)
+    assert q.N == 2 and q.get_array() is None
+
+    # set_UVC keeps the anchors and the amp; a rebuild replays the new vectors.
+    q.set_UVC([2, 2], [0, 0])
+    q.set_color("r")
+    d = ax.core.quiver_data(0)
+    np.testing.assert_array_equal(d.u, [2, 2])
+    assert q._entry[2]["amp"] == kw["amp"] and color_of(q._entry) == (1, 0, 0, 1)
+    q.set_offsets([[5, 5], [6, 6]])
+    np.testing.assert_array_equal(ax.core.quiver_data(0).x, [5, 6])
+
+    # scale in its units; width in its units.
+    assert ax.quiver(x, y, u, v, scale=4, scale_units="xy")._entry[2]["amp"] == 0.25
+    assert ax.quiver(x, y, u, v, scale=4)._entry[2]["amp"] == 0.25  # the anchors span 1 in x
+    assert ax.quiver(x * 3, y, u, v, scale=4, scale_units="height")._entry[2]["amp"] == 0.25
+    assert ax.quiver(x, y, u, v, width=0.01)._entry[2]["width"] == pytest.approx(4.96)
+    assert ax.quiver(x, y, u, v, units="dots", width=2, headwidth=4)._entry[2]["head_width"] == pytest.approx(8)
+    assert ax.quiver(x, y, u, v, pivot="mid")._entry[2]["pivot"] == "mid"
+    for bad in (lambda: ax.quiver(x, y, u, v, scale=4, scale_units="inches"),
+                lambda: ax.quiver(x, y, u, v, units="xy", width=0.1),
+                lambda: ax.quiver(x, y, u, v, angles=[0, 90]),
+                lambda: ax.quiver(x, y, u, v, linewidth=1)):
+        with pytest.raises(ValueError):
+            bad()
+    with pytest.raises(TypeError):
+        ax.quiver(u)
+    ax.legend()
+    svg, _ = ax.figure.core.render_svg()
+    assert "flow" in svg
+
+
+def test_quiver_grids_and_colors():
+    fig, ax = plt.subplots()
+    U = np.ones((3, 4))
+    q = ax.quiver(U, U)  # anchors on U's index grid
+    np.testing.assert_array_equal(q.X, np.tile(np.arange(4.0), 3))
+    np.testing.assert_array_equal(q.Y, np.repeat(np.arange(3.0), 4))
+    m = ax.quiver(np.arange(4.0) * 2, np.arange(3.0), U, U * 2, np.arange(12.0), cmap="plasma")  # a meshgrid
+    np.testing.assert_array_equal(m.X, np.tile(np.arange(4.0) * 2, 3))
+    kw = m._entry[2]
+    assert len(m._entry[1]) == 5 and (kw["vmin"], kw["vmax"]) == (0, 11) and kw["cmap"] == "plasma"
+    assert "color" not in kw
+    np.testing.assert_array_equal(m.get_array(), np.arange(12.0))
+    assert ax.quiver(U, U, np.arange(12.0), clim=(2, 4))._entry[2]["vmin"] == 2
+    cb = fig.colorbar(m, label="speed")
+    assert m._entry[2]["colorbar"] is True and m._entry[2]["name"] == "speed" and cb.mappable is m
+    m.set_UVC(U, U, np.zeros(12))  # C replaced; a replay keeps it
+    m.set_clim(0, 1)
+    np.testing.assert_array_equal(ax.core.quiver_data(1).c, np.zeros(12))
+    assert ax.core.quiver_data(1).c is not None and m._entry[2]["vmax"] == 1
+    svg, _ = fig.core.render_svg()
+    assert "speed" in svg
+
+
+def test_quiver_frame_units_follow_the_grid():
+    # matplotlib's axes in a 2x2 grid of a 6.4 x 4.8 in figure: 225.45 x 168 px; one
+    # spanning a row: 496 px wide.
+    fig, axs = plt.subplots(2, 2)
+    kw = axs[0, 0].quiver([0, 1], [0, 1], [1, 1], [1, 0], width=0.01)._entry[2]
+    assert kw["width"] == pytest.approx(2.2545, abs=1e-3)
+    kw = axs[1, 1].quiver([0, 1], [0, 1], [1, 1], [1, 0], units="height", width=0.01)._entry[2]
+    assert kw["width"] == pytest.approx(1.68, abs=1e-3)
+    wide = plt.figure().add_subplot(2, 2, (1, 2))
+    assert wide.quiver([0], [0], [1], [0], width=0.01)._entry[2]["width"] == pytest.approx(4.96)
+
+
 # --- showing ------------------------------------------------------------------------------
 
 @window

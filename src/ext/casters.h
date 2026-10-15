@@ -153,6 +153,11 @@ namespace sextant_py {
                     ({"steps", StepsPre}, {"steps-pre", StepsPre}, {"steps-mid", StepsMid},
                      {"steps-post", StepsPost}))
     SEXTANT_PY_ENUM(Orientation, ({"vertical", Vertical}, {"horizontal", Horizontal}), ())
+    // matplotlib's stackplot baseline names.
+    SEXTANT_PY_ENUM(StackBaseline,
+                    ({"zero", Zero}, {"sym", Sym}, {"wiggle", Wiggle}, {"weighted_wiggle", WeightedWiggle}), ())
+    // Alias: matplotlib's quiver pivot "mid".
+    SEXTANT_PY_ENUM(QuiverPivot, ({"tail", Tail}, {"middle", Middle}, {"tip", Tip}), ({"mid", Middle}))
     SEXTANT_PY_ENUM(CapStyle, ({"flat", Flat}, {"arrow", Arrow}), ())
     SEXTANT_PY_ENUM(AxisPosition,
                     ({"auto", Auto}, {"low", Low}, {"mid", Mid}, {"high", High}), ())
@@ -194,7 +199,8 @@ namespace sextant_py {
     SEXTANT_PY_ENUM(PickKind,
                     ({"none", None}, {"line", Line}, {"scatter", Scatter}, {"scatter_z", ScatterZ},
                      {"bar", Bar}, {"heatmap", Heatmap}, {"bar3d", Bar3D}, {"surface", Surface},
-                     {"surface_tri", SurfaceTri}, {"scatter3d", Scatter3D}, {"line3d", Line3D}),
+                     {"surface_tri", SurfaceTri}, {"scatter3d", Scatter3D}, {"line3d", Line3D},
+                     {"quiver", Quiver}),
                     ())
     SEXTANT_PY_ENUM(EventConsumed,
                     ({"none", None}, {"select", Select}, {"navigate", Navigate}, {"grid_drag", GridDrag}),
@@ -258,7 +264,9 @@ namespace nanobind::detail {
     struct type_caster<sextant_py::NumpyOf<T, OrNone>> {
         static constexpr auto Dtype = const_name<std::is_same_v<T, double>>(
             const_name("float64"),
-            const_name<std::is_same_v<T, std::uint8_t>>(const_name("uint8"), const_name("uint32")));
+            const_name<std::is_same_v<T, bool>>(
+                const_name("bool"),
+                const_name<std::is_same_v<T, std::uint8_t>>(const_name("uint8"), const_name("uint32"))));
         static constexpr auto None = const_name<OrNone>(const_name(" | None"), const_name(""));
         static constexpr auto Name = const_name('@') + const_name("ArrayLike") + const_name('@') +
                                      const_name("numpy.typing.NDArray[numpy.") + Dtype + const_name("]") +
@@ -304,6 +312,8 @@ namespace nanobind::detail {
     SEXTANT_PY_ENUM_CASTER(MarkerStyle)
     SEXTANT_PY_ENUM_CASTER(DrawStyle)
     SEXTANT_PY_ENUM_CASTER(Orientation)
+    SEXTANT_PY_ENUM_CASTER(StackBaseline)
+    SEXTANT_PY_ENUM_CASTER(QuiverPivot)
     SEXTANT_PY_ENUM_CASTER(CapStyle)
     SEXTANT_PY_ENUM_CASTER(AxisPosition)
     SEXTANT_PY_ENUM_CASTER(Scale)
