@@ -237,7 +237,8 @@ namespace sextant_py {
     SEXTANT_PY_OPTIONS(SvgExportOptions, F(max_splits), F(max_tests))
     SEXTANT_PY_OPTIONS(FigureOptions,
                        F(width), F(height), F(title), F(resizable), F(dpi), F(subplot_col_gap),
-                       F(subplot_row_gap), F(margins), F(background), F(mathtext), F(panel_width), F(supersample),
+                       F(subplot_row_gap), F(margins), F(background), F(mathtext), F(math_fontset),
+                       F(math_font_path), F(panel_width), F(supersample),
                        F(vsync),
                        F(theme))
 

@@ -202,6 +202,7 @@ namespace sextant_py {
         add_enum<sextant::Coords>(d);
         add_enum<sextant::ArrowHead>(d);
         add_enum<sextant::PanelTheme>(d);
+        add_enum<sextant::MathFontset>(d);
         add_enum<sextant::Projection>(d);
         add_enum<sextant::PlaneOrientation>(d);
         add_enum<sextant::EventKind>(d);

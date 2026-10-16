@@ -1,6 +1,9 @@
 """Text and annotations (sextant 1.1): Axes.text()/annotate(), the Axes3D
 calls, read-back and set_text_data()."""
 
+import os
+import re
+
 import numpy as np
 import pytest
 
@@ -215,3 +218,47 @@ def test_malformed_math_warns_and_draws_as_written():
         ax.set_title(r"$\alp$")
     assert ax.title() == r"$\alp$"
     assert r">$\alp$</text>" in fig.render_svg()[0]
+
+
+# --- Math font sets (sextant 1.2, step 37f) -----------------------------------
+
+SERIF_FILES = [  # a font file other than the text font, to use as a math font
+    "C:/Windows/Fonts/georgia.ttf", "C:/Windows/Fonts/times.ttf",
+    "/System/Library/Fonts/Supplemental/Georgia.ttf", "/System/Library/Fonts/Supplemental/Times New Roman.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf", "/usr/share/fonts/TTF/DejaVuSerif.ttf",
+    "/usr/share/fonts/dejavu/DejaVuSerif.ttf",
+]
+
+
+def test_math_fontset_takes_matplotlibs_names():
+    assert sextant.MathFontset("stixsans") is sextant.MathFontset.STIX
+    assert sextant.MathFontset("dejavusans") is sextant.MathFontset.TEXT
+    assert sextant.MathFontset("dejavuserif") is sextant.MathFontset.TEXT
+    assert sextant.MathFontset("cm") is sextant.MathFontset.CM
+    with pytest.raises(TypeError, match="'stixsans', 'dejavusans', 'dejavuserif'"):
+        sextant.Figure(width=64, height=48, math_fontset="fancy")
+    import sextant.pyplot as plt  # figure() passes it through, as it does mathtext=
+
+    with pytest.warns(RuntimeWarning, match="math_font_path 'nope' cannot be read"):
+        fig = plt.figure(math_fontset="custom", math_font_path="nope")
+    plt.close(fig)
+
+
+def test_math_font_path_unreadable_warns_and_uses_the_text_font():
+    plain = sextant.Figure(width=400, height=300)
+    plain.axes().set_title(r"$x^2$")
+    with pytest.warns(RuntimeWarning, match=r"math_font_path 'no/such/font\.ttf' cannot be read as a font"):
+        fig = sextant.Figure(width=400, height=300, math_fontset="custom", math_font_path="no/such/font.ttf")
+    fig.axes().set_title(r"$x^2$")
+    assert fig.render_svg()[0] == plain.render_svg()[0]
+
+
+def test_math_fontset_custom_draws_math_in_that_font():
+    path = next((p for p in SERIF_FILES if os.path.exists(p)), None)
+    if path is None:
+        pytest.skip("no serif font file at a known path")
+    fig = sextant.Figure(width=400, height=300, math_fontset=sextant.MathFontset.CUSTOM, math_font_path=path)
+    fig.axes().set_title(r"$\beta$ and \text{t} $\text{plain}$")
+    svg = fig.render_svg()[0]
+    assert re.search(r'<tspan[^>]* font-family="[^"]+">\u03b2</tspan>', svg)  # the math run names its font
+    assert re.search(r"<tspan>[^<]*plain</tspan>", svg)  # \text{} does not

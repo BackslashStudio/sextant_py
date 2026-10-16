@@ -36,6 +36,7 @@ VAlignLike: TypeAlias = sextant._enums.VAlign | Literal["top", "center", "baseli
 CoordsLike: TypeAlias = sextant._enums.Coords | Literal["data", "fraction", "axes fraction"]
 ArrowHeadLike: TypeAlias = sextant._enums.ArrowHead | Literal["none", "open", "filled", "bar"]
 PanelThemeLike: TypeAlias = sextant._enums.PanelTheme | Literal["dark", "light", "classic"]
+MathFontsetLike: TypeAlias = sextant._enums.MathFontset | Literal["text", "stix", "cm", "custom", "stixsans", "dejavusans", "dejavuserif"]
 ProjectionLike: TypeAlias = sextant._enums.Projection | Literal["orthographic", "perspective", "ortho", "persp"]
 PlaneOrientationLike: TypeAlias = sextant._enums.PlaneOrientation | Literal["xy", "yz", "zx"]
 EventKindLike: TypeAlias = sextant._enums.EventKind | Literal["close", "mouse_down", "mouse_up", "mouse_move", "scroll", "key_down", "key_up", "resize", "pick", "close_event", "button_press_event", "button_release_event", "motion_notify_event", "scroll_event", "key_press_event", "key_release_event", "resize_event", "pick_event"]
@@ -344,6 +345,8 @@ class FigureOptions(TypedDict, total=False):
     margins: FigureMargins
     background: str | tuple[float, ...]
     mathtext: bool
+    math_fontset: MathFontsetLike
+    math_font_path: str
     panel_width: float
     supersample: int
     vsync: bool
@@ -1955,7 +1958,7 @@ class Figure:
 
         A figure. Nothing is shown until show(); savefig() works without a window.
 
-        Keyword options (FigureOptions): width, height, title, resizable, dpi, subplot_col_gap, subplot_row_gap, margins, background, mathtext, panel_width, supersample, vsync, theme.
+        Keyword options (FigureOptions): width, height, title, resizable, dpi, subplot_col_gap, subplot_row_gap, margins, background, mathtext, math_fontset, math_font_path, panel_width, supersample, vsync, theme.
         """
 
     def connect(self, kind: EventKindLike, callback: Callable) -> int:

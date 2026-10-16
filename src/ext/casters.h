@@ -183,6 +183,11 @@ namespace sextant_py {
     SEXTANT_PY_ENUM(ArrowHead, ({"none", None}, {"open", Open}, {"filled", Filled}, {"bar", Bar}), ())
     SEXTANT_PY_ENUM(PanelTheme,
                     ({"dark", Dark}, {"light", Light}, {"classic", Classic}), ())
+    // Aliases: matplotlib's mathtext.fontset names (stixsans and the DejaVu sets
+    // draw as sextant's nearest).
+    SEXTANT_PY_ENUM(MathFontset,
+                    ({"text", Text}, {"stix", Stix}, {"cm", Cm}, {"custom", Custom}),
+                    ({"stixsans", Stix}, {"dejavusans", Text}, {"dejavuserif", Text}))
     SEXTANT_PY_ENUM(Projection,
                     ({"orthographic", Orthographic}, {"perspective", Perspective}),
                     ({"ortho", Orthographic}, {"persp", Perspective}))
@@ -325,6 +330,7 @@ namespace nanobind::detail {
     SEXTANT_PY_ENUM_CASTER(Coords)
     SEXTANT_PY_ENUM_CASTER(ArrowHead)
     SEXTANT_PY_ENUM_CASTER(PanelTheme)
+    SEXTANT_PY_ENUM_CASTER(MathFontset)
     SEXTANT_PY_ENUM_CASTER(Projection)
     SEXTANT_PY_ENUM_CASTER(PlaneOrientation)
     SEXTANT_PY_ENUM_CASTER(EventKind)

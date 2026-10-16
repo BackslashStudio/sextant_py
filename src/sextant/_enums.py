@@ -231,6 +231,13 @@ class PanelTheme(_Named):
     CLASSIC = "classic"
 
 
+class MathFontset(_Named):
+    TEXT = "text"
+    STIX = "stix"
+    CM = "cm"
+    CUSTOM = "custom"
+
+
 class Projection(_Named):
     ORTHOGRAPHIC = "orthographic"
     PERSPECTIVE = "perspective"
@@ -294,6 +301,7 @@ __all__ = [
     "LegendAnchor",
     "LineStyle",
     "MarkerStyle",
+    "MathFontset",
     "Orientation",
     "PanelTheme",
     "PlaneOrientation",

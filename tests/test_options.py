@@ -90,6 +90,7 @@ ENUM_SAMPLE = {
     "AxisPosition": "mid", "LegendAnchor": "inside_br", "ColorbarAnchor": "top", "HAlign": "left",
     "PanelTheme": "dark", "Projection": "perspective", "VAlign": "top", "ArrowHead": "open",
     "DrawStyle": "steps_mid", "Orientation": "vertical", "StackBaseline": "wiggle", "QuiverPivot": "middle",
+    "MathFontset": "text",  # a preset warns where its fonts are missing
 }
 BY_NAME = {  # values a generic one would make invalid
     "width": 64, "height": 48, "supersample": 1, "peel_layers": 2, "dpi": 96, "origin": "upper",
