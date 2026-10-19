@@ -27,6 +27,21 @@ def shown():
     return fig
 
 
+def test_pick_radius():
+    assert sextant.Figure().pick_radius() == 12.0
+    fig = sextant.Figure(pick_radius=20)
+    assert fig.pick_radius() == 20.0
+    fig.set_pick_radius(0)
+    assert fig.pick_radius() == 0.0
+    for bad in (-1.0, float("nan"), float("inf")):
+        with pytest.raises(ValueError, match="radius"):
+            fig.set_pick_radius(bad)
+    assert fig.pick_radius() == 0.0
+    with pytest.raises(ValueError, match="pick_radius"):
+        sextant.Figure(pick_radius=-2)
+    assert sextant.PickKind("fill") is sextant.PickKind.FILL
+
+
 def test_connect_rejects_bad_arguments():
     fig = sextant.Figure()
     with pytest.raises(TypeError):

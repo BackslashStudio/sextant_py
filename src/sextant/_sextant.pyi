@@ -40,7 +40,7 @@ MathFontsetLike: TypeAlias = sextant._enums.MathFontset | Literal["text", "stix"
 ProjectionLike: TypeAlias = sextant._enums.Projection | Literal["orthographic", "perspective", "ortho", "persp"]
 PlaneOrientationLike: TypeAlias = sextant._enums.PlaneOrientation | Literal["xy", "yz", "zx"]
 EventKindLike: TypeAlias = sextant._enums.EventKind | Literal["close", "mouse_down", "mouse_up", "mouse_move", "scroll", "key_down", "key_up", "resize", "pick", "close_event", "button_press_event", "button_release_event", "motion_notify_event", "scroll_event", "key_press_event", "key_release_event", "resize_event", "pick_event"]
-PickKindLike: TypeAlias = sextant._enums.PickKind | Literal["none", "line", "scatter", "scatter_z", "bar", "heatmap", "bar3d", "surface", "surface_tri", "scatter3d", "line3d", "quiver"]
+PickKindLike: TypeAlias = sextant._enums.PickKind | Literal["none", "line", "scatter", "scatter_z", "bar", "heatmap", "bar3d", "surface", "surface_tri", "scatter3d", "line3d", "quiver", "fill"]
 EventConsumedLike: TypeAlias = sextant._enums.EventConsumed | Literal["none", "select", "navigate", "grid_drag"]
 
 
@@ -344,6 +344,7 @@ class FigureOptions(TypedDict, total=False):
     subplot_row_gap: float
     margins: FigureMargins
     background: str | tuple[float, ...]
+    pick_radius: float
     mathtext: bool
     math_fontset: MathFontsetLike
     math_font_path: str
@@ -1958,7 +1959,7 @@ class Figure:
 
         A figure. Nothing is shown until show(); savefig() works without a window.
 
-        Keyword options (FigureOptions): width, height, title, resizable, dpi, subplot_col_gap, subplot_row_gap, margins, background, mathtext, math_fontset, math_font_path, panel_width, supersample, vsync, theme.
+        Keyword options (FigureOptions): width, height, title, resizable, dpi, subplot_col_gap, subplot_row_gap, margins, background, pick_radius, mathtext, math_fontset, math_font_path, panel_width, supersample, vsync, theme.
         """
 
     def connect(self, kind: EventKindLike, callback: Callable) -> int:
@@ -2038,6 +2039,14 @@ class Figure:
         """
         The fill behind the whole figure (default light gray). Alpha 0 leaves a PNG or SVG transparent there.
         """
+
+    def set_pick_radius(self, px: float) -> None:
+        """
+        How near, in pixels, the cursor must come to a point, marker, arrow or path vertex for the hover hint and a pick (default 12); bars, fills and heatmaps answer where the cursor is inside them. Shown at the next refresh(). ValueError for a negative or non-finite radius.
+        """
+
+    def pick_radius(self) -> float:
+        """The pick radius set_pick_radius() or Figure(pick_radius=) gave."""
 
     def set_col_ratios(self, ratios: Sequence[float]) -> None:
         """Relative column widths, e.g. [2, 1]; [] = equal."""
@@ -2230,7 +2239,12 @@ class Event:
         """
 
     @property
-    def pick_index(self) -> int: ...
+    def pick_index(self) -> int:
+        """
+        The element: point, bar, marker or vertex index; a surface sample; a heatmap's
+        or bar3d's flat cell index; a fill's segment i, between its points i and i + 1.
+        A bar, fill or heatmap is picked where the press is inside it (see xdata/ydata).
+        """
 
     @property
     def pick_row(self) -> int: ...

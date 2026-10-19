@@ -207,7 +207,10 @@ namespace sextant_py {
             .def_prop_ro("pick_object", [](const PyEvent& ev) { return ev.e.pick_object; },
                          "Index within its kind: the i of line_data(i), bar3d_data(i), ... (on the plane\n"
                          "when pick_plane >= 0).")
-            .def_prop_ro("pick_index", [](const PyEvent& ev) { return ev.e.pick_index; })
+            .def_prop_ro("pick_index", [](const PyEvent& ev) { return ev.e.pick_index; },
+                         "The element: point, bar, marker or vertex index; a surface sample; a heatmap's\n"
+                         "or bar3d's flat cell index; a fill's segment i, between its points i and i + 1.\n"
+                         "A bar, fill or heatmap is picked where the press is inside it (see xdata/ydata).")
             .def_prop_ro("pick_row", [](const PyEvent& ev) { return ev.e.pick_row; })
             .def_prop_ro("pick_col", [](const PyEvent& ev) { return ev.e.pick_col; })
             .def_prop_ro("pick_plane", [](const PyEvent& ev) { return ev.e.pick_plane; },

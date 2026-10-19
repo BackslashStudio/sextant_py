@@ -238,6 +238,17 @@ namespace sextant_py {
                  "color"_a,
                  "The fill behind the whole figure (default light gray). Alpha 0 leaves a PNG or SVG "
                  "transparent there.")
+            .def("set_pick_radius",
+                 [](PyFigure& self, float px) {
+                     call(self, [&](Figure& f) { f.set_pick_radius(px); });
+                 },
+                 "px"_a,
+                 "How near, in pixels, the cursor must come to a point, marker, arrow or path vertex for "
+                 "the hover hint and a pick (default 12); bars, fills and heatmaps answer where the cursor "
+                 "is inside them. Shown at the next refresh(). ValueError for a negative or non-finite "
+                 "radius.")
+            .def("pick_radius", [](PyFigure& self) { return call(self, [](Figure& f) { return f.pick_radius(); }); },
+                 "The pick radius set_pick_radius() or Figure(pick_radius=) gave.")
             .def("set_col_ratios",
                  [](PyFigure& self, std::vector<float> r) {
                      call(self, [&](Figure& f) { f.set_col_ratios(std::move(r)); });

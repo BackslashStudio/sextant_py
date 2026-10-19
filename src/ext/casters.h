@@ -205,7 +205,7 @@ namespace sextant_py {
                     ({"none", None}, {"line", Line}, {"scatter", Scatter}, {"scatter_z", ScatterZ},
                      {"bar", Bar}, {"heatmap", Heatmap}, {"bar3d", Bar3D}, {"surface", Surface},
                      {"surface_tri", SurfaceTri}, {"scatter3d", Scatter3D}, {"line3d", Line3D},
-                     {"quiver", Quiver}),
+                     {"quiver", Quiver}, {"fill", Fill}),
                     ())
     SEXTANT_PY_ENUM(EventConsumed,
                     ({"none", None}, {"select", Select}, {"navigate", Navigate}, {"grid_drag", GridDrag}),

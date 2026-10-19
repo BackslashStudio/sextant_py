@@ -276,6 +276,7 @@ class PickKind(_Named):
     SCATTER3D = "scatter3d"
     LINE3D = "line3d"
     QUIVER = "quiver"
+    FILL = "fill"
 
 
 class EventConsumed(_Named):

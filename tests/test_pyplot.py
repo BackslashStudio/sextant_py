@@ -446,6 +446,18 @@ def test_mpl_event_translation():
     assert m.button == "down" and m.step == -2.0
 
 
+def test_pick_finds_fills_and_stack_layers():
+    # sextant 1.2 step 39: a press inside a fill is a pick of kind "fill" with
+    # the segment as its index.
+    fig, ax = plt.subplots()
+    band = ax.fill_between([0, 1, 2], [0, 1, 0], [2, 3, 2])
+    layers = ax.stackplot([0, 1, 2], [1, 1, 1], [2, 2, 2])
+    picked = [twin_event(fig, ax, pick_kind=sextant.PickKind.FILL, pick_object=i, pick_index=1)
+              for i in range(3)]
+    assert [m.artist for m in picked] == [band, *layers]
+    assert list(picked[0].ind) == [1]
+
+
 @window
 def test_canvas_mpl_connect():
     fig, ax = plt.subplots()
