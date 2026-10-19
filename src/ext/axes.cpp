@@ -354,6 +354,22 @@ namespace sextant_py {
                          });
                      },
                      "i"_a, "x"_a, "y"_a, "u"_a, "v"_a);
+
+            // --- hiding plotted objects ---------------------------------------
+            bind_visible(cls, "set_line_visible", "line_visible", &T::line_count, &T::set_line_visible,
+                         &T::line_visible);
+            bind_visible(cls, "set_scatter_visible", "scatter_visible", &T::scatter_count,
+                         &T::set_scatter_visible, &T::scatter_visible);
+            bind_visible(cls, "set_scatter_z_visible", "scatter_z_visible", &T::scatter_z_count,
+                         &T::set_scatter_z_visible, &T::scatter_z_visible);
+            bind_visible(cls, "set_bar_visible", "bar_visible", &T::bar_count, &T::set_bar_visible,
+                         &T::bar_visible);
+            bind_visible(cls, "set_heatmap_visible", "heatmap_visible", &T::heatmap_count,
+                         &T::set_heatmap_visible, &T::heatmap_visible);
+            bind_visible(cls, "set_fill_visible", "fill_visible", &T::fill_count, &T::set_fill_visible,
+                         &T::fill_visible);
+            bind_visible(cls, "set_quiver_visible", "quiver_visible", &T::quiver_count,
+                         &T::set_quiver_visible, &T::quiver_visible);
         }
     } // namespace
 
@@ -406,6 +422,12 @@ namespace sextant_py {
 
         nb::class_<PyAxes> cls(m, "Axes", nb::is_weak_referenceable());
         bind_plot2d<Axes>(cls);
+        bind_visible(cls, "set_axline_visible", "axline_visible", &Axes::axline_count, &Axes::set_axline_visible,
+                     &Axes::axline_visible);
+        bind_visible(cls, "set_axspan_visible", "axspan_visible", &Axes::axspan_count, &Axes::set_axspan_visible,
+                     &Axes::axspan_visible);
+        bind_visible(cls, "set_text_visible", "text_visible", &Axes::text_count, &Axes::set_text_visible,
+                     &Axes::text_visible);
         cls.def("hist",
                 [](Self self, const Vec& data, int bins, bool density, bool cumulative, const nb::kwargs& kw) {
                     BarOptions init;

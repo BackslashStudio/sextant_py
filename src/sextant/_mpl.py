@@ -19,6 +19,7 @@ import math
 import re
 import string
 import sys
+import functools
 import time
 import warnings
 import weakref
@@ -182,6 +183,27 @@ def _drop_ignored(kw):
             del kw[k]
 
 
+def _takes_visible(method):
+    """matplotlib's visible= on a plotting call: the call, then set_visible(False) on
+    what it returns (an artist, or a list or tuple holding them)."""
+    @functools.wraps(method)
+    def call(self, *args, **kw):
+        visible = kw.pop("visible", True)
+        out = method(self, *args, **kw)
+        if not visible:
+            _hide(out)
+        return out
+    return call
+
+
+def _hide(out):
+    if isinstance(out, _Artist):
+        out.set_visible(False)
+    elif isinstance(out, (list, tuple)):
+        for a in out:
+            _hide(a)
+
+
 def _marker(m):
     if m is None:
         return None
@@ -262,6 +284,23 @@ class _Artist:
         self._entry[1][:len(args)] = args
         self.axes.figure._changed()
 
+    def _parts(self):
+        """(kind, index, entry) of each core object this artist draws."""
+        return [(self._kind, self._index, self._entry)]
+
+    def get_visible(self):
+        return self._entry[2].get("visible", True)
+
+    def set_visible(self, b):
+        """Hide or show it: a hidden artist is not drawn or saved, has no legend entry
+        or colorbar, is not picked, and leaves the automatic limits (matplotlib's still
+        count)."""
+        b = bool(b)
+        for kind, index, entry in self._parts():
+            entry[2]["visible"] = b
+            getattr(self.axes.core, f"set_{kind}_visible")(index, b)
+        self.axes.figure._changed()
+
 
 class Line2D(_Artist):
     """ax.plot()'s return: a line, markers (a scatter over it), or both."""
@@ -269,6 +308,12 @@ class Line2D(_Artist):
     def __init__(self, axes, kind, index, entry, label, marker=None):
         super().__init__(axes, kind, index, entry, label)
         self._markers = marker  # (index, entry) of the scatter drawing the markers
+
+    def _parts(self):
+        parts = super()._parts()
+        if self._markers is not None:
+            parts.append(("scatter", *self._markers))
+        return parts
 
     def get_data(self):
         core = self.axes.core
@@ -1227,6 +1272,7 @@ class Axes(_AxesBase):
 
     # --- plot --------------------------------------------------------------------
 
+    @_takes_visible
     def line(self, *args, **kw):
         """line([x], y, [fmt], [x2], y2, [fmt2], ..., **kwargs): matplotlib's plot(),
         named after sextant's line(); plot is an alias. Returns a list of Line2D."""
@@ -1301,6 +1347,7 @@ class Axes(_AxesBase):
             raise ValueError("plot(): linestyle and marker are both 'none': nothing to draw")
         return handle
 
+    @_takes_visible
     def scatter(self, x, y, s=None, c=None, marker=None, cmap=None, vmin=None, vmax=None,
                 alpha=None, label=None, colorbar=False, **kw):
         _drop_ignored(kw)
@@ -1353,9 +1400,11 @@ class Axes(_AxesBase):
             raise ValueError(f"scatter(): s must be a scalar or one value per point ({n}), not {a.size}")
         return {"sizes": np.sqrt(np.clip(a, 0.0, None)) * PT}
 
+    @_takes_visible
     def bar(self, x, height, width=0.8, bottom=None, *, align="center", **kw):
         return self._bar_series("bar", x, height, width, bottom, align, "vertical", **kw)
 
+    @_takes_visible
     def barh(self, y, width, height=0.8, left=None, *, align="center", **kw):
         """matplotlib's barh(): bars along x from `left`, `height` thick along y; xerr is
         the error on the lengths."""
@@ -1397,6 +1446,7 @@ class Axes(_AxesBase):
             (self.set_xticks if orientation == "vertical" else self.set_yticks)(x, labels)
         return BarContainer(self, "bar", i, entry, label)
 
+    @_takes_visible
     def hist(self, x, bins=10, range=None, density=False, weights=None, cumulative=False, bottom=None,
              histtype="bar", orientation="vertical", color=None, label=None, alpha=None, rwidth=None,
              edgecolor=None, linewidth=None, **kw):
@@ -1424,10 +1474,12 @@ class Axes(_AxesBase):
         take without moving the cycle on."""
         return self._cycle[0] if self._cycle is not None else _hex(TAB10[0])
 
+    @_takes_visible
     def axhline(self, y=0, xmin=0, xmax=1, **kw):
         """A line across the axes at y, from xmin to xmax (fractions of the frame)."""
         return self._axline(y, xmin, xmax, "horizontal", kw)
 
+    @_takes_visible
     def axvline(self, x=0, ymin=0, ymax=1, **kw):
         """A line across the axes at x, from ymin to ymax (fractions of the frame)."""
         return self._axline(x, ymin, ymax, "vertical", kw)
@@ -1450,11 +1502,13 @@ class Axes(_AxesBase):
         i, entry = self._add("axline", "axline", float(value), **opts)
         return RefLine(self, "axline", i, entry, label)
 
+    @_takes_visible
     def axhspan(self, ymin, ymax, xmin=0, xmax=1, **kw):
         """A band over y in [ymin, ymax], from xmin to xmax (fractions of the frame).
         Opaque C0 by default, as in matplotlib; pass alpha= to see through it."""
         return self._axspan(ymin, ymax, xmin, xmax, "horizontal", kw)
 
+    @_takes_visible
     def axvspan(self, xmin, xmax, ymin=0, ymax=1, **kw):
         """A band over x in [xmin, xmax], from ymin to ymax (fractions of the frame)."""
         return self._axspan(xmin, xmax, ymin, ymax, "vertical", kw)
@@ -1481,11 +1535,13 @@ class Axes(_AxesBase):
 
     # --- filled areas --------------------------------------------------------------
 
+    @_takes_visible
     def fill_between(self, x, y1, y2=0, where=None, interpolate=False, step=None, *, data=None, **kw):
         """The area between y1(x) and y2(x), as matplotlib's. Returns a
         FillBetweenPolyCollection."""
         return self._fill_between("fill_between", x, y1, y2, where, interpolate, step, "horizontal", data, kw)
 
+    @_takes_visible
     def fill_betweenx(self, y, x1, x2=0, where=None, step=None, interpolate=False, *, data=None, **kw):
         """The area between x1(y) and x2(y), as matplotlib's."""
         return self._fill_between("fill_betweenx", y, x1, x2, where, interpolate, step, "vertical", data, kw)
@@ -1518,6 +1574,7 @@ class Axes(_AxesBase):
         i, entry = self._add("fill", "fill", t, f1, f2, **opts)
         return FillBetweenPolyCollection(self, "fill", i, entry, label, alpha, lw)
 
+    @_takes_visible
     def stackplot(self, x, *args, labels=(), colors=None, hatch=None, baseline="zero", data=None, **kw):
         """Stacked areas, as matplotlib's: one FillBetweenPolyCollection per layer, in a
         list. Layers past `labels` are unnamed; `colors` repeats as needed (unset: the
@@ -1562,6 +1619,7 @@ class Axes(_AxesBase):
 
     # --- arrow fields ---------------------------------------------------------------
 
+    @_takes_visible
     def quiver(self, *args, scale=None, scale_units=None, units="width", angles="uv", width=None, headwidth=3,
                headlength=5, pivot="tail", color=None, cmap=None, norm=None, clim=None, alpha=None, label=None,
                colorbar=False, data=None, **kw):
@@ -1628,6 +1686,7 @@ class Axes(_AxesBase):
         k, m = c1 - c0 + 1, r1 - r0 + 1
         return k * cw + (k - 1) * 0.2 * cw, m * ch + (m - 1) * 0.2 * ch
 
+    @_takes_visible
     def errorbar(self, x, y, yerr=None, xerr=None, fmt="", ecolor=None, elinewidth=None, capsize=None,
                  label=None, **kw):
         _drop_ignored(kw)
@@ -1686,6 +1745,7 @@ class Axes(_AxesBase):
         opts["errorbar"] = style
         return _sextant.ErrorBar(x_cap_lo=xlo, x_cap_hi=xhi, y_cap_lo=ylo, y_cap_hi=yhi)
 
+    @_takes_visible
     def imshow(self, X, cmap=None, vmin=None, vmax=None, origin=None, extent=None, alpha=None,
                label=None, colorbar=False, aspect=None, **kw):
         """matplotlib's imshow() for 2-D scalar data. Unlike matplotlib, the frame keeps
@@ -1721,6 +1781,7 @@ class Axes(_AxesBase):
         self.figure._mappable = handle
         return handle
 
+    @_takes_visible
     def pcolormesh(self, *args, cmap=None, vmin=None, vmax=None, shading=None, **kw):
         _drop_ignored(kw)
         if len(args) == 1:
@@ -1749,6 +1810,7 @@ class Axes(_AxesBase):
 
     # --- text ----------------------------------------------------------------------
 
+    @_takes_visible
     def text(self, x, y, s, fontdict=None, *, transform=None, **kw):
         """Text at (x, y) in data coordinates, or in the axes' fraction with
         transform=ax.transAxes. Returns a Text."""
@@ -1757,6 +1819,7 @@ class Axes(_AxesBase):
         i, entry = self._add("text", "text", str(s), float(x), float(y), coords=coords, **opts)
         return Text(self, i, entry, (0, 1, 2))
 
+    @_takes_visible
     def annotate(self, text, xy, xytext=None, xycoords="data", textcoords=None, arrowprops=None,
                  annotation_clip=None, **kw):
         """matplotlib's annotate(). xycoords 'data' (or 'axes fraction' without an
@@ -2184,6 +2247,7 @@ class Axes3D(_AxesBase):
 
     _SERIES = {"line3d", "scatter3d", "surface", "surface_tri", "bar3d"}
 
+    @_takes_visible
     def line(self, xs, ys, zs=0, *args, zdir="z", **kw):
         """line(xs, ys, zs=0, [fmt], **kwargs): mplot3d's plot(), named after sextant's
         line3d(); plot is an alias. Returns a list of one Path3D."""
@@ -2212,6 +2276,7 @@ class Axes3D(_AxesBase):
 
     plot = line
 
+    @_takes_visible
     def scatter(self, xs, ys, zs=0, zdir="z", s=None, c=None, depthshade=True, marker=None, cmap=None,
                 vmin=None, vmax=None, alpha=None, label=None, colorbar=False, **kw):
         _drop_ignored(kw)
@@ -2263,6 +2328,7 @@ class Axes3D(_AxesBase):
                 opts.update(vmin=vmin, vmax=vmax)
         return opts
 
+    @_takes_visible
     def plot_surface(self, X, Y, Z, cmap=None, color=None, alpha=None, edgecolor=None, linewidth=None,
                      label=None, vmin=None, vmax=None, **kw):
         opts = self._surface_opts(cmap, color, alpha, edgecolor, linewidth, label, vmin, vmax, kw)
@@ -2288,11 +2354,13 @@ class Axes3D(_AxesBase):
             self.figure._mappable = handle
         return handle
 
+    @_takes_visible
     def plot_wireframe(self, X, Y, Z, color=None, linewidth=None, label=None, **kw):
         color = to_rgba(_pop(kw, "colors", default=color)) or self._next_color()
         return self.plot_surface(X, Y, Z, color=color, alpha=0.0, edgecolor=color,
                                  linewidth=linewidth if linewidth is not None else 1.0, label=label, **kw)
 
+    @_takes_visible
     def plot_trisurf(self, x, y, z, triangles=None, cmap=None, color=None, alpha=None, edgecolor=None,
                      linewidth=None, label=None, vmin=None, vmax=None, **kw):
         opts = self._surface_opts(cmap, color, alpha, edgecolor, linewidth, label, vmin, vmax, kw)
@@ -2307,6 +2375,7 @@ class Axes3D(_AxesBase):
             self.figure._mappable = handle
         return handle
 
+    @_takes_visible
     def bar3d(self, x, y, z, dx, dy, dz, color=None, alpha=None, shade=True, edgecolor=None, label=None, **kw):
         _drop_ignored(kw)
         n = len(np.atleast_1d(x))
@@ -2339,6 +2408,7 @@ class Axes3D(_AxesBase):
 
     # --- text ---
 
+    @_takes_visible
     def text(self, x, y, z, s, zdir=None, **kw):
         """Text at the data point (x, y, z), at a fixed pixel size. zdir is not
         offered (sextant's 3D text always faces the viewer)."""
@@ -2348,6 +2418,7 @@ class Axes3D(_AxesBase):
         i, entry = self._add("text", "text", str(s), float(x), float(y), float(z), **opts)
         return Text(self, i, entry, (0, 1, 2, 3))
 
+    @_takes_visible
     def text2D(self, x, y, s, fontdict=None, *, transform=None, **kw):
         """Text at (x, y), fractions of the axes, whatever the camera does."""
         if self._coords(transform, "text2D") not in (None, "fraction"):

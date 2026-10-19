@@ -86,6 +86,9 @@ def plots() -> None:
     arrows: sextant.QuiverData = ax.quiver_data(0)
     ax.set_fill_data(0, sextant.FillData([0, 1], [1, 2], [0, 0], exclude=None)).set_quiver_data(0, arrows)
     base: sextant.StackBaseline = sextant.StackBaseline.SYM
+    ax.line([0, 1], visible=False).set_line_visible(-1, True).set_text_visible(0, False)
+    shown: bool = ax.axspan_visible(0) and plane.fill_visible(0) and ax3.surface_visible(0)
+    ax3.set_line3d_visible(0, False).set_text_visible(0, True)
 
     # What the stubs must reject.
     ax.axline(0.5, orientation="diagonal")  # type: ignore[arg-type]
@@ -104,4 +107,5 @@ def plots() -> None:
     ax.set_aspect(1.0, "frame")  # type: ignore[arg-type]
     ax.stack([0, 1], [[1, 2]], baseline="silhouette")  # type: ignore[arg-type]
     ax.quiver([0], [0], [1], [0], pivot="head")  # type: ignore[arg-type]
+    ax.line([0, 1], visible="no")  # type: ignore[arg-type]
     ax.quiver([0], [0], [1], [0], scale=2.0)  # type: ignore[call-arg]

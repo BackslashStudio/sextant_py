@@ -69,6 +69,27 @@ namespace sextant_py {
     // lock, so `n` is the count the call will see.
     std::size_t index(std::int64_t i, std::size_t n);
 
+    // set_<kind>_visible(i, visible) and <kind>_visible(i) for one kind, from
+    // T's own member functions; `set`/`get` are the Python names.
+    template <class T>
+    void bind_visible(nb::class_<Wrapped<T>>& cls, const char* set, const char* get,
+                      std::size_t (T::*count)() const, T& (T::*setter)(std::size_t, bool),
+                      bool (T::*getter)(std::size_t) const) {
+        cls.def(set,
+                [count, setter](SelfOf<T> self, std::int64_t i, bool visible) {
+                    return chain(self, [&](T& t) { (t.*setter)(index(i, (t.*count)()), visible); });
+                },
+                "i"_a, "visible"_a,
+                "Show or hide object i of this kind (its options' visible). A hidden object is\n"
+                "not drawn or exported, has no legend key or colorbar, takes no hover or pick,\n"
+                "and leaves the automatic limits; its data, color and draw order stay.")
+            .def(get,
+                 [count, getter](Wrapped<T>& w, std::int64_t i) {
+                     return read(w, [&](T& t) { return (t.*getter)(index(i, (t.*count)())); });
+                 },
+                 "i"_a);
+    }
+
     // `h` as an N-D float64 array, or TypeError naming `what`.
     template <int N>
     Array<N> as_array(nb::handle h, const char* what) {

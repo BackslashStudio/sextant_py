@@ -64,6 +64,7 @@ class LineOptions(TypedDict, total=False):
     linestyle: LineStyleLike
     name: str
     show_legend: bool
+    visible: bool
     alpha: float
     loop: bool
     drawstyle: DrawStyleLike
@@ -77,6 +78,7 @@ class ScatterOptions(TypedDict, total=False):
     marker: MarkerStyleLike
     name: str
     show_legend: bool
+    visible: bool
     alpha: float
     edgecolor: str | tuple[float, ...] | None
     edge_alpha: float
@@ -98,6 +100,7 @@ class ScatterZOptions(TypedDict, total=False):
     colorbar: bool
     name: str
     show_legend: bool
+    visible: bool
     errorbar: ErrorBarOptions
     hint_labels: collections.abc.Sequence[str]
 
@@ -109,6 +112,7 @@ class BarOptions(TypedDict, total=False):
     alpha: float
     name: str
     show_legend: bool
+    visible: bool
     edgecolor: str | tuple[float, ...]
     linewidth: float
     errorbar: ErrorBarOptions
@@ -124,6 +128,7 @@ class AxLineOptions(TypedDict, total=False):
     to: float
     name: str
     show_legend: bool
+    visible: bool
 
 class AxSpanOptions(TypedDict, total=False):
     orientation: OrientationLike
@@ -135,6 +140,7 @@ class AxSpanOptions(TypedDict, total=False):
     to: float
     name: str
     show_legend: bool
+    visible: bool
 
 class FillOptions(TypedDict, total=False):
     orientation: OrientationLike
@@ -148,6 +154,7 @@ class FillOptions(TypedDict, total=False):
     interpolate: bool
     name: str
     show_legend: bool
+    visible: bool
 
 class StackOptions(TypedDict, total=False):
     orientation: OrientationLike
@@ -160,6 +167,7 @@ class StackOptions(TypedDict, total=False):
     linestyle: LineStyleLike
     drawstyle: DrawStyleLike
     show_legend: bool
+    visible: bool
 
 class QuiverOptions(TypedDict, total=False):
     color: str | tuple[float, ...] | None
@@ -175,6 +183,7 @@ class QuiverOptions(TypedDict, total=False):
     head_length: float
     name: str
     show_legend: bool
+    visible: bool
     hint_labels: collections.abc.Sequence[str]
 
 class HeatmapOptions(TypedDict, total=False):
@@ -183,6 +192,7 @@ class HeatmapOptions(TypedDict, total=False):
     vmax: float
     colorbar: bool
     name: str
+    visible: bool
     origin: str
     contours: ArrayLike | float | None
     contour_color: str | tuple[float, ...]
@@ -313,6 +323,7 @@ class TextOptions(TypedDict, total=False):
     pad: float
     clip_to_frame: bool
     parse_math: bool
+    visible: bool
 
 class ArrowOptions(TypedDict, total=False):
     head: ArrowHeadLike
@@ -379,6 +390,7 @@ class Bar3DOptions(TypedDict, total=False):
     edge_linewidth: float
     name: str
     show_legend: bool
+    visible: bool
     hint_labels: collections.abc.Sequence[str]
 
 class SurfaceOptions(TypedDict, total=False):
@@ -390,6 +402,7 @@ class SurfaceOptions(TypedDict, total=False):
     colorbar: bool
     name: str
     show_legend: bool
+    visible: bool
     alpha: float
     shading: float
     edges: bool
@@ -406,6 +419,7 @@ class SurfaceTriOptions(TypedDict, total=False):
     colorbar: bool
     name: str
     show_legend: bool
+    visible: bool
     alpha: float
     shading: float
     edges: bool
@@ -430,6 +444,7 @@ class Scatter3DOptions(TypedDict, total=False):
     colorbar: bool
     name: str
     show_legend: bool
+    visible: bool
     errorbar: ErrorBar3DOptions
     hint_labels: collections.abc.Sequence[str]
 
@@ -445,6 +460,7 @@ class Line3DOptions(TypedDict, total=False):
     colorbar: bool
     name: str
     show_legend: bool
+    visible: bool
     errorbar: ErrorBar3DOptions
     hint_labels: collections.abc.Sequence[str]
 
@@ -1031,7 +1047,7 @@ class Axes:
 
         A line through (x, y); line(y) plots y against 0, 1, 2, ...
 
-        Keyword options (LineOptions): color, linewidth, linestyle, name, show_legend, alpha, loop, drawstyle, errorbar, hint_labels.
+        Keyword options (LineOptions): color, linewidth, linestyle, name, show_legend, visible, alpha, loop, drawstyle, errorbar, hint_labels.
         """
 
     def scatter(self, x: ArrayLike, y: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[ScatterOptions]) -> Axes:
@@ -1040,7 +1056,7 @@ class Axes:
 
         Markers at (x, y).
 
-        Keyword options (ScatterOptions): color, size, sizes, marker, name, show_legend, alpha, edgecolor, edge_alpha, edge_linewidth, errorbar, hint_labels.
+        Keyword options (ScatterOptions): color, size, sizes, marker, name, show_legend, visible, alpha, edgecolor, edge_alpha, edge_linewidth, errorbar, hint_labels.
         """
 
     def scatter_z(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[ScatterZOptions]) -> Axes:
@@ -1049,7 +1065,7 @@ class Axes:
 
         Markers at (x, y), coloured by z through cmap/vmin/vmax.
 
-        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, edgecolor, edge_alpha, edge_linewidth, vmin, vmax, colorbar, name, show_legend, errorbar, hint_labels.
+        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, edgecolor, edge_alpha, edge_linewidth, vmin, vmax, colorbar, name, show_legend, visible, errorbar, hint_labels.
         """
 
     def bar(self, x: ArrayLike, height: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[BarOptions]) -> Axes:
@@ -1058,7 +1074,7 @@ class Axes:
 
         Bars centred on x.
 
-        Keyword options (BarOptions): color, orientation, bottom, width, alpha, name, show_legend, edgecolor, linewidth, errorbar, hint_labels.
+        Keyword options (BarOptions): color, orientation, bottom, width, alpha, name, show_legend, visible, edgecolor, linewidth, errorbar, hint_labels.
         """
 
     def heatmap(self, data: ArrayLike, xrange: tuple[float, float], yrange: tuple[float, float], **opts: Unpack[HeatmapOptions]) -> Axes:
@@ -1067,7 +1083,7 @@ class Axes:
 
         A 2-D array (rows, cols) drawn over xrange x yrange, (lo, hi) tuples of outer cell edges.
 
-        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
+        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, visible, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
         """
 
     def imshow(self, data: ArrayLike, **opts: Unpack[HeatmapOptions]) -> Axes:
@@ -1076,7 +1092,7 @@ class Axes:
 
         heatmap() over x in [0, cols], y in [0, rows].
 
-        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
+        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, visible, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
         """
 
     def fill(self, x: ArrayLike, y1: ArrayLike, y2: float | ArrayLike = 0.0, **opts: Unpack[FillOptions]) -> Axes:
@@ -1088,7 +1104,7 @@ class Axes:
         then reading y, x1, x2 (fill_betweenx). exclude= leaves points out (the inverse of
         matplotlib's where); a NaN splits the fill. ValueError for lengths that differ.
 
-        Keyword options (FillOptions): orientation, color, alpha, edgecolor, linewidth, linestyle, drawstyle, exclude, interpolate, name, show_legend.
+        Keyword options (FillOptions): orientation, color, alpha, edgecolor, linewidth, linestyle, drawstyle, exclude, interpolate, name, show_legend, visible.
         """
 
     def stack(self, x: ArrayLike, ys: ArrayLike, **opts: Unpack[StackOptions]) -> Axes:
@@ -1099,7 +1115,7 @@ class Axes:
         sequence of 1-D arrays), each one value per x. Each layer is added as an ordinary
         fill(), read back and edited as one. colors/names: empty, or one per layer.
 
-        Keyword options (StackOptions): orientation, baseline, colors, names, alpha, edgecolor, linewidth, linestyle, drawstyle, show_legend.
+        Keyword options (StackOptions): orientation, baseline, colors, names, alpha, edgecolor, linewidth, linestyle, drawstyle, show_legend, visible.
         """
 
     def quiver(self, x: ArrayLike, y: ArrayLike, u: ArrayLike, v: ArrayLike, c: ArrayLike | None = None, **opts: Unpack[QuiverOptions]) -> Axes:
@@ -1112,7 +1128,7 @@ class Axes:
         cmap/vmin/vmax. width, head_width and head_length are pixels. ValueError for
         lengths that differ or an amp that is not finite and > 0.
 
-        Keyword options (QuiverOptions): color, alpha, cmap, vmin, vmax, colorbar, amp, pivot, width, head_width, head_length, name, show_legend, hint_labels.
+        Keyword options (QuiverOptions): color, alpha, cmap, vmin, vmax, colorbar, amp, pivot, width, head_width, head_length, name, show_legend, visible, hint_labels.
         """
 
     def cla(self) -> Axes:
@@ -1194,13 +1210,103 @@ class Axes:
     @overload
     def set_quiver_data(self, i: int, x: ArrayLike, y: ArrayLike, u: ArrayLike, v: ArrayLike) -> Axes: ...
 
+    def set_line_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def line_visible(self, i: int) -> bool: ...
+
+    def set_scatter_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def scatter_visible(self, i: int) -> bool: ...
+
+    def set_scatter_z_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def scatter_z_visible(self, i: int) -> bool: ...
+
+    def set_bar_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def bar_visible(self, i: int) -> bool: ...
+
+    def set_heatmap_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def heatmap_visible(self, i: int) -> bool: ...
+
+    def set_fill_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def fill_visible(self, i: int) -> bool: ...
+
+    def set_quiver_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def quiver_visible(self, i: int) -> bool: ...
+
+    def set_axline_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def axline_visible(self, i: int) -> bool: ...
+
+    def set_axspan_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def axspan_visible(self, i: int) -> bool: ...
+
+    def set_text_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def text_visible(self, i: int) -> bool: ...
+
     def hist(self, data: ArrayLike, bins: int = 10, *, density: bool = False, cumulative: bool = False, **opts: Unpack[BarOptions]) -> Axes:
         """
         hist(data, bins=10, *, density=False, cumulative=False, **opts)
 
         Histogram as bars. width defaults to 1.0 here (bins touch), not bar()'s 0.8.
 
-        Keyword options (BarOptions): color, orientation, bottom, width, alpha, name, show_legend, edgecolor, linewidth, errorbar, hint_labels.
+        Keyword options (BarOptions): color, orientation, bottom, width, alpha, name, show_legend, visible, edgecolor, linewidth, errorbar, hint_labels.
         """
 
     def axline(self, value: float, **opts: Unpack[AxLineOptions]) -> Axes:
@@ -1212,7 +1318,7 @@ class Axes:
         whatever the limits. Automatic limits take value as a point on its axis. Not
         hovered or picked. ValueError for a non-finite value, from_ or to.
 
-        Keyword options (AxLineOptions): orientation, color, linewidth, linestyle, alpha, from_, to, name, show_legend.
+        Keyword options (AxLineOptions): orientation, color, linewidth, linestyle, alpha, from_, to, name, show_legend, visible.
         """
 
     def axspan(self, lo: float, hi: float, **opts: Unpack[AxSpanOptions]) -> Axes:
@@ -1223,7 +1329,7 @@ class Axes:
         orientation='vertical' (axvspan); lo > hi is stored swapped. Limits take both ends
         as axline() takes its value. Takes no color from the color cycle (unset: blue).
 
-        Keyword options (AxSpanOptions): orientation, color, alpha, edgecolor, linewidth, from_, to, name, show_legend.
+        Keyword options (AxSpanOptions): orientation, color, alpha, edgecolor, linewidth, from_, to, name, show_legend, visible.
         """
 
     def axline_count(self) -> int: ...
@@ -1257,7 +1363,7 @@ class Axes:
         bottom-left corner. Never widens the auto limits; hidden while a data coordinate is
         out of view (unless clip_to_frame=True, which cuts it at the frame instead).
 
-        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame, parse_math.
+        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame, parse_math, visible.
         """
 
     def annotate(self, px: float, py: float, s: str, tx: float, ty: float, *, coords: CoordsLike = sextant._enums.Coords.DATA, xcoords: CoordsLike | None = None, ycoords: CoordsLike | None = None, arrow: ArrowOptions | None = None, **opts: Unpack[TextOptions]) -> Axes:
@@ -1269,7 +1375,7 @@ class Axes:
         head_width, linewidth, color, linestyle, gap_text, gap_point, arc. Hidden while
         the point is out of view.
 
-        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame, parse_math.
+        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame, parse_math, visible.
         """
 
     def text_count(self) -> int: ...
@@ -1446,7 +1552,7 @@ class Plane2D:
 
         A line through (x, y); line(y) plots y against 0, 1, 2, ...
 
-        Keyword options (LineOptions): color, linewidth, linestyle, name, show_legend, alpha, loop, drawstyle, errorbar, hint_labels.
+        Keyword options (LineOptions): color, linewidth, linestyle, name, show_legend, visible, alpha, loop, drawstyle, errorbar, hint_labels.
         """
 
     def scatter(self, x: ArrayLike, y: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[ScatterOptions]) -> Plane2D:
@@ -1455,7 +1561,7 @@ class Plane2D:
 
         Markers at (x, y).
 
-        Keyword options (ScatterOptions): color, size, sizes, marker, name, show_legend, alpha, edgecolor, edge_alpha, edge_linewidth, errorbar, hint_labels.
+        Keyword options (ScatterOptions): color, size, sizes, marker, name, show_legend, visible, alpha, edgecolor, edge_alpha, edge_linewidth, errorbar, hint_labels.
         """
 
     def scatter_z(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[ScatterZOptions]) -> Plane2D:
@@ -1464,7 +1570,7 @@ class Plane2D:
 
         Markers at (x, y), coloured by z through cmap/vmin/vmax.
 
-        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, edgecolor, edge_alpha, edge_linewidth, vmin, vmax, colorbar, name, show_legend, errorbar, hint_labels.
+        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, edgecolor, edge_alpha, edge_linewidth, vmin, vmax, colorbar, name, show_legend, visible, errorbar, hint_labels.
         """
 
     def bar(self, x: ArrayLike, height: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[BarOptions]) -> Plane2D:
@@ -1473,7 +1579,7 @@ class Plane2D:
 
         Bars centred on x.
 
-        Keyword options (BarOptions): color, orientation, bottom, width, alpha, name, show_legend, edgecolor, linewidth, errorbar, hint_labels.
+        Keyword options (BarOptions): color, orientation, bottom, width, alpha, name, show_legend, visible, edgecolor, linewidth, errorbar, hint_labels.
         """
 
     def heatmap(self, data: ArrayLike, xrange: tuple[float, float], yrange: tuple[float, float], **opts: Unpack[HeatmapOptions]) -> Plane2D:
@@ -1482,7 +1588,7 @@ class Plane2D:
 
         A 2-D array (rows, cols) drawn over xrange x yrange, (lo, hi) tuples of outer cell edges.
 
-        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
+        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, visible, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
         """
 
     def imshow(self, data: ArrayLike, **opts: Unpack[HeatmapOptions]) -> Plane2D:
@@ -1491,7 +1597,7 @@ class Plane2D:
 
         heatmap() over x in [0, cols], y in [0, rows].
 
-        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
+        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, visible, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
         """
 
     def fill(self, x: ArrayLike, y1: ArrayLike, y2: float | ArrayLike = 0.0, **opts: Unpack[FillOptions]) -> Plane2D:
@@ -1503,7 +1609,7 @@ class Plane2D:
         then reading y, x1, x2 (fill_betweenx). exclude= leaves points out (the inverse of
         matplotlib's where); a NaN splits the fill. ValueError for lengths that differ.
 
-        Keyword options (FillOptions): orientation, color, alpha, edgecolor, linewidth, linestyle, drawstyle, exclude, interpolate, name, show_legend.
+        Keyword options (FillOptions): orientation, color, alpha, edgecolor, linewidth, linestyle, drawstyle, exclude, interpolate, name, show_legend, visible.
         """
 
     def stack(self, x: ArrayLike, ys: ArrayLike, **opts: Unpack[StackOptions]) -> Plane2D:
@@ -1514,7 +1620,7 @@ class Plane2D:
         sequence of 1-D arrays), each one value per x. Each layer is added as an ordinary
         fill(), read back and edited as one. colors/names: empty, or one per layer.
 
-        Keyword options (StackOptions): orientation, baseline, colors, names, alpha, edgecolor, linewidth, linestyle, drawstyle, show_legend.
+        Keyword options (StackOptions): orientation, baseline, colors, names, alpha, edgecolor, linewidth, linestyle, drawstyle, show_legend, visible.
         """
 
     def quiver(self, x: ArrayLike, y: ArrayLike, u: ArrayLike, v: ArrayLike, c: ArrayLike | None = None, **opts: Unpack[QuiverOptions]) -> Plane2D:
@@ -1527,7 +1633,7 @@ class Plane2D:
         cmap/vmin/vmax. width, head_width and head_length are pixels. ValueError for
         lengths that differ or an amp that is not finite and > 0.
 
-        Keyword options (QuiverOptions): color, alpha, cmap, vmin, vmax, colorbar, amp, pivot, width, head_width, head_length, name, show_legend, hint_labels.
+        Keyword options (QuiverOptions): color, alpha, cmap, vmin, vmax, colorbar, amp, pivot, width, head_width, head_length, name, show_legend, visible, hint_labels.
         """
 
     def cla(self) -> Plane2D:
@@ -1609,6 +1715,69 @@ class Plane2D:
     @overload
     def set_quiver_data(self, i: int, x: ArrayLike, y: ArrayLike, u: ArrayLike, v: ArrayLike) -> Plane2D: ...
 
+    def set_line_visible(self, i: int, visible: bool) -> Plane2D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def line_visible(self, i: int) -> bool: ...
+
+    def set_scatter_visible(self, i: int, visible: bool) -> Plane2D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def scatter_visible(self, i: int) -> bool: ...
+
+    def set_scatter_z_visible(self, i: int, visible: bool) -> Plane2D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def scatter_z_visible(self, i: int) -> bool: ...
+
+    def set_bar_visible(self, i: int, visible: bool) -> Plane2D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def bar_visible(self, i: int) -> bool: ...
+
+    def set_heatmap_visible(self, i: int, visible: bool) -> Plane2D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def heatmap_visible(self, i: int) -> bool: ...
+
+    def set_fill_visible(self, i: int, visible: bool) -> Plane2D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def fill_visible(self, i: int) -> bool: ...
+
+    def set_quiver_visible(self, i: int, visible: bool) -> Plane2D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def quiver_visible(self, i: int) -> bool: ...
+
     def set_offset(self, offset: float) -> Plane2D:
         """Position along the plane's normal axis, in data units."""
 
@@ -1627,7 +1796,7 @@ class Axes3D:
         Bars on the grid u x v, standing along orient's normal ('xy' -> along z). heights (and bottoms)
         are (len(u), len(v)) or flat, u major.
 
-        Keyword options (Bar3DOptions): color, alpha, width, depth, bottom, shading, edges, edgecolor, edge_alpha, edge_linewidth, name, show_legend, hint_labels.
+        Keyword options (Bar3DOptions): color, alpha, width, depth, bottom, shading, edges, edgecolor, edge_alpha, edge_linewidth, name, show_legend, visible, hint_labels.
         """
 
     def surface(self, orient: PlaneOrientationLike, u: ArrayLike, v: ArrayLike, heights: ArrayLike, **opts: Unpack[SurfaceOptions]) -> Axes3D:
@@ -1636,7 +1805,7 @@ class Axes3D:
 
         A surface over the grid u x v (at least 2 x 2), rising along orient's normal; heights as bar3d.
 
-        Keyword options (SurfaceOptions): color, colormap, cmap, vmin, vmax, colorbar, name, show_legend, alpha, shading, edges, edgecolor, edge_alpha, edge_linewidth, hint_labels.
+        Keyword options (SurfaceOptions): color, colormap, cmap, vmin, vmax, colorbar, name, show_legend, visible, alpha, shading, edges, edgecolor, edge_alpha, edge_linewidth, hint_labels.
         """
 
     def surface_tri(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, triangles: ArrayLike | None = None, *, orient: PlaneOrientationLike | None = None, colors: ArrayLike | None = None, **opts: Unpack[SurfaceTriOptions]) -> Axes3D:
@@ -1647,7 +1816,7 @@ class Axes3D:
         and orient (Delaunay triangulation of the points projected onto that plane). colors, one per
         vertex, colormaps the mesh.
 
-        Keyword options (SurfaceTriOptions): color, cmap, vmin, vmax, colorbar, name, show_legend, alpha, shading, edges, edgecolor, edge_alpha, edge_linewidth, hint_labels.
+        Keyword options (SurfaceTriOptions): color, cmap, vmin, vmax, colorbar, name, show_legend, visible, alpha, shading, edges, edgecolor, edge_alpha, edge_linewidth, hint_labels.
         """
 
     def scatter3d(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, *, colors: ArrayLike | None = None, err: ErrorBar3D | None = None, **opts: Unpack[Scatter3DOptions]) -> Axes3D:
@@ -1656,7 +1825,7 @@ class Axes3D:
 
         Markers at the points; colors (one per point) colormaps them. In 3D z is a coordinate.
 
-        Keyword options (Scatter3DOptions): color, size, sizes, marker, alpha, edgecolor, edge_alpha, edge_linewidth, depthshade, cmap, vmin, vmax, colorbar, name, show_legend, errorbar, hint_labels.
+        Keyword options (Scatter3DOptions): color, size, sizes, marker, alpha, edgecolor, edge_alpha, edge_linewidth, depthshade, cmap, vmin, vmax, colorbar, name, show_legend, visible, errorbar, hint_labels.
         """
 
     def line3d(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, *, colors: ArrayLike | None = None, err: ErrorBar3D | None = None, **opts: Unpack[Line3DOptions]) -> Axes3D:
@@ -1665,7 +1834,7 @@ class Axes3D:
 
         A path through the points in order.
 
-        Keyword options (Line3DOptions): color, linewidth, alpha, loop, depthshade, cmap, vmin, vmax, colorbar, name, show_legend, errorbar, hint_labels.
+        Keyword options (Line3DOptions): color, linewidth, alpha, loop, depthshade, cmap, vmin, vmax, colorbar, name, show_legend, visible, errorbar, hint_labels.
         """
 
     def text(self, s: str, x: float, y: float, z: float, **opts: Unpack[TextOptions]) -> Axes3D:
@@ -1676,7 +1845,7 @@ class Axes3D:
         whatever the camera, never hidden behind geometry. Hidden while the point is outside
         the limits or behind the camera.
 
-        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame, parse_math.
+        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame, parse_math, visible.
         """
 
     def text2d(self, s: str, fx: float, fy: float, **opts: Unpack[TextOptions]) -> Axes3D:
@@ -1686,7 +1855,7 @@ class Axes3D:
         Text at (fx, fy), fractions of the frame from its bottom-left corner, whatever the
         camera does.
 
-        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame, parse_math.
+        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame, parse_math, visible.
         """
 
     def annotate(self, x: float, y: float, z: float, s: str, dx: float, dy: float, *, arrow: ArrowOptions | None = None, **opts: Unpack[TextOptions]) -> Axes3D:
@@ -1697,7 +1866,7 @@ class Axes3D:
         arrow is a dict of ArrowOptions fields: head, tail, head_length, head_width,
         linewidth, color, linestyle, gap_text, gap_point, arc. Hidden as text() is.
 
-        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame, parse_math.
+        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame, parse_math, visible.
         """
 
     def plane(self, orient: PlaneOrientationLike, offset: float = 0.0, **opts: Unpack[Plane2DOptions]) -> Plane2D:
@@ -1908,6 +2077,60 @@ class Axes3D:
         The string and (x, y, z) only: a text2d() reads x, y as fractions and ignores z;
         an annotate() keeps its offset.
         """
+
+    def set_bar3d_visible(self, i: int, visible: bool) -> Axes3D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def bar3d_visible(self, i: int) -> bool: ...
+
+    def set_surface_visible(self, i: int, visible: bool) -> Axes3D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def surface_visible(self, i: int) -> bool: ...
+
+    def set_surface_tri_visible(self, i: int, visible: bool) -> Axes3D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def surface_tri_visible(self, i: int) -> bool: ...
+
+    def set_scatter3d_visible(self, i: int, visible: bool) -> Axes3D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def scatter3d_visible(self, i: int) -> bool: ...
+
+    def set_line3d_visible(self, i: int, visible: bool) -> Axes3D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def line3d_visible(self, i: int) -> bool: ...
+
+    def set_text_visible(self, i: int, visible: bool) -> Axes3D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def text_visible(self, i: int) -> bool: ...
 
 class SvgSaveReport:
     """

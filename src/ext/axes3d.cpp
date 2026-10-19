@@ -138,7 +138,8 @@ namespace sextant_py {
         static const std::string default_camera_doc = opts_doc<sextant::Camera3D>(
             "set_default_camera(**opts)", "The camera a double-click in the window resets to.");
 
-        nb::class_<PyAxes3D>(m, "Axes3D", nb::is_weak_referenceable())
+        nb::class_<PyAxes3D> cls(m, "Axes3D", nb::is_weak_referenceable());
+        cls
             // --- plotting ------------------------------------------------
             .def("bar3d",
                  [](Self self, PlaneOrientation orient, const Vec& u, const Vec& v, const Grid& heights,
@@ -546,5 +547,17 @@ namespace sextant_py {
                  "i"_a, "s"_a, "x"_a, "y"_a, "z"_a = 0.0,
                  "The string and (x, y, z) only: a text2d() reads x, y as fractions and ignores z;\n"
                  "an annotate() keeps its offset.");
+        bind_visible(cls, "set_bar3d_visible", "bar3d_visible", &Axes3D::bar3d_count, &Axes3D::set_bar3d_visible,
+                     &Axes3D::bar3d_visible);
+        bind_visible(cls, "set_surface_visible", "surface_visible", &Axes3D::surface_count,
+                     &Axes3D::set_surface_visible, &Axes3D::surface_visible);
+        bind_visible(cls, "set_surface_tri_visible", "surface_tri_visible", &Axes3D::surface_tri_count,
+                     &Axes3D::set_surface_tri_visible, &Axes3D::surface_tri_visible);
+        bind_visible(cls, "set_scatter3d_visible", "scatter3d_visible", &Axes3D::scatter3d_count,
+                     &Axes3D::set_scatter3d_visible, &Axes3D::scatter3d_visible);
+        bind_visible(cls, "set_line3d_visible", "line3d_visible", &Axes3D::line3d_count,
+                     &Axes3D::set_line3d_visible, &Axes3D::line3d_visible);
+        bind_visible(cls, "set_text_visible", "text_visible", &Axes3D::text_count, &Axes3D::set_text_visible,
+                     &Axes3D::text_visible);
     }
 } // namespace sextant_py
