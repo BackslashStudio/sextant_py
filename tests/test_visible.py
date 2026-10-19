@@ -27,7 +27,14 @@ def figure():
 
 
 def same_picture(a, b):
-    assert np.array_equal(a.render_rgba(), b.render_rgba())
+    ia, ib = a.render_rgba(), b.render_rgba()
+    if not np.array_equal(ia, ib):
+        # Say what differs, and whether each figure even renders the same twice.
+        d = np.abs(ia.astype(int) - ib.astype(int)).max(axis=2)
+        ys, xs = np.nonzero(d)
+        pytest.fail(f"{len(xs)} pixels differ (max {d.max()}), x {xs.min()}..{xs.max()}, y {ys.min()}..{ys.max()}; "
+                    f"svg equal: {a.render_svg()[0] == b.render_svg()[0]}; "
+                    f"a repeats: {np.array_equal(ia, a.render_rgba())}, b repeats: {np.array_equal(ib, b.render_rgba())}")
     assert a.render_svg()[0] == b.render_svg()[0]
 
 
