@@ -20,9 +20,10 @@ This page lists what is supported and where it differs from matplotlib. The core
 - [Plotting (2D)](#plotting-2d)
 - [Plotting (3D)](#plotting-3d)
 - [Decoration](#decoration)
+- [Scales, shared axes, twins and aspect](#scales-shared-axes-twins-and-aspect)
 - [Text and annotations](#text-and-annotations)
 - [Colours, sizes and format strings](#colours-sizes-and-format-strings)
-- [Changing what is drawn](#changing-what-is-drawn)
+- [Changing what is drawn](#changing-what-is-drawn) · [hiding artists](#hiding-artists)
 - [Showing, animation and interactive mode](#showing-animation-and-interactive-mode)
 - [Events](#events)
 - [Saving](#saving)
@@ -73,7 +74,9 @@ The window that opens is sextant's: pan, zoom, hover readouts, and the Cosmetic 
 position on a grid that divides it evenly is mapped onto it: on a 2×2 figure, `add_subplot(2, 1, 2)` is the
 bottom row (cells 3–4). A position that does not fit is a `ValueError`.
 
-`sharex`/`sharey` are not supported (a warning; the axes stay independent).
+`subplots(sharex=, sharey=)` takes `True`/`"all"`/`"col"`/`"row"`/`False`/`"none"` as matplotlib does, and
+`add_subplot(sharex=, sharey=)` and `ax.sharex(other)` / `ax.sharey(other)` share one axis; see
+[Scales, shared axes, twins and aspect](#scales-shared-axes-twins-and-aspect).
 
 ---
 
@@ -85,9 +88,16 @@ Each is a method of the axes and a `plt.` function acting on the current axes.
 |---|---|---|
 | `plot([x], y, [fmt], [x2], y2, [fmt2], ..., **kw)` | list of `Line2D` | Format strings, several groups, 2-D `y` (one line per column), `data=` |
 | `line(...)` | the same | sextant's name for `plot`; the two are the same function |
-| `scatter(x, y, s=None, c=None, marker=None, cmap=, vmin=, vmax=, alpha=, label=, colorbar=False, edgecolors=, linewidths=, facecolors=)` | `PathCollection` | `c` a colour, or one value per point to colour-map. `edgecolors`/`linewidths` draw an outline (matplotlib's default `'face'` outline is not drawn); `facecolors='none'` makes hollow markers |
-| `bar(x, height, width=0.8, *, align="center", color=, edgecolor=, linewidth=, label=, alpha=, yerr=, xerr=, ecolor=, capsize=, error_kw=, tick_label=)` | `BarContainer` | |
-| `hist(x, bins=10, range=None, density=False, weights=None, cumulative=False, histtype="bar", color=, label=, alpha=, rwidth=, edgecolor=, linewidth=)` | `(n, bins, BarContainer)` | Binned with `numpy.histogram`, so `n` and `bins` match matplotlib's |
+| `scatter(x, y, s=None, c=None, marker=None, cmap=, vmin=, vmax=, alpha=, label=, colorbar=False, edgecolors=, linewidths=, facecolors=)` | `PathCollection` | `c` a colour, or one value per point to colour-map; `s` one area in points² or one per point (a bubble chart). `edgecolors`/`linewidths` draw an outline (matplotlib's default `'face'` outline is not drawn); `facecolors='none'` makes hollow markers |
+| `step(x, y, [fmt], *, where="pre", **kw)` | list of `Line2D` | `where` is `"pre"`, `"mid"` or `"post"`; also `plot(drawstyle="steps-mid")`. Markers stay on the points |
+| `bar(x, height, width=0.8, bottom=None, *, align="center", color=, edgecolor=, linewidth=, label=, alpha=, yerr=, xerr=, ecolor=, capsize=, error_kw=, tick_label=)` | `BarContainer` | `bottom` stacks (one number or one per bar) |
+| `barh(y, width, height=0.8, left=None, *, align="center", ...)` | `BarContainer` | Horizontal bars; `xerr` is the length error, `tick_label` names the y ticks |
+| `hist(x, bins=10, range=None, density=False, weights=None, cumulative=False, bottom=None, histtype="bar", orientation="vertical", color=, label=, alpha=, rwidth=, edgecolor=, linewidth=)` | `(n, bins, BarContainer)` | Binned with `numpy.histogram`, so `n` and `bins` match matplotlib's |
+| `fill_between(x, y1, y2=0, where=None, interpolate=False, step=None, **kw)`, `fill_betweenx(y, x1, x2=0, ...)` | `FillBetweenPolyCollection` | `where` leaves points out; `step` is `"pre"`, `"mid"` or `"post"`; `facecolor`/`color`, `edgecolor`, `alpha`, `linewidth`, `label` |
+| `stackplot(x, *ys, labels=(), colors=None, baseline="zero", **kw)` | list of `FillBetweenPolyCollection` | One per layer; `baseline` is `"zero"`, `"sym"`, `"wiggle"` or `"weighted_wiggle"`; `hatch` raises |
+| `quiver([X, Y], U, V, [C], scale=, scale_units=, units=, angles=, width=, headwidth=, headlength=, pivot=, cmap=, clim=, norm=, color=, alpha=, label=)` | `Quiver` | An arrow per point, black by default; `C` colour-maps (with `colorbar=` or `fig.colorbar(q)`). See below |
+| `axhline(y=0, xmin=0, xmax=1)`, `axvline(x=0, ymin=0, ymax=1)` | `RefLine` | Reference lines across the frame; `color`, `linewidth`, `linestyle`, `alpha`, `label` |
+| `axhspan(ymin, ymax, xmin=0, xmax=1)`, `axvspan(xmin, xmax, ymin=0, ymax=1)` | `Span` | Bands; opaque unless `alpha=`, no outline unless `edgecolor` (or `color=` with `linewidth`) |
 | `errorbar(x, y, yerr=None, xerr=None, fmt="", ecolor=, elinewidth=, capsize=, label=)` | `Line2D` | `yerr`/`xerr` a scalar, `(N,)`, or `(2, N)` lower/upper; `fmt="none"` for bars alone |
 | `imshow(X, cmap=, vmin=, vmax=, origin=None, extent=None, label=, colorbar=False)` | `AxesImage` | 2-D scalar data only |
 | `pcolormesh([X, Y,] C, cmap=, vmin=, vmax=, shading=)` | `AxesImage` | A uniform mesh (cell edges or centres) |
@@ -98,9 +108,19 @@ Behaviour kept from matplotlib:
   sit on integers; `extent=(left, right, bottom, top)` places the image.
 - `vmin`/`vmax` default to the data's range (in the core API they default to 0..1).
 - `plot` with only a marker in its format (`"o"`) draws markers without a line; a format with both draws both.
+- Draw order is call order across kinds: an `imshow` after a `plot` covers the line (matplotlib keeps lines above
+  images). `zorder` is ignored.
+- A hidden artist (`set_visible(False)`) also leaves the automatic limits; matplotlib's still count.
 - `legend(loc=...)` takes matplotlib's names and codes, mapped onto sextant's corners inside the frame (`"best"`
   is upper right).
 - Lines and patches (scatter, bars, surfaces) take colours from separate `tab10` cycles, as in matplotlib.
+  `ax.set_prop_cycle(color=[...])` (or `set_prop_cycle(cycler(color=[...]))`, or `None` for the default)
+  replaces the list and restarts it; colours only.
+- `axhline`/`axvline`/`axhspan`/`axvspan` take the first cycle colour and do not advance it, as in matplotlib.
+- `quiver` follows matplotlib's argument forms (no `X`, `Y`: the index grid of `U`; 1-D `X`, `Y` spanning a 2-D
+  `U`: a meshgrid). Arrows are drawn in data units (`angles="uv"` is drawn as `"xy"`, the same at equal aspect),
+  and without `scale` sextant's own rule picks the length and keeps it, so `set_UVC()` frames stay comparable.
+  `scale_units="dots"`/`"inches"`, per-arrow `angles`, an outline and `quiverkey` are not supported.
 
 Unknown keywords are passed on to the core call, so sextant's own options work in pyplot code too:
 `ax.plot(x, y, loop=True)`, `ax.scatter(x, y, hint_labels=names)`. Anything that is neither matplotlib's nor
@@ -137,15 +157,21 @@ On axes (2D and 3D): `set_title`, `set_xlabel`, `set_ylabel` (with `fontsize=`),
 `get_xlim`/`get_ylim`, `invert_xaxis`, `invert_yaxis`; `set_xticks(ticks, labels=None)`,
 `set_yticks`, `set_xticklabels`/`set_yticklabels` (after `set_xticks`/`set_yticks`); `grid(visible=None,
 color=, linestyle=, linewidth=, alpha=)`; `legend(labels=None, loc=None, fontsize=None, frameon=None)`;
-`ax.set_facecolor(color)` (2D); `ax.set(title=..., xlabel=..., xlim=..., ...)`. `set_xticks([])` hides the
+`ax.set_facecolor(color)` (2D); `ax.set(title=..., xlabel=..., xlim=..., ...)`; `ax.tick_params(axis="both",
+which="major", ...)` with `colors`, `color`, `labelcolor`, `labelsize`, `length`, `width` and
+`labelbottom`/`labeltop`/`labelleft`/`labelright` (`which="minor"` sets the minor mark length only; other
+keywords such as `direction`, `pad` and `rotation` raise); `ax.label_outer()`. `set_xticks([])` hides the
 ticks and their labels, as in matplotlib (the core API's `set_xticks([])` means automatic ticks).
 
 On the figure: `fig.suptitle(t, fontsize=None)`, `fig.colorbar(mappable=None, ax=None, label="",
 orientation="vertical")`, `fig.set_facecolor(color)`/`get_facecolor()`. `facecolor=` on `plt.figure()`
 colours the figure as it is made, and on `fig.add_subplot()` the axes.
 
-**Math.** Titles, labels, legend entries, tick labels and texts take `$...$` math, a subset of matplotlib's
-mathtext ([api.md](api.md#math-in-text)). `plt.figure(mathtext=False)` turns it off for a figure;
+**Math.** Titles, labels, legend entries, tick labels and texts take `$...$` math, a large subset of
+matplotlib's mathtext, fractions, roots and accents included ([api.md](api.md#math-in-text)).
+`plt.figure(mathtext=False)` turns it off for a figure; `plt.figure(math_fontset="cm")` (or `"stix"`,
+`"stixsans"`, `"dejavusans"`, `"dejavuserif"`, `"custom"` with `math_font_path=`) chooses the font math is drawn
+in, since there are no `rcParams` to set `mathtext.fontset` in;
 `parse_math=False` turns it off for one `text()` or `annotate()` (on a title or label it raises, pointing to
 the figure's switch). `usetex=True` raises: sextant draws its own math, with no LaTeX. Math that does not parse
 is drawn as written, with a `RuntimeWarning`.
@@ -157,6 +183,31 @@ The same through `plt`: `title`, `xlabel`, `ylabel`, `xlim`, `ylim` (no argument
 on the colorbar of the last (or given) colour-mapped object, and `label=` titles it. `orientation="horizontal"`
 puts the axes' colorbars below the frame. Passing `colorbar=True` to `imshow`, `scatter` or a surface does the
 same at once.
+
+---
+
+## Scales, shared axes, twins and aspect
+
+| Call | Notes |
+|---|---|
+| `ax.set_xscale(value, **kw)`, `set_yscale`, `get_xscale()`, `get_yscale()`, `plt.xscale()`, `plt.yscale()` | `"linear"`, `"log"`, `"symlog"` with `base`, `linthresh`, `linscale`; `subs` and `nonpositive` are dropped (sextant's log clips by itself) |
+| `semilogx(...)`, `semilogy(...)`, `loglog(...)` | Axes method and `plt.` function |
+| `ax.xaxis.set_major_formatter(f)`, `ax.yaxis...` | A format string (`"%.1f"`), `FormatStrFormatter` or `StrMethodFormatter` (`"{x:.2f}"`). `ScalarFormatter`/`LogFormatter` restore the default; a `FuncFormatter` raises `TypeError` |
+| `minorticks_on()`, `minorticks_off()`, `grid(which="minor"\|"both")` | sextant's minor grid takes the major grid's style, so `which="minor"` alone turns the grid on |
+| `subplots(sharex=, sharey=)`, `add_subplot(sharex=, sharey=)`, `ax.sharex(other)`, `ax.sharey(other)` | One set of limits and one scale per group; inner tick labels hide by themselves. There is no unsharing |
+| `ax.twinx()`, `ax.twiny()`, `plt.twinx(ax=None)`, `plt.twiny(ax=None)` | The twin is in `fig.axes` and `plt.` makes it current. sextant has one twin per side, so a second call returns the same one |
+| `ax.set_aspect(aspect, adjustable=None)`, `get_aspect()`, `set_adjustable()`, `get_adjustable()` | `aspect` is `"auto"`, `"equal"` or a number; `anchor` only `"C"` |
+| `ax.axis(arg)`, `plt.axis(arg)` | `"equal"` (limits widen), `"scaled"`/`"image"` (frame shrinks), `"square"`, `"auto"`, `"on"`/`"off"`, a `[xmin, xmax, ymin, ymax]` list; `"tight"` raises |
+
+Differences that are sextant's design:
+
+- **A twin shares the cell.** Its title, legend (which lists both axes' series, in call order), colorbars and
+  shared axis belong to the host: `set_title()`, `legend()` and the shared axis' label, ticks and format called
+  on the twin act on the host. Objects of both axes draw in call order, not the twin on top. A twin's own axis
+  is hidden by `axis("off")` on the twin only.
+- An event over a twinned axes reports `inaxes` as the last twin made, with that twin's `xdata`/`ydata`.
+- `imshow` keeps its frame unless you pass `aspect=`, whatever matplotlib's `aspect="equal"` default.
+- `fill_between(interpolate=True)` runs a region on only where the curves really cross.
 
 ---
 
@@ -199,14 +250,16 @@ single letters `b g r c m y k w`, `"#rgb"`, `"#rgba"`, `"#rrggbb"`, `"#rrggbbaa"
 
 **Sizes are in points**, as in matplotlib: a `figsize` in inches is the figure size at 100 dpi, and
 `linewidth`, `markersize`, `fontsize`, `capsize` and `elinewidth` are points. Scatter `s` is a marker area in
-points², default 36. One marker size per scatter series: a varying `s` raises.
+points², default 36, one value or one per point.
 
 **dpi**: `plt.figure()` saves 640×480 by default, and `dpi=200` (on the figure or in `savefig`) doubles it, as
 in matplotlib.
 
 **Format strings** combine a colour, a marker and a line style in any order (`"r--"`, `"o"`, `"k:"`,
-`"C2-."`). sextant draws seven marker shapes, so matplotlib's markers map onto them: `o . , 8 h H` circle,
-`s p` square, `^ v < > 1 2 3 4` triangle, `D d *` diamond, `x X` cross, `+ P | _` plus.
+`"C2-."`). sextant draws sixteen marker shapes, and matplotlib's codes map onto them: `o` circle, `s` square,
+`^ v < >` the triangles, `D d` diamond, `*` star, `p` pentagon, `h H` hexagon, `x` and `+` the thin line
+crosses, `X` and `P` the filled ones, `| _` the line markers. A few have only a stand-in: `. , 8` draw circles
+and `1 2 3 4` triangles.
 
 ---
 
@@ -216,17 +269,27 @@ The returned handles have the usual setters:
 
 | Handle | Methods |
 |---|---|
-| `Line2D` | `get_data`, `set_data`, `get_xdata`, `set_xdata`, `get_ydata`, `set_ydata`, `get_color`, `set_color`, `set_linewidth`, `set_linestyle`, `set_alpha`, `get_label`, `set_label` |
-| `PathCollection` (scatter) | `get_offsets`, `set_offsets`, `get_array`, `set_array`, `set_clim`, `set_cmap` |
+| `Line2D` | `get_data`, `set_data`, `get_xdata`, `set_xdata`, `get_ydata`, `set_ydata`, `get_color`, `set_color`, `set_linewidth`, `set_linestyle`, `set_alpha`, `get_drawstyle`, `set_drawstyle`, `get_label`, `set_label` |
+| `PathCollection` (scatter) | `get_offsets`, `set_offsets`, `get_array`, `set_array`, `get_sizes`, `set_sizes`, `set_clim`, `set_cmap` |
+| `FillBetweenPolyCollection` (fill_between, stackplot) | `set_data(t, f1, f2, *, where=None)`, `get_data` (sextant's), `get_facecolor`, `set_facecolor`, `get_edgecolor`, `set_edgecolor`, `set_color`, `set_linewidth`, `set_linestyle`, `set_alpha` |
+| `Quiver` | `X`, `Y`, `U`, `V`, `N`, `set_UVC(U, V, C=None)`, `get_offsets`, `set_offsets`, `get_array`, `set_array`, `set_clim`, `set_cmap`, `set_color`, `set_alpha` |
+| `RefLine` (axhline, axvline) | `get_xdata`, `set_xdata`, `get_ydata`, `set_ydata`, `get_color`, `set_color`, `set_linewidth`, `set_linestyle`, `set_alpha` |
+| `Span` (axhspan, axvspan) | `get_span`, `set_span(lo, hi)` (sextant's), `get_facecolor`, `set_facecolor`, `set_edgecolor`, `set_linewidth`, `set_alpha` |
 | `AxesImage` (imshow, pcolormesh) | `get_array`, `set_data`, `set_clim`, `set_cmap`, `get_extent` |
 | `BarContainer` (bar, hist, bar3d) | `datavalues`, `set_heights(heights)` (sextant's; matplotlib changes bars one by one) |
 | `Path3D` (3D plot, scatter) | `get_data_3d`, `set_data_3d` |
 | `Surface3D` | `set_cmap` |
 | `Text` (text, annotate, 3D text) | `get_text`, `set_text`, `get_position`, `set_position`, `set_color`, `set_fontsize`, `set_rotation` |
 
-Data setters (`set_data`, `set_ydata`, `set_offsets`, `set_array`, …) update the plot in place and are cheap:
-use them for animation. Style setters (`set_color`, `set_linewidth`, `set_clim`, `legend(labels)`,
+Data setters (`set_data`, `set_ydata`, `set_offsets`, `set_array`, `set_UVC`, …) update the plot in place and
+are cheap: use them for animation. Style setters (`set_color`, `set_linewidth`, `set_clim`, `legend(labels)`,
 `colorbar()`) redraw the axes from scratch, which resets a view panned or zoomed in the window.
+
+### Hiding artists
+
+Every handle has `set_visible(b)` / `get_visible()`, and the plotting calls take `visible=`. Hiding is cheap
+like a data setter. For a `plot()` with markers it hides both the line and its markers; for `hist()` or
+`stackplot()`, every bar or layer. Unlike matplotlib, a hidden artist leaves the automatic limits.
 
 ---
 
@@ -331,12 +394,12 @@ axes.
 
 These raise rather than draw something different:
 
-- `axhline`, `axvline`, `fill_between`, `contour`/`contourf` (use a heatmap's
-  `contours=`), `twinx`, log scales, `stackplot`, `pie`, `boxplot`, `violinplot`, `quiver`, `step`;
+- `contour`/`contourf` (use a heatmap's `contours=`), `pie`, `boxplot`, `violinplot`, `quiverkey`, a 3D
+  `quiver`, `hatch=`;
 - `imshow` of RGB(A) images (scalar data only) and `alpha=` on images (a warning; ignored);
-- a scatter with per-point sizes, bars with `bottom=` or varying widths, a `hist` with unequal bins or
-  `histtype="step"`;
+- bars with varying widths, a `hist` with unequal bins or `histtype="step"`;
 - a non-uniform `pcolormesh` mesh, a `bar3d` whose positions do not form a grid;
 - `view_init(roll=)`, `vertical_axis` other than `"z"`, `Axes3D.plot(zdir=)` other than `"z"`;
+- a `FuncFormatter`, `usetex=True`, and `rcParams` (there are none: the options they would set are keywords);
 - `legend(handles, labels)` (pass `label=` when plotting, or `legend(labels)`);
 - subplot positions that do not fit the figure's grid ([Figures and axes](#figures-and-axes)).

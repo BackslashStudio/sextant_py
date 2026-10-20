@@ -18,11 +18,15 @@ The core API follows sextant's C++ API name for name, so the C++ documentation a
 - [Conventions](#conventions): [options](#options-are-keyword-arguments) · [enums](#enums-are-strings) ·
   [colours](#colours) · [arrays](#arrays) · [tuples](#tuples) · [typing](#typing)
 - [2D plot types](#2d-plot-types): [line](#line) · [scatter](#scatter) · [scatter_z](#scatter_z) ·
-  [bar](#bar) · [hist](#hist) · [heatmap and imshow](#heatmap-and-imshow)
+  [bar](#bar) · [hist](#hist) · [heatmap and imshow](#heatmap-and-imshow) · [fill](#fill) ·
+  [stack](#stack) · [quiver](#quiver) · [axline and axspan](#axline-and-axspan)
 - [Error bars](#error-bars)
 - [Contours](#contours)
 - [Colormaps](#colormaps)
 - [Titles, legends, colorbars and ticks](#titles-legends-colorbars-and-ticks)
+- [Scales, shared and twin axes](#scales-shared-and-twin-axes): [log and symlog](#log-and-symlog-axes) ·
+  [tick formats and minor ticks](#tick-formats-and-minor-ticks) · [shared axes](#shared-axes) ·
+  [twin axes](#twin-axes) · [equal aspect](#equal-aspect)
 - [Text and annotations](#text-and-annotations)
 - [Math in text](#math-in-text)
 - [Styling](#styling)
@@ -93,7 +97,7 @@ A misspelled option is an error, which lists the ones that exist:
 
 ```text
 TypeError: line() got an unexpected keyword argument 'colour' (LineOptions fields: color, linewidth,
-linestyle, name, show_legend, alpha, loop, errorbar, hint_labels)
+linestyle, name, show_legend, visible, alpha, loop, drawstyle, errorbar, hint_labels)
 ```
 
 A nested options struct is a dict: `errorbar={"capsize": 3, "color": "black"}`,
@@ -115,8 +119,11 @@ and `"dashdot"` are the same; a few short aliases are taken as well:
 | Enum | Aliases |
 |---|---|
 | `LineStyle` | `"-"` solid, `"--"` dashed, `":"` dotted, `"-."` dashdot, `""` none |
-| `MarkerStyle` | `"o"` circle, `"s"` square, `"^"` triangle, `"x"` cross, `"+"` plus, `"D"`/`"d"` diamond, `""` none |
-| `Colormap` | `"grey"` |
+| `MarkerStyle` | matplotlib's codes: `"o"` circle, `"s"` square, `"^"` `"v"` `"<"` `">"` the triangles, `"D"`/`"d"` diamond, `"*"` star, `"p"` pentagon, `"h"` hexagon, `"X"` cross, `"P"` plus, `"x"` thin_cross, `"+"` thin_plus, `"\|"` vline, `"_"` hline, `""` none |
+| `DrawStyle` | matplotlib's `"steps"`, `"steps-pre"`, `"steps-mid"`, `"steps-post"` |
+| `QuiverPivot` | `"mid"` middle |
+| `MathFontset` | matplotlib's `"stixsans"`, `"dejavusans"`, `"dejavuserif"` |
+| `Colormap` | `"grey"`; any name with `"_r"` for the reversed map |
 | `HAlign` | `"centre"` |
 | `Projection` | `"ortho"`, `"persp"` |
 | `EventKind` | matplotlib's event names, see [Events](#events) |
@@ -125,7 +132,8 @@ The same names are also available as `str`-valued enum classes, for discoverabil
 `sextant.LineStyle.DASHED`, `sextant.Colormap.VIRIDIS`, and so on. A member *is* its string
 (`sextant.LineStyle.DASHED == "dashed"`), so the two are interchangeable everywhere. Calls that return an enum
 return a member. Calling the class resolves any accepted spelling: `sextant.LineStyle("--") is
-sextant.LineStyle.DASHED`.
+sextant.LineStyle.DASHED`. (Marker codes are the one case-sensitive spelling: `"x"` and `"X"` are different
+shapes.)
 
 ### Colours
 
@@ -136,8 +144,24 @@ A colour is one of:
 - a hex string: `"#rrggbb"` or `"#rrggbbaa"`;
 - a tuple or list of 3 or 4 floats in [0, 1]: `(0.2, 0.4, 0.9)`, `(0.2, 0.4, 0.9, 0.5)`.
 
-Colours read back as `(r, g, b, a)` tuples. An error bar's `color` may also be `None`, meaning the series' own
-colour. (`sextant.pyplot` understands matplotlib's wider set: `"C0"`, `"k"`, `"tab:blue"`, CSS names.)
+Colours read back as `(r, g, b, a)` tuples. A plot call's `color` is `None` by default: the series takes the
+next colour of the axes' [colour cycle](#colour-cycle). An error bar's `color` may also be `None`, meaning the
+series' own colour. (`sextant.pyplot` understands matplotlib's wider set: `"C0"`, `"k"`, `"tab:blue"`, CSS names.)
+
+### Colour cycle
+
+A series plotted without a `color` takes the axes' next colour from a ten-colour cycle (matplotlib's tab10),
+for `line`, `scatter`, `bar`, `hist`, `fill` (and each layer of a `stack`), `quiver` without `c`, and
+`axline`; a span takes none. Colour-mapped objects take no colour from it. `set_color_cycle()` replaces the
+palette and restarts it; `[]` restores the default; `cla()` restarts it. Objects already plotted keep their
+colour, and a twin continues its host's cycle.
+
+```python
+ax.set_color_cycle(["#264653", "#2a9d8f", "#e9c46a", "#f4a261", "#e76f51"])
+ax.line(x, a).line(x, b).line(x, c)         # taken in turn
+```
+
+Lines are drawn in the order you plotted them, whatever their kind: a later heatmap covers an earlier line.
 
 ### Arrays
 
@@ -182,6 +206,10 @@ set to it drops out of the legend. Dashing is honoured in the window, PNG and SV
 `loop=True` adds a closing segment from the last point back to the first. It adds no point, so limits, hover
 and the legend are unchanged.
 
+`drawstyle` draws the line as steps (matplotlib's `drawstyle` and `step()`): `"steps_pre"`, `"steps_mid"` or
+`"steps_post"` put the riser before, between or after each point. The vertices, hover and picks are still the
+data's.
+
 Lines are the kind that scales: a million points pan and zoom smoothly. There is no marker option; draw a
 `scatter()` over the same data for a marked series.
 
@@ -195,8 +223,19 @@ ax.scatter(x, y, *, err=None, **ScatterOptions) -> Axes
 ax.scatter(px, py, color="orange", size=24, marker="diamond", alpha=0.6)
 ```
 
-`size` is the marker's diameter in pixels and stays the same when you zoom. Markers: `circle`, `square`,
-`triangle`, `diamond`, `cross`, `plus`, and `none`. One size and one colour per series.
+`size` is the marker's diameter in pixels and stays the same when you zoom. There are sixteen markers, as
+matplotlib's `o s ^ v < > D * p h X P x + | _`: `circle`, `square`, `triangle`, `triangle_down`,
+`triangle_left`, `triangle_right`, `diamond`, `star`, `pentagon`, `hexagon`, `cross`, `plus`, the line markers
+`thin_cross`, `thin_plus`, `vline` and `hline` (stroked `edge_linewidth` thick), and `none`. One colour per
+series.
+
+**A size per point** makes a bubble chart: `sizes` holds one diameter in pixels per point (`None`: all
+`size`). A NaN or non-positive size hides that point. `scatter_z` and `scatter3d` take it too, and
+`ScatterData.sizes` reads and sets it.
+
+```python
+ax.scatter(x, y, sizes=8 + 40 * weight, alpha=0.5)
+```
 
 **Outlines and hollow markers.** `edge_linewidth` (pixels, 0 by default) draws an outline inside the marker,
 so `size` stays its full diameter. `edgecolor` sets its colour (unset: the marker's own) and `edge_alpha` its
@@ -234,7 +273,16 @@ ax.bar(months, balance, color="blue", width=0.7, name="surplus", edgecolor="blac
 ```
 
 Bars are centred on `x`. `width` is a fraction of the spacing between bars, so `1.0` makes them touch.
-Negative heights draw downward from zero. Name the positions with [`set_xticks()`](#ticks).
+Negative heights draw downward from zero. `orientation="horizontal"` lays the bars along x (matplotlib's
+`barh`: `x` then holds the bar positions on y, and `height` the lengths), and `bottom` gives each bar a base
+other than 0: one value per bar, or one number, which stacks bars:
+
+```python
+ax.bar(q, a, name="A").bar(q, b, bottom=a, name="B")
+ax.bar(names, counts, orientation="horizontal")
+```
+
+ Name the positions with [`set_xticks()`](#ticks).
 
 ### hist
 
@@ -282,6 +330,92 @@ column and value.
 
 (`sextant.pyplot`'s `imshow` follows matplotlib instead: row 0 at the top, cell centres on integers, colour
 limits from the data.)
+
+### fill
+
+The area between two curves, as matplotlib's `fill_between`:
+
+```python
+ax.fill(x, y1, y2=0.0, **FillOptions) -> Axes
+```
+
+```python
+(ax.fill(x, lo, hi, color="blue", alpha=0.3, interpolate=True, name="±σ")
+   .line(x, mean, color="blue"))
+```
+
+`y2` is a number or one value per point. `orientation="vertical"` fills between two x curves along y
+(`fill_betweenx`; the arrays then read `y, x1, x2`). `exclude` is one flag per point that leaves it out (the
+inverse of matplotlib's `where`), and a NaN splits the fill; each run left is a region of its own. Where the
+two curves cross, `interpolate=True` runs a region on to the crossing instead of stopping at the last point.
+`drawstyle` steps the curves, and `edgecolor` with `linewidth` outlines the region. Lengths that disagree are a
+`ValueError`.
+
+Automatic limits cover every point of both curves. A fill draws in call order, has a legend key, and is picked
+and hovered anywhere inside it (`PickKind.FILL`, with the segment under the cursor in `pick_index`).
+`fill_data(i)` / `set_fill_data(i, ...)` read and replace it, and the Data panel edits it. `Plane2D` has
+`fill()` too.
+
+### stack
+
+Stacked areas, as matplotlib's `stackplot`: one fill per layer, each from the top of the layers below it.
+
+```python
+ax.stack(x, ys, **StackOptions) -> Axes
+```
+
+```python
+ax.stack(t, layers, baseline="wiggle", names=["a", "b", "c", "d"])
+```
+
+`ys` is a 2-D array with one row per layer, or a sequence of 1-D arrays, each one value per `x`. `baseline` is
+`"zero"`, `"sym"` (centred on zero), `"wiggle"` or `"weighted_wiggle"` (streamgraphs). `colors` and `names` are
+empty or one per layer, and `alpha`, `edgecolor`, `linewidth`, `linestyle` and `drawstyle` apply to all. The
+curves are computed once: afterwards each layer is an ordinary fill, read back with `fill_data()` and edited as
+one, and editing a layer does not restack the rest. A NaN carries up the stack. `Plane2D` has `stack()` too.
+
+### quiver
+
+An arrow per point, as matplotlib's `quiver` with `angles='xy'` and `scale_units='xy'`:
+
+```python
+ax.quiver(x, y, u, v, c=None, **QuiverOptions) -> Axes
+```
+
+```python
+ax.quiver(x, y, u, v, speed, cmap="viridis", colorbar=True, amp=0.18, pivot="middle").set_aspect(1.0)
+```
+
+An arrow runs from `(x, y)` along `(u, v)` times `amp`, **in data units**, so it points the way the data does
+only at [equal aspect](#equal-aspect). `amp` (matplotlib's `1/scale`) is chosen from the data when unset and
+then kept, so the frames of an animation stay comparable. `pivot` is `"tail"`, `"middle"` or `"tip"`; `width`,
+`head_width` and `head_length` are in pixels. With `c` (one value per arrow), each arrow is coloured through
+`cmap`, `vmin` and `vmax`, with an optional colorbar; an arrow with a NaN, a zero vector or an end at or below
+0 on a log axis is not drawn. Automatic limits cover whole arrows. Hover shows the vector (`PickKind.QUIVER`),
+and `quiver_data(i)` / `set_quiver_data(i, ...)` read and replace it. `Plane2D` has `quiver()` too.
+
+### axline and axspan
+
+Reference lines and bands across the frame:
+
+```python
+ax.axline(value, **AxLineOptions) -> Axes
+ax.axspan(lo, hi, **AxSpanOptions) -> Axes
+```
+
+```python
+(ax.axspan(0.7, 1.3, color="green", name="±0.3")                          # axhspan
+   .axline(1.0, linestyle="dashed", name="mean")                          # axhline
+   .axline(6.2, orientation="vertical", name="event"))                    # axvline
+```
+
+Horizontal by default (at y = `value`, over y); `orientation="vertical"` puts them on x. `from_` and `to`
+(fractions of the frame, 0 to 1; `from_` because `from` is a Python keyword) limit them to part of it, and a
+span can be outlined with `edgecolor` and `linewidth`. They stay put through pan and zoom along their length,
+draw in call order, have legend keys, and are edited in the Data panel. Automatic limits include their values
+(on a log axis only those > 0); a non-finite value is a `ValueError`. They are read back and moved with
+`axline_data(i)` / `set_axline_data(i, value)` and `axspan_data(i)` / `set_axspan_data(i, lo, hi)`. They are
+decorations: never hovered or picked.
 
 ---
 
@@ -337,8 +471,8 @@ cell inside the image, and a heatmap smaller than 2×2 traces nothing.
 
 ## Colormaps
 
-Every colour-mapped kind takes `cmap=`: `heatmap`/`imshow`, `scatter_z`, and in 3D `surface`, `surface_tri`,
-`scatter3d` and `line3d`.
+Every colour-mapped kind takes `cmap=`: `heatmap`/`imshow`, `scatter_z`, `quiver` with a `c`, and in 3D
+`surface`, `surface_tri`, `scatter3d` and `line3d`. There are 26 built-in maps:
 
 | `cmap` | For |
 |---|---|
@@ -347,11 +481,28 @@ Every colour-mapped kind takes `cmap=`: `heatmap`/`imshow`, `scatter_z`, and in 
 | `"inferno"`, `"magma"` | Dark to bright: data that should glow against black |
 | `"cividis"` | Designed for colour-vision deficiency |
 | `"turbo"` | A rainbow, for readers used to jet; not perceptually uniform |
-| `"coolwarm"` | Diverging: data with a meaningful centre, such as signed values |
-| `"gray"` | Greyscale images |
+| `"gray"`, `"Greys"`, `"hot"`, `"jet"` | Greyscale images, and the classic heat and rainbow maps |
+| `"Blues"`, `"Greens"`, `"Reds"`, `"Oranges"`, `"Purples"`, `"YlOrRd"`, `"YlGnBu"` | Sequential, light to dark: counts, densities |
+| `"coolwarm"`, `"RdBu"`, `"Spectral"`, `"BrBG"`, `"PiYG"` | Diverging: data with a meaningful centre, such as signed values |
+| `"twilight"`, `"twilight_shifted"`, `"hsv"`, `"phase"` | Cyclic: angles and phases, whose ends meet |
 
 The colours match matplotlib's maps of the same names. `vmin` and `vmax` choose the data range the map spans;
-values outside it take the end colours.
+values outside it take the end colours, **except with a cyclic map, where they wrap round it**, so an angle reads
+right past ±π.
+
+Any name takes `"_r"` for the reversed map (`cmap="RdBu_r"`), in any case. Your own map is registered for the
+rest of the process and then used by name:
+
+```python
+sextant.register_colormap("sunset", ["blue", "white", "red"])
+sextant.register_colormap("clock", colors, cyclic=True)    # wraps instead of clamping
+ax.heatmap(field, (0, 1), (0, 1), cmap="sunset_r")
+sextant.colormaps()                                        # every name, registered ones last
+```
+
+`register_colormap()` spreads two or more colours evenly from `vmin` to `vmax` (alpha included) and returns the
+name; a name already taken, empty or ending in `"_r"` is a `ValueError`, and a registered map cannot be removed.
+The panel's colormap list shows registered maps too, with a Reversed toggle.
 
 ---
 
@@ -408,6 +559,92 @@ series' data and keep everything else, use [`set_<kind>_data()`](#live-updates).
 
 ---
 
+## Scales, shared and twin axes
+
+### Log and symlog axes
+
+```python
+ax.set_xscale("log").set_yscale("symlog", linthresh=1.0).grid(True, minor=True)
+```
+
+The scales are `"linear"` (the default), `"log"` and `"symlog"`, with `base` (10), and for symlog `linthresh`
+(the linear range around 0) and `linscale`, as matplotlib's. `xscale()` / `yscale()` read them back. **Limits
+stay in data units**; pan and zoom move whole decades.
+
+On a log axis values <= 0 are clipped off the frame (a bar stands on its bottom edge) and ignored by the
+automatic limits, and `set_xlim()` / `set_ylim()` with an end <= 0 is a `ValueError`. Switching to `"log"` drops
+set limits that reach 0 back to automatic. Ticks fall on the decades, labelled `10^3`; symlog adds 0 and the
+negative decades. A [heatmap](#heatmap-and-imshow) keeps its axes linear (`ValueError` otherwise).
+
+### Tick formats and minor ticks
+
+`set_xtick_format("%.1f")` / `set_ytick_format()` take printf's format for one number (`%f`, `%e` or `%g`,
+with flags, width and precision, plus any text, [math](#math-in-text) included): `"%.0f%%"`, `"$%.1f$ ms"`. It
+labels the generated ticks and any `set_xticks()` positions given without a label. Empty restores the default;
+anything else (no conversion, or two) is a `ValueError`.
+
+Minor ticks are unlabelled marks between the major ones, on by default for log and symlog axes;
+`set_axes_style(minor_xticks=, minor_yticks=)` turn them on or off, and `minor_tick_length` sizes them.
+`grid(minor=True)` adds grid lines at them, in `minor_color`.
+
+`set_axes_style()` also has per-axis variants of the tick and label fields (`xtick_color`, `ytick_length`,
+`zlabel_fontsize`, …), unset by default so the shared field applies, and `show_xtick_labels` /
+`show_ytick_labels` to hide an axis' labels while keeping its marks.
+
+### Shared axes
+
+```python
+top.line(x, a)
+bottom.line(x, b).sharex(top)           # also sharey()
+top.set_xlim(2, 8)                      # moves both
+```
+
+Axes that share an axis hold **one set of limits and one scale**: `set_xlim()`, `set_xscale()`, pan, zoom and
+the panel's fields on any of them move them all, and automatic limits cover all their data. Tick positions,
+formats and titles stay per axes. Inner subplots hide their tick labels by themselves, as
+`plt.subplots(sharex=True)`, and give the room back; frames along a shared axis stay aligned. There is no
+unsharing. Sharing an axes of another figure is a `ValueError`, as is putting a heatmap on a log-scaled group.
+
+### Twin axes
+
+```python
+host = fig.axes()
+host.line(t, temperature).set_ytitle("temperature [°C]")
+twin = host.twinx()                     # shares x, its own y on the right
+twin.line(t, rain).set_ytitle("rain [mm/h]")
+host.set_axes_style(yaxis_color="red")
+twin.set_axes_style(yaxis_color="blue")
+```
+
+`twinx()` returns a second axes over the same frame that shares the x axis and has its own y axis on the right;
+`twiny()` the same with the axes swapped. It is the same object on every call. Plot into it as into any axes;
+the objects of both draw in the order they were plotted, the twin continues the host's colour cycle, and pan,
+zoom and reset move both.
+
+The cell's title, legend (which lists both axes' series), colorbars and shared axis stay the host's: on a
+`twinx()`, `set_title()`, `legend()`, `set_xtitle()`, `set_xticks()` and `set_xtick_format()` act on the host.
+`yaxis_color` colours each y axis' frame edge, so an axis can take its series' colour. Events report the twin's
+coordinate as `Event.y2data` (`x2data` for a `twiny()`), and a pick names whose object it found in
+`Event.pick_twin`. In the window, a menu-bar selector next to the subplot selector picks which layer the panels
+edit.
+
+### Equal aspect
+
+`set_aspect(ratio, adjustable="box")` draws one y unit `ratio` x units long, as matplotlib's: `1.0` keeps a
+circle round, `0` (the default) fills the frame. Units are the scales', so on log-log a decade is as long on
+both axes.
+
+```python
+ax.line(cx, cy, loop=True).set_aspect(1.0)
+```
+
+`"box"` (the default) shrinks the frame, centred, with its ticks, titles, legend and colorbars; `"datalim"`
+keeps the frame and widens one axis' limits. Pan and zoom keep the ratio. `aspect()` and `adjustable()` read
+them back; `cla()` resets them. A negative or non-finite ratio is a `ValueError`, as is `set_aspect()` on a twin
+(its host's aspect sets the cell).
+
+---
+
 ## Text and annotations
 
 ```python
@@ -461,17 +698,38 @@ ax.set_xtitle(r"$\theta$ [rad]")
 ax.set_title(r"Damped oscillator: $x(t) = e^{-\gamma t}\sin(\omega t)$")
 ```
 
-It is a subset of matplotlib's mathtext:
+It is a large subset of matplotlib's mathtext, laid out by sextant itself:
 
 - superscripts and subscripts, `x^2`, `x_i`, `x_{i,j}^{2}`, nestable;
 - Greek letters and about 150 symbols by name: `\alpha`, `\Delta`, `\pm`, `\times`, `\leq`, `\neq`,
-  `\approx`, `\infty`, `\sum`, `\int`, `\nabla`, `\rightarrow`, ...;
+  `\approx`, `\infty`, `\nabla`, `\rightarrow`, ...;
 - function names set upright, `\sin`, `\cos`, `\log`, `\exp`, `\max`, ...;
+- **fractions and roots**: `\frac{a}{b}` (also `\tfrac`, `\dfrac`), `\binom{n}{k}`, `\sqrt{x}`, `\sqrt[n]{x}`,
+  `\overline{}`, `\underline{}`;
+- **accents**: `\hat`, `\bar`, `\tilde`, `\dot`, `\ddot`, `\acute`, `\grave`, `\breve`, `\check`, `\mathring`,
+  `\vec`, and over a whole body `\widehat`, `\widetilde`, `\overrightarrow`, `\overleftarrow`;
+- **sized delimiters**: `\left( … \middle| … \right)` grow to their contents; `\big`, `\Big`, `\bigg`, `\Bigg`
+  give a fixed size;
+- **big operators with limits**: `\sum`, `\prod`, `\int`, `\iint`, `\oint`, `\bigcup`, … draw larger, and
+  `\lim`, `\max`, `\sup` and the like take limits above and below; also `\overset`, `\underset`, `\stackrel`,
+  `\substack`, `\operatorname`;
 - TeX spacing (`\,`, `\;`, `\quad`, ...) and the spacing around operators;
-- fonts: `\mathrm{}` (upright), `\mathit{}` (italic), `\text{}` (upright, spaces kept).
+- fonts: `\mathrm{}` (upright), `\mathit{}` (italic), `\text{}` (upright, spaces kept), `\mathbf{}` (bold),
+  and the alphabets `\mathcal{}`, `\mathscr{}`, `\mathbb{}`, `\mathfrak{}`, `\mathsf{}`, `\mathtt{}`.
+
+```python
+ax.set_title(r"$\frac{1}{\sqrt{2\pi}\sigma} e^{-\frac{(x-\mu)^2}{2\sigma^2}}$")
+ax.text(r"$\int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}$", 0.5, 0.5, coords="fraction")
+```
 
 Letters draw italic, as in TeX; digits, symbols, Greek capitals and function names stay upright. Symbols the
 font lacks come from a system symbol font. The SVG writes math as `<tspan>`s, so it stays text.
+
+**Math font sets.** `sextant.Figure(math_fontset=...)` chooses what the math is drawn in: `"text"` (the
+default: the text font, as before), `"stix"`, `"cm"` (Computer Modern), or `"custom"` with
+`math_font_path="/path/to/font.otf"`. They use fonts installed on the machine (none is bundled): with none
+found the text font is used, and creating the figure issues a `RuntimeWarning`. matplotlib's names
+`"stixsans"`, `"dejavusans"` and `"dejavuserif"` are accepted too.
 
 **When a string is math.** As in matplotlib: when it has an even, nonzero number of `$` not preceded by a
 backslash. `\$` is a literal dollar, and a string with one `$` or none draws as written. Math that does not
@@ -480,7 +738,7 @@ parse (an unknown command, an unclosed brace) is drawn as written, and the call 
 
 Turn it off for a whole figure with `sextant.Figure(mathtext=False)`, or for one text with
 `parse_math=False`. Automatic tick labels, contour labels and hover text are never math. Not supported:
-fractions, roots, accents, sized delimiters, `\mathbf` and the calligraphic fonts, and `usetex`.
+`\boldsymbol` and `\color` (drawn as written, with a warning), and `usetex`.
 
 ---
 
@@ -734,12 +992,19 @@ The window has a **Cosmetic** panel and a **Data** panel docked beside the plot,
 | **File → Resize to plot frame** | Resize the window so a plot area hits a target size |
 | **File → Refit layout** | Re-measure tick labels after panning has widened them |
 | **View** | Show or hide either panel |
-| **Edit → Navigate** | Pan and zoom (2D), orbit and fly (3D) with the mouse and keys |
+| **Edit → Navigate** | Pan, zoom, box-zoom (2D), orbit and fly (3D) with the mouse and keys |
+| **Edit → Back / Forward / Home** | Step through the views: pans, zooms, boxes and 3D camera moves |
 | **Edit → Hints** | Hover for values (on by default) |
 
 Click a subplot to select it; the panels edit the selected subplot. In 2D, with Navigate on, left-drag pans,
-the wheel zooms at the cursor and a double-click resets the limits. 3D navigation is in
-[3d.md](3d.md#camera).
+the wheel zooms at the cursor, and Shift+drag draws a box to zoom to (a thin box zooms one axis, Esc cancels;
+with an aspect ratio the box keeps the frame's shape). On a log axis pan and zoom move whole decades. 3D
+navigation is in [3d.md](3d.md#camera).
+
+**Back, Forward and Home** step through the views. Home is the limits and camera *your program set*
+(automatic where it set none), and a **double-click goes Home** for its subplot, so it returns to your
+`set_xlim()` or `set_view()` rather than to automatic limits; a 3D axes with `set_default_camera()` still
+returns to that camera.
 
 **Hints** read out the values under the cursor. Give points extra hover text with `hint_labels`, one string
 per point:
@@ -773,7 +1038,7 @@ while not fig.wait_closed(1 / 60):     # until the user closes the window
 
 **`set_<kind>_data(i, ...)` replaces object `i`'s data** and keeps its options, the axes' titles, limits and
 styles, and anything edited in the window. It exists for every kind: `set_line_data`, `set_scatter_data`,
-`set_scatter_z_data`, `set_bar_data`, `set_heatmap_data`, and the 3D ones. It takes either the plotting call's
+`set_scatter_z_data`, `set_bar_data`, `set_heatmap_data`, `set_fill_data`, `set_quiver_data`, and the 3D ones. It takes either the plotting call's
 own data arguments or the object `<kind>_data(i)` returns:
 
 ```python
@@ -790,6 +1055,17 @@ ax.set_line_data(0, d)
 negative indices count from the end. The new data is checked as the plotting call would check it, and a bad
 one changes nothing. Error bars and `hint_labels` stay while the point count is unchanged and are dropped
 otherwise.
+
+**Hiding an object** keeps it and its data: `set_<kind>_visible(i, False)` (or `visible=False` when plotting)
+hides it, `<kind>_visible(i)` reads it. A hidden object is not drawn or exported, has no legend key or colorbar,
+takes no hover or pick, and leaves the automatic limits; its colour and draw order stay, so showing it again
+puts it back as it was. It exists for every kind, texts included (`set_text_visible`), and the Data panel has a
+Visible checkbox per object.
+
+```python
+ax.set_line_visible(1, False)
+fig.refresh()
+```
 
 **Rules:**
 
@@ -840,8 +1116,12 @@ The `Event` fields are listed in [reference.md](reference.md#event). The useful 
 - `has_data`, `xdata`, `ydata` (`zdata`): the pointer in data coordinates, NaN when it is not over data;
 - `button` (0 left, 1 right, 2 middle), `double_click`, `modifiers` (`("ctrl", "shift")`, …), `key`
   (`"a"`, `"ctrl+a"`, `"escape"`, `"f5"`, `"left"`, …), `scroll_y`, `width`/`height` for resize;
-- for a pick: `pick_kind` (`"line"`, `"scatter"`, `"bar"`, `"heatmap"`, …), `pick_object` (the `i` of
-  `<kind>_data(i)`), `pick_index` (the point), `pick_row`/`pick_col` (a heatmap cell), `pick_plane` (in 3D).
+- `x2data`/`y2data`: over an axes with a `twiny()` / `twinx()`, the twin's coordinate under the pointer (NaN
+  without one); `xdata`/`ydata` stay the host's;
+- for a pick: `pick_kind` (`"line"`, `"scatter"`, `"bar"`, `"heatmap"`, `"quiver"`, `"fill"`, …), `pick_object`
+  (the `i` of `<kind>_data(i)`), `pick_index` (the point, bar or vertex; a fill's segment *i*, between its points
+  *i* and *i* + 1), `pick_row`/`pick_col` (a heatmap cell), `pick_plane` (in 3D), `pick_twin` (0 the axes' own,
+  1 its `twinx()`, 2 its `twiny()`).
 
 ```python
 def on_pick(e):
@@ -851,6 +1131,11 @@ def on_pick(e):
 
 fig.connect("pick", on_pick)
 ```
+
+**What a press picks.** A point, marker, arrow or path vertex within the **pick radius** answers first, the
+nearest (`Figure(pick_radius=12)` by default, or `fig.set_pick_radius(px)`); otherwise the topmost bar, fill or
+heatmap cell the press is *inside*, whose position is the event's `xdata`/`ydata`. Reference lines, spans and
+texts are decorations and are never picked.
 
 `consumed` says what sextant itself did with the input (`"navigate"` for a pan, `"select"` for selecting a
 subplot, …); your callback still runs.
@@ -873,16 +1158,19 @@ continues. `KeyboardInterrupt` is raised from the wait that was delivering. A ca
 ```python
 ax.title(); ax.xtitle(); ax.ytitle()
 ax.xlim()                      # (lo, hi) as drawn: set, panned, or automatic
+ax.xscale(); ax.aspect()       # the scale and the aspect ratio
 ax.line_count()
 d = ax.line_data(0)            # LineData(x=array(...), y=array(...))
 ```
 
 Each kind has `<kind>_count()` and `<kind>_data(i)`, returning an object named after the kind (`LineData`,
-`ScatterData`, `ScatterZData`, `BarData`, `HeatmapData`; in 3D `Bar3DData`, `SurfaceData`, `SurfaceTriData`,
+`ScatterData`, `ScatterZData`, `BarData`, `HeatmapData`, `FillData`, `QuiverData`, `AxLineData`,
+`AxSpanData`; in 3D `Bar3DData`, `SurfaceData`, `SurfaceTriData`,
 `Scatter3DData`, `Line3DData`) whose attributes are numpy arrays named after the plotting call's arguments.
 Texts read back the same way: `text_count()`, `text_data(i)` (`TextData`, in 3D `Text3DData`).
 `bar_data` covers `hist()` (bin centres and heights) and `heatmap_data` covers `imshow()`; `HeatmapData.data`
-is `(rows, cols)`, rounded to single precision. Styles, error bars and `hint_labels` are not read back.
+is `(rows, cols)`, rounded to single precision. `ScatterData.sizes` and `BarData.bottom` are `None` when the
+whole series shares one `size` or stands on 0; a `stack()` reads back as one `FillData` per layer. Styles, error bars and `hint_labels` are not read back.
 
 The arrays are yours: change them in place and pass the object back to `set_<kind>_data(i, d)`. The data
 classes can also be built directly: `sextant.LineData(x, y)`.
@@ -918,7 +1206,8 @@ other threads do the updating; `poll_events()` raises `RuntimeError` on any othe
 | Raised | When |
 |---|---|
 | `TypeError` | An unknown keyword option (the message lists the valid ones); an option or argument of the wrong type, including an unknown enum name or colour; an array of the wrong dimensionality |
-| `ValueError` | Mismatched lengths; a non-finite text coordinate; an error-bar array that is not one per point; an empty or non-finite heatmap range; a bad subplot index, a second grid shape, or an occupied cell; a non-positive `resize()` size or dpi; an unknown `savefig` format; a 2-D grid of the wrong shape; for 3D see [3d.md](3d.md#errors) |
+| `ValueError` | Mismatched lengths; a non-finite text coordinate; an error-bar array that is not one per point; an empty or non-finite heatmap range; a bad subplot index, a second grid shape, or an occupied cell; a non-finite reference line; a log scale on a
+heatmap's axes; a bad tick format; a negative aspect; a non-positive `resize()` size or dpi; an unknown `savefig` format; a 2-D grid of the wrong shape; for 3D see [3d.md](3d.md#errors) |
 | `IndexError` | A `<kind>_data(i)` or `set_<kind>_data(i, …)` index out of range |
 | `RuntimeError` | `refresh()` before `show()` or after the window closed; `poll_events()` off the main thread on macOS; a window that cannot be created (on Linux without an X display, with a hint about `DISPLAY`) |
 | `OSError` | Writing a file failed (`FileNotFoundError`, `PermissionError`, … as the cause dictates); on Windows, a file name with `:` other than a drive letter's |

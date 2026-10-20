@@ -6,7 +6,8 @@ used, see the [API guide](api.md) and [3D plots](3d.md).
 Sizes are logical pixels (1/96 inch) unless a row says otherwise. *colour* means a colour as described in
 [api.md](api.md#colours): a name, `"#rrggbb[aa]"`, or a 3- or 4-tuple of floats in [0, 1]; colour defaults are
 written as `(r, g, b)` tuples. Named colours are matplotlib's tab10 shades: `"blue"` is `#1f77b4`,
-`"orange"` `#ff7f0e`, and so on. Enum values are strings ([Enums](#enums)). *array* means anything
+`"orange"` `#ff7f0e`, and so on. A `color` default of `None` means the axes' next colour from the
+[colour cycle](api.md#colour-cycle). Enum values are strings ([Enums](#enums)). *array* means anything
 `numpy.asarray(x, float)` accepts.
 
 - [Figure and output](#figure-and-output): [Figure()](#figure-options) · [margins](#figuremargins) ·
@@ -14,9 +15,10 @@ written as `(r, g, b)` tuples. Named colours are matplotlib's tab10 shades: `"bl
   [SvgSaveReport](#svgsavereport) · [FrameStats](#framestats)
 - [2D plot options](#2d-plot-options): [line](#lineoptions) · [scatter](#scatteroptions) ·
   [scatter_z](#scatterzoptions) · [bar and hist](#baroptions) · [heatmap and imshow](#heatmapoptions) ·
-  [ErrorBar](#errorbar) · [errorbar style](#errorbaroptions)
-- [Decoration and style](#decoration-and-style): [set_axes_style](#axesstyle) · [grid](#gridoptions) ·
-  [legend](#legendoptions) · [set_colorbar_style](#colorbaroptions)
+  [fill](#filloptions) · [stack](#stackoptions) · [quiver](#quiveroptions) · [axline](#axlineoptions) ·
+  [axspan](#axspanoptions) · [ErrorBar](#errorbar) · [errorbar style](#errorbaroptions)
+- [Decoration and style](#decoration-and-style): [set_axes_style](#axesstyle) · [scales](#scaleoptions) ·
+  [grid](#gridoptions) · [legend](#legendoptions) · [set_colorbar_style](#colorbaroptions)
 - [Text](#text): [TextOptions](#textoptions) · [ArrowOptions](#arrowoptions)
 - [3D options](#3d-options): [camera](#camera3d) · [box style](#box3dstyle) · [plane](#plane2doptions) ·
   [bar3d](#bar3doptions) · [surface](#surfaceoptions) · [surface_tri](#surfacetrioptions) ·
@@ -45,6 +47,9 @@ written as `(r, g, b)` tuples. Named colours are matplotlib's tab10 shades: `"bl
 | `margins` | dict | 10 each | [FigureMargins](#figuremargins); also `set_margins()` |
 | `background` | colour | `(0.93, 0.93, 0.93)` | Fill behind everything (margins, gaps, suptitle); alpha 0 is transparent in PNG and SVG. Also `set_background()` |
 | `mathtext` | bool | `True` | Draw `$...$` spans in every string as math; `False` draws every string as written |
+| `math_fontset` | `MathFontset` | `"text"` | The font math draws in, from the fonts installed: `"text"` the text's own, `"stix"` (STIX Two Math, STIX Two Text, STIXGeneral), `"cm"` (Latin Modern Math, CMU Serif, Latin Modern Roman), `"custom"` the file at `math_font_path`. None installed: the text font, and a `RuntimeWarning`. Fixed when the figure is made |
+| `math_font_path` | str | `""` | The font file for `math_fontset="custom"` |
+| `pick_radius` | float | `12` | How near, in pixels, the cursor must come to a point, marker, arrow or path vertex for hover and picks; bars, fills and heatmaps answer inside them. Finite and >= 0; also `set_pick_radius()` |
 | `panel_width` | float | `240` | Initial width of the window's side panels. Never exported |
 | `supersample` | int | `2` | Supersampling for the window and PNG, 1..4; 1 disables. Cost is quadratic. No effect on SVG |
 | `vsync` | bool | `True` | Cap rendering at the display refresh rate. Turn off only to measure |
@@ -122,13 +127,15 @@ These are also the options of the same calls on a `Plane2D`.
 
 | Keyword | Type | Default | Meaning |
 |---|---|---|---|
-| `color` | colour | `"blue"` | |
+| `color` | colour or `None` | `None` | `None` = the axes' next [colour-cycle](api.md#colour-cycle) colour, taken at the call |
 | `linewidth` | float | `1.5` | |
 | `linestyle` | `LineStyle` | `"solid"` | `"none"` draws no stroke and drops the series from the legend |
 | `name` | str | `""` | Legend key |
 | `show_legend` | bool | `True` | Keyed when this is true and `name` is not empty |
+| `visible` | bool | `True` | `False` hides the object as if absent: not drawn or exported, no legend key, colorbar, hover or pick, and out of the automatic limits. Its data stays. Also `set_line_visible()` and the like |
 | `alpha` | float | `1` | |
 | `loop` | bool | `False` | Add a closing segment from the last point to the first |
+| `drawstyle` | `DrawStyle` | `"default"` | `"steps_pre"`, `"steps_mid"`, `"steps_post"` draw the line as steps |
 | `errorbar` | dict | | [ErrorBarOptions](#errorbaroptions): style of the error bars passed as `err` |
 | `hint_labels` | list of str | `[]` | Extra hover text per point |
 
@@ -138,15 +145,17 @@ These are also the options of the same calls on a `Plane2D`.
 
 | Keyword | Type | Default | Meaning |
 |---|---|---|---|
-| `color` | colour | `"blue"` | |
+| `color` | colour or `None` | `None` | As in [LineOptions](#lineoptions) |
 | `size` | float | `20` | Marker diameter; constant under zoom |
+| `sizes` | array or `None` | `None` | One diameter per point (a bubble chart); `None` = `size`. A NaN or non-positive size hides the point. Kept as data: `ScatterData.sizes` |
 | `marker` | `MarkerStyle` | `"circle"` | |
 | `name` | str | `""` | Legend key |
 | `show_legend` | bool | `True` | |
+| `visible` | bool | `True` | As in [LineOptions](#lineoptions) |
 | `alpha` | float | `0.8` | Fill opacity, on top of `color`'s own; 0 = a hollow marker |
 | `edgecolor` | colour or `None` | `None` | Outline colour; `None` = the fill colour |
 | `edge_alpha` | float | `1` | Outline opacity, independent of `alpha` |
-| `edge_linewidth` | float | `0` | Outline width, drawn inside the marker; 0 = none |
+| `edge_linewidth` | float | `0` | Outline width, drawn inside the marker; 0 = none. The stroke width of the line markers |
 | `errorbar` | dict | | [ErrorBarOptions](#errorbaroptions) |
 | `hint_labels` | list of str | `[]` | |
 
@@ -158,6 +167,7 @@ These are also the options of the same calls on a `Plane2D`.
 |---|---|---|---|
 | `cmap` | `Colormap` | `"viridis"` | |
 | `size` | float | `20` | |
+| `sizes` | array or `None` | `None` | As in [ScatterOptions](#scatteroptions) |
 | `marker` | `MarkerStyle` | `"circle"` | |
 | `alpha` | float | `0.8` | |
 | `edgecolor`, `edge_alpha`, `edge_linewidth` | | `None`, `1`, `0` | As in [ScatterOptions](#scatteroptions); `None` = each point's own colour |
@@ -165,6 +175,7 @@ These are also the options of the same calls on a `Plane2D`.
 | `colorbar` | bool | `False` | Draw a colorbar for this series |
 | `name` | str | `""` | Titles the colorbar; also the legend key (marker filled white, black edge) |
 | `show_legend` | bool | `True` | |
+| `visible` | bool | `True` | As in [LineOptions](#lineoptions) |
 | `errorbar` | dict | | [ErrorBarOptions](#errorbaroptions); unset colour = black |
 | `hint_labels` | list of str | `[]` | Default hover text is `x=.., y=.., z=..` |
 
@@ -175,11 +186,14 @@ cumulative=False, **options)`.
 
 | Keyword | Type | Default | Meaning |
 |---|---|---|---|
-| `color` | colour | `"blue"` | |
+| `color` | colour or `None` | `None` | As in [LineOptions](#lineoptions) |
+| `orientation` | `Orientation` | `"vertical"` | `"horizontal"` lays the bars along x (matplotlib's `barh`) |
+| `bottom` | array, float or `None` | `None` | Where each bar starts: one value, or one per bar (stacking, waterfalls). Kept as data: `BarData.bottom` |
 | `width` | float | `0.8`; `1.0` for `hist()` | Fraction of the bar spacing (for `hist()`, of the bin width) |
 | `alpha` | float | `1` | |
 | `name` | str | `""` | Legend key |
 | `show_legend` | bool | `True` | |
+| `visible` | bool | `True` | As in [LineOptions](#lineoptions) |
 | `edgecolor` | colour | `"black"` | |
 | `linewidth` | float | `0.5` | Edge width |
 | `errorbar` | dict | | [ErrorBarOptions](#errorbaroptions); hung off the bar's tip; unset colour = `edgecolor` |
@@ -198,8 +212,9 @@ and every bin before it), both `False`.
 | `vmin`, `vmax` | float | `0`, `1` | Data range the colormap spans |
 | `colorbar` | bool | `False` | |
 | `name` | str | `""` | Titles the colorbar |
+| `visible` | bool | `True` | As in [LineOptions](#lineoptions) |
 | `origin` | str | `"lower"` | `"lower"` draws row 0 at the bottom, `"upper"` at the top |
-| `contours` | list of float | `[]` | Contour levels in data units |
+| `contours` | array, float or `None` | `None` | Contour levels in data units |
 | `contour_color` | colour | `"black"` | |
 | `contour_linewidth` | float | `1` | |
 | `contour_labels` | bool | `False` | Write each level on its line |
@@ -207,6 +222,90 @@ and every bin before it), both `False`.
 | `hint_labels` | list of str | `[]` | Row-major: `row * cols + col` |
 
 `xrange`, `yrange` are `(lo, hi)`: the outer cell edges. `lo > hi` mirrors; `lo == hi` is a `ValueError`.
+
+### FillOptions
+
+`fill(x, y1, y2=0.0, **options)`; `stack()` builds one per layer.
+
+| Keyword | Type | Default | Meaning |
+|---|---|---|---|
+| `orientation` | `Orientation` | `"horizontal"` | `"horizontal"` fills between y1(x) and y2(x) (`fill_between`); `"vertical"` between x1(y) and x2(y) (`fill_betweenx`) |
+| `color` | colour or `None` | `None` | As in [LineOptions](#lineoptions) |
+| `alpha` | float | `1` | |
+| `edgecolor` | colour or `None` | `None` | Outline of each region; `None` = `color` |
+| `linewidth` | float | `0` | Outline width; 0 = none |
+| `linestyle` | `LineStyle` | `"solid"` | Of the outline |
+| `drawstyle` | `DrawStyle` | `"default"` | Steps both curves |
+| `exclude` | array of bool or `None` | `None` | One flag per point leaving it out (the inverse of matplotlib's `where`); a NaN also splits the fill. Kept as data: `FillData.exclude` |
+| `interpolate` | bool | `False` | Run a region on to where the curves cross |
+| `name` | str | `""` | Legend key |
+| `show_legend` | bool | `True` | |
+| `visible` | bool | `True` | As in [LineOptions](#lineoptions) |
+
+### StackOptions
+
+`stack(x, ys, **options)`.
+
+| Keyword | Type | Default | Meaning |
+|---|---|---|---|
+| `orientation` | `Orientation` | `"horizontal"` | `"horizontal"` stacks up along y over x; `"vertical"` along x over y |
+| `baseline` | `StackBaseline` | `"zero"` | Where the bottom layer starts: `"zero"`, `"sym"`, `"wiggle"`, `"weighted_wiggle"` |
+| `colors` | list of colour | `[]` | One per layer; empty = one cycle colour each |
+| `names` | list of str | `[]` | One legend name per layer |
+| `alpha`, `edgecolor`, `linewidth`, `linestyle`, `drawstyle` | | | As in [FillOptions](#filloptions), for every layer |
+| `show_legend`, `visible` | bool | `True` | For every layer |
+
+### QuiverOptions
+
+`quiver(x, y, u, v, c=None, **options)`.
+
+| Keyword | Type | Default | Meaning |
+|---|---|---|---|
+| `color` | colour or `None` | `None` | As in [LineOptions](#lineoptions); unused with a `c` per arrow (the cycle is not advanced) |
+| `alpha` | float | `1` | Multiplies either colour's own alpha |
+| `cmap` | `Colormap` | `"viridis"` | For a `c` per arrow (a cyclic map wraps) |
+| `vmin`, `vmax` | float | `0`, `1` | Data range the colormap spans |
+| `colorbar` | bool | `False` | Only with `c`; `name` titles it |
+| `amp` | float or `None` | `None` | Data units of arrow per unit of vector (matplotlib's `1/scale`). `None` = chosen from the data at the call, then kept, so animation frames stay comparable |
+| `pivot` | `QuiverPivot` | `"tail"` | Which part of the arrow sits on `(x, y)`: `"tail"`, `"middle"`, `"tip"` |
+| `width` | float | `2` | Shaft width in pixels |
+| `head_width`, `head_length` | float | `7`, `8` | Head size in pixels; an arrow shorter than its head is all head |
+| `name` | str | `""` | Legend key; with `c`, also the colorbar title |
+| `show_legend` | bool | `True` | |
+| `visible` | bool | `True` | As in [LineOptions](#lineoptions) |
+| `hint_labels` | list of str | `[]` | Default hover text is `x=.., y=.., u=.., v=..` (plus `c=..`) |
+
+### AxLineOptions
+
+`axline(value, **options)`.
+
+| Keyword | Type | Default | Meaning |
+|---|---|---|---|
+| `orientation` | `Orientation` | `"horizontal"` | A line at y = value (`axhline`), or with `"vertical"` at x = value (`axvline`) |
+| `color` | colour or `None` | `None` | As in [LineOptions](#lineoptions) |
+| `linewidth` | float | `1.5` | |
+| `linestyle` | `LineStyle` | `"solid"` | `"none"` draws nothing and keys nothing |
+| `alpha` | float | `1` | |
+| `from_`, `to` | float | `0`, `1` | Where it starts and ends along the frame, as fractions of it (0 = left or bottom edge), whatever the limits |
+| `name` | str | `""` | Legend key |
+| `show_legend` | bool | `True` | |
+| `visible` | bool | `True` | As in [LineOptions](#lineoptions) |
+
+### AxSpanOptions
+
+`axspan(lo, hi, **options)`.
+
+| Keyword | Type | Default | Meaning |
+|---|---|---|---|
+| `orientation` | `Orientation` | `"horizontal"` | A band over y (`axhspan`), or with `"vertical"` over x (`axvspan`) |
+| `color` | colour or `None` | `None` | `None` = `"blue"`; a span takes no colour from the cycle |
+| `alpha` | float | `0.25` | |
+| `edgecolor` | colour or `None` | `None` | Outline; `None` = `color` |
+| `linewidth` | float | `0` | Outline width; 0 = none |
+| `from_`, `to` | float | `0`, `1` | As in [AxLineOptions](#axlineoptions) |
+| `name` | str | `""` | Legend key |
+| `show_legend` | bool | `True` | |
+| `visible` | bool | `True` | As in [LineOptions](#lineoptions) |
 
 ### ErrorBar
 
@@ -253,22 +352,43 @@ them, `show_xticks=False` below.
 | `spine_color` | colour | `(0.3, 0.3, 0.3)` | Frame and axis lines |
 | `spine_linewidth` | float | `1` | |
 | `spine_bottom`, `spine_left`, `spine_top`, `spine_right` | bool | `True` | The four 2D frame edges; ignored in 3D |
+| `xaxis_color`, `yaxis_color` | colour or `None` | `None` | A twinned cell: the colour of the frame edge each axis lies on (host y left, `twinx` y right; host x bottom, `twiny` x top), so an axis can take its series' colour. `None`: `spine_color` |
 | `xaxis_y`, `xaxis_z` | `AxisPosition` | `"auto"` | Where the x axis sits along y (and z, in 3D) |
 | `yaxis_x`, `yaxis_z` | `AxisPosition` | `"auto"` | Where the y axis sits along x (and z) |
 | `zaxis_x`, `zaxis_y` | `AxisPosition` | `"auto"` | Where the z axis sits (3D) |
 | `origin_x`, `origin_y`, `origin_z` | float or `None` | `None` | Put the other axes through this data value; overrides the positions |
 | `frame_margin` | float | `0` | Space around the frame and its labels before an outside legend or colorbar |
 | `show_xticks`, `show_yticks`, `show_zticks` | bool | `True` | `False` hides that axis' tick marks and labels and frees their room; grid lines stay. `show_zticks` is 3D only |
+| `show_xtick_labels`, `show_ytick_labels` | bool or `None` | `None` | 2D: show or hide an axis' tick labels, keeping its marks. `None` hides them on an inner axes of a share group |
 | `tick_color` | colour | `(0.3, 0.3, 0.3)` | |
 | `tick_length` | float | `5` | |
 | `tick_linewidth` | float | `1` | |
+| `minor_xticks`, `minor_yticks` | bool or `None` | `None` | 2D: unlabelled marks between the major ticks. `None` = on for log and symlog axes, off for linear |
+| `minor_tick_length` | float | `2.5` | |
 | `label_color` | colour | `(0.2, 0.2, 0.2)` | Tick labels |
 | `label_fontsize` | float | `11` | |
+| `xtick_color`, `ytick_color`, `ztick_color` | colour or `None` | `None` | Per axis, over `tick_color`; `None` takes the shared field. `z` in 3D only |
+| `xtick_length`, `ytick_length`, `ztick_length` | float or `None` | `None` | Likewise for `tick_length` |
+| `xtick_linewidth`, `ytick_linewidth`, `ztick_linewidth` | float or `None` | `None` | Likewise for `tick_linewidth` |
+| `minor_xtick_length`, `minor_ytick_length` | float or `None` | `None` | Likewise for `minor_tick_length` (2D) |
+| `xlabel_color`, `ylabel_color`, `zlabel_color` | colour or `None` | `None` | Likewise for `label_color` |
+| `xlabel_fontsize`, `ylabel_fontsize`, `zlabel_fontsize` | float or `None` | `None` | Likewise for `label_fontsize` |
 | `title_color`, `title_fontsize` | colour, float | `(0.15, 0.15, 0.15)`, `18` | Also set by `set_title()` |
 | `xtitle_color`, `xtitle_fontsize` | colour, float | `(0.15, 0.15, 0.15)`, `16.5` | |
 | `ytitle_color`, `ytitle_fontsize` | colour, float | `(0.15, 0.15, 0.15)`, `16.5` | |
 | `ztitle_color`, `ztitle_fontsize` | colour, float | `(0.15, 0.15, 0.15)`, `16.5` | 3D only |
 | `font_path` | str | `""` | Titles and tick labels; absolute path to a .ttf/.ttc/.otf |
+
+### ScaleOptions
+
+`set_xscale(scale, **options)` / `set_yscale(...)`, with `scale` a `Scale`: `"linear"` (the default), `"log"` or
+`"symlog"`. Each value used must be finite.
+
+| Keyword | Type | Default | Meaning |
+|---|---|---|---|
+| `base` | float | `10` | Log and symlog; > 1 |
+| `linthresh` | float | `1` | Symlog: the half-width of the linear part around 0; > 0 |
+| `linscale` | float | `1` | Symlog: the length of the linear part, in decades; > 0 |
 
 ### GridOptions
 
@@ -279,6 +399,8 @@ them, `show_xticks=False` below.
 | `color` | colour | `(0.8, 0.8, 0.8)` | |
 | `linestyle` | `LineStyle` | `"solid"` | `"none"` draws no grid lines |
 | `linewidth` | float | `0.5` | |
+| `minor` | bool | `False` | 2D: also a line at each minor tick |
+| `minor_color` | colour | `(0.9, 0.9, 0.9)` | Colour of those lines |
 
 ### LegendOptions
 
@@ -341,6 +463,7 @@ them, `show_xticks=False` below.
 | `pad` | float | `4` | Box margin around the text |
 | `clip_to_frame` | bool | `False` | Cut at the plot frame; by default a text whose data position leaves the view is hidden whole |
 | `parse_math` | bool | `True` | Draw `$...$` as math (only when the figure's `mathtext` is on too) |
+| `visible` | bool | `True` | As in [LineOptions](#lineoptions) |
 
 ### ArrowOptions
 
@@ -395,7 +518,7 @@ them, `show_xticks=False` below.
 | Keyword | Type | Default | Meaning |
 |---|---|---|---|
 | `alpha` | float | `1` | Whole-plane opacity, multiplying its objects' own; also `set_alpha()` |
-| `visible` | bool | `True` | Hides the drawing only; limits, colorbars and legend keys stay |
+| `visible` | bool | `True` | Hides the drawing only; limits, colorbars and legend keys stay. Hiding one object instead is `set_<kind>_visible()` |
 
 ### Bar3DOptions
 
@@ -403,7 +526,7 @@ them, `show_xticks=False` below.
 
 | Keyword | Type | Default | Meaning |
 |---|---|---|---|
-| `color` | colour | `"blue"` | |
+| `color` | colour or `None` | `None` | As in [LineOptions](#lineoptions) |
 | `alpha` | float | `1` | |
 | `width`, `depth` | float | `0.8` | Footprint as a fraction of the grid spacing along u and v |
 | `bottom` | float | `0` | Base of every bar, unless `bottoms` is passed |
@@ -414,6 +537,7 @@ them, `show_xticks=False` below.
 | `edge_linewidth` | float | `1` | At the bar's depth |
 | `name` | str | `""` | Legend key (a swatch of `color`) |
 | `show_legend` | bool | `True` | |
+| `visible` | bool | `True` | As in [LineOptions](#lineoptions) |
 | `hint_labels` | list of str | `[]` | Per bar, u major like `heights` |
 
 ### SurfaceOptions
@@ -422,13 +546,14 @@ them, `show_xticks=False` below.
 
 | Keyword | Type | Default | Meaning |
 |---|---|---|---|
-| `color` | colour | `"blue"` | Flat colour, unless `colormap` |
+| `color` | colour or `None` | `None` | Flat colour, unless `colormap`; `None` = the next cycle colour |
 | `colormap` | bool | `False` | Colour each cell by height |
 | `cmap` | `Colormap` | `"viridis"` | |
 | `vmin`, `vmax` | float | `0`, `0` | Equal = the surface's own range |
 | `colorbar` | bool | `False` | Only with `colormap` |
 | `name` | str | `""` | Colorbar title when colour-mapped, else legend key |
 | `show_legend` | bool | `True` | |
+| `visible` | bool | `True` | As in [LineOptions](#lineoptions) |
 | `alpha` | float | `1` | |
 | `shading` | float | `0.45` | |
 | `edges` | bool | `False` | Wireframe along the sampling grid |
@@ -443,12 +568,13 @@ them, `show_xticks=False` below.
 
 | Keyword | Type | Default | Meaning |
 |---|---|---|---|
-| `color` | colour | `"blue"` | Flat colour, unless `colors` is passed |
+| `color` | colour or `None` | `None` | Flat colour, unless `colors` is passed; `None` = the next cycle colour |
 | `cmap` | `Colormap` | `"viridis"` | For `colors` |
 | `vmin`, `vmax` | float | `0`, `0` | Equal = the mesh's own range |
 | `colorbar` | bool | `False` | Only with `colors` |
 | `name` | str | `""` | Colorbar title when colour-mapped, else legend key |
 | `show_legend` | bool | `True` | |
+| `visible` | bool | `True` | As in [LineOptions](#lineoptions) |
 | `alpha` | float | `1` | |
 | `shading` | float | `0.45` | Per face, both sides lit |
 | `edges` | bool | `False` | All three edges of every triangle |
@@ -463,8 +589,9 @@ them, `show_xticks=False` below.
 
 | Keyword | Type | Default | Meaning |
 |---|---|---|---|
-| `color` | colour | `"blue"` | Flat colour, unless `colors` is passed |
+| `color` | colour or `None` | `None` | Flat colour, unless `colors` is passed; `None` = the next cycle colour |
 | `size` | float | `20` | Marker diameter, constant at any depth |
+| `sizes` | array or `None` | `None` | One diameter per point, as in [ScatterOptions](#scatteroptions) |
 | `marker` | `MarkerStyle` | `"circle"` | |
 | `alpha` | float | `1` | |
 | `depthshade` | float | `0` | Darken with distance; 0 = off |
@@ -474,6 +601,7 @@ them, `show_xticks=False` below.
 | `colorbar` | bool | `False` | Only with `colors` |
 | `name` | str | `""` | Legend key; with `colors`, also the colorbar title |
 | `show_legend` | bool | `True` | |
+| `visible` | bool | `True` | As in [LineOptions](#lineoptions) |
 | `errorbar` | dict | | [ErrorBar3DOptions](#errorbar3doptions) |
 | `hint_labels` | list of str | `[]` | |
 
@@ -483,7 +611,7 @@ them, `show_xticks=False` below.
 
 | Keyword | Type | Default | Meaning |
 |---|---|---|---|
-| `color` | colour | `"blue"` | Flat colour, unless `colors` is passed |
+| `color` | colour or `None` | `None` | Flat colour, unless `colors` is passed; `None` = the next cycle colour |
 | `linewidth` | float | `1.5` | At the box centre; thinner with distance under perspective |
 | `alpha` | float | `1` | |
 | `loop` | bool | `False` | Close the path |
@@ -493,6 +621,7 @@ them, `show_xticks=False` below.
 | `colorbar` | bool | `False` | Only with `colors` |
 | `name` | str | `""` | Legend key |
 | `show_legend` | bool | `True` | |
+| `visible` | bool | `True` | As in [LineOptions](#lineoptions) |
 | `errorbar` | dict | | [ErrorBar3DOptions](#errorbar3doptions) |
 | `hint_labels` | list of str | `[]` | Per vertex |
 
@@ -524,14 +653,21 @@ The `errorbar={...}` keyword of `scatter3d` and `line3d`. Pixel sizes are measur
 
 ## Enums
 
-Pass the value as a string (case, `_`, `-` and spaces are ignored), or use the class member
+Pass the value as a string (case, `_`, `-` and spaces are ignored, except in marker codes), or use the class member
 (`sextant.LineStyle.DASHED`). Members are `str` and compare equal to their value.
 
 | Class | Values | Aliases |
 |---|---|---|
 | `LineStyle` | `solid`, `dashed`, `dotted`, `dashdot`, `none` | `-` `--` `:` `-.` `""` |
-| `MarkerStyle` | `none`, `circle`, `square`, `triangle`, `cross`, `plus`, `diamond` | `o` `s` `^` `x` `+` `D` `d` `""` |
-| `Colormap` | `viridis`, `plasma`, `inferno`, `magma`, `cividis`, `turbo`, `coolwarm`, `gray` | `grey` |
+| `MarkerStyle` | `none`, `circle`, `square`, `triangle`, `triangle_down`, `triangle_left`, `triangle_right`, `diamond`, `star`, `pentagon`, `hexagon`, `cross`, `plus`, `thin_cross`, `thin_plus`, `vline`, `hline` | `o` `s` `^` `v` `<` `>` `*` `p` `h` `X` `P` `x` `+` `\|` `_` `D` `d` `""` (case-sensitive: `x` is `thin_cross`, `X` is `cross`) |
+| `DrawStyle` | `default`, `steps_pre`, `steps_mid`, `steps_post` | `steps`, `steps-pre`, `steps-mid`, `steps-post` |
+| `Orientation` | `vertical`, `horizontal` | |
+| `StackBaseline` | `zero`, `sym`, `wiggle`, `weighted_wiggle` | |
+| `QuiverPivot` | `tail`, `middle`, `tip` | `mid` |
+| `Scale` | `linear`, `log`, `symlog` | |
+| `Adjustable` | `box`, `datalim` | |
+| `MathFontset` | `text`, `stix`, `cm`, `custom` | `stixsans`, `dejavusans`, `dejavuserif` |
+| `Colormap` | `viridis`, `plasma`, `inferno`, `magma`, `cividis`, `turbo`, `coolwarm`, `gray`, `Blues`, `Greens`, `Reds`, `Oranges`, `Purples`, `Greys`, `YlOrRd`, `YlGnBu`, `hot`, `jet`, `RdBu`, `Spectral`, `BrBG`, `PiYG`, `twilight`, `twilight_shifted`, `hsv`, `phase` (cyclic: the last four) | `grey`; any name with `_r` reversed; registered names ([Module functions](#module-functions)) |
 | `CapStyle` | `flat`, `arrow` | |
 | `AxisPosition` | `auto` (bottom/left in 2D; the box silhouette in 3D), `low`, `mid`, `high` | |
 | `LegendAnchor` | `inside_tl`, `inside_tr`, `inside_bl`, `inside_br`, `outside_tl`, `outside_tr`, `outside_bl`, `outside_br`, `outside_lt`, `outside_lb`, `outside_rt`, `outside_rb` | |
@@ -544,7 +680,7 @@ Pass the value as a string (case, `_`, `-` and spaces are ignored), or use the c
 | `Projection` | `orthographic`, `perspective` | `ortho`, `persp` |
 | `PlaneOrientation` | `xy`, `yz`, `zx` | |
 | `EventKind` | `close`, `mouse_down`, `mouse_up`, `mouse_move`, `scroll`, `key_down`, `key_up`, `resize`, `pick` | matplotlib's event names ([Events](api.md#events)) |
-| `PickKind` | `none`, `line`, `scatter`, `scatter_z`, `bar`, `heatmap`, `bar3d`, `surface`, `surface_tri`, `scatter3d`, `line3d` | |
+| `PickKind` | `none`, `line`, `scatter`, `scatter_z`, `bar`, `heatmap`, `bar3d`, `surface`, `surface_tri`, `scatter3d`, `line3d`, `quiver`, `fill` | |
 | `EventConsumed` | `none`, `select`, `navigate`, `grid_drag` | |
 
 `LegendAnchor`: `inside_*` sits in a corner of the frame (t/b top/bottom, l/r left/right) and reserves no
@@ -561,14 +697,18 @@ are numpy `float64` unless noted. Each can also be built: `sextant.LineData(x, y
 | Class | Attributes |
 |---|---|
 | `LineData` | `x`, `y` (from `line(y)`, x is 0, 1, 2, …) |
-| `ScatterData` | `x`, `y` |
-| `ScatterZData` | `x`, `y`, `z` |
-| `BarData` | `x`, `height` (from `hist()`: bin centres and heights) |
+| `ScatterData` | `x`, `y`, `sizes` (or `None`: every marker takes the call's `size`) |
+| `ScatterZData` | `x`, `y`, `z`, `sizes` (or `None`) |
+| `BarData` | `x`, `height` (from `hist()`: bin centres and heights), `bottom` (or `None`: the bars stand on 0; a single `bottom=` value reads back repeated) |
+| `FillData` | `x` (`y` for a vertical fill), `y1`, `y2` (a number reads back repeated), `exclude` (bool array, or `None`). Each layer of a `stack()` is one |
+| `QuiverData` | `x`, `y`, `u`, `v`, `c` (or `None` for a flat quiver) |
+| `AxLineData` | `value` |
+| `AxSpanData` | `lo`, `hi` (`lo <= hi` as stored) |
 | `HeatmapData` | `data` `(rows, cols)`, rounded to single precision; `xrange`, `yrange` `(lo, hi)` |
 | `Bar3DData` | `orient` (`PlaneOrientation`), `u`, `v`, `heights` `(len(u), len(v))`, `bottoms` (same shape, or `None`) |
 | `SurfaceData` | `orient`, `u`, `v`, `heights` `(len(u), len(v))` |
 | `SurfaceTriData` | `x`, `y`, `z`, `tri` (`(n, 3)` `uint32`; the derived triangulation for an `orient=` mesh), `colors` (or `None`) |
-| `Scatter3DData` | `x`, `y`, `z`, `colors` (or `None`) |
+| `Scatter3DData` | `x`, `y`, `z`, `colors` (or `None`), `sizes` (or `None`) |
 | `Line3DData` | `x`, `y`, `z`, `colors` (or `None`) |
 | `TextData` | `text`; `x`, `y` and their `xcoords`, `ycoords` (`Coords`); `arrow` (bool) and the point `px`, `py`. From `Axes.text_data(i)`, for `text()` and `annotate()` alike |
 | `Text3DData` | `text`, `x`, `y`, `z`; `in_frame` (a `text2d()`: `x`, `y` are fractions of the frame); `arrow` and `dx`, `dy` (an `annotate()`: the text's offset in pixels, y up) |
@@ -588,6 +728,7 @@ attribute; those its kind does not fill keep their defaults (NaN for data coordi
 | `axes` | int | pointer events | That subplot's index as `add_subplot()` takes it (a span: its first cell), or -1 |
 | `has_data` | bool | pointer events | Whether `xdata`/`ydata`(/`zdata`) are set: over a 2D axes, or where a 3D pointer ray meets a `Plane2D` |
 | `xdata`, `ydata`, `zdata` | float | pointer events | The pointer in data coordinates; NaN when not over data |
+| `x2data`, `y2data` | float | pointer events | A 2D axes with twins: the `twiny()`'s x and the `twinx()`'s y under the pointer (NaN without that twin) |
 | `button` | int | `mouse_down`, `mouse_up`, `pick` | 0 left, 1 right, 2 middle |
 | `double_click` | bool | `mouse_down` | |
 | `mods` | int | input events | Modifier bits: 1 ctrl, 2 shift, 4 alt, 8 super |
@@ -598,9 +739,10 @@ attribute; those its kind does not fill keep their defaults (NaN for data coordi
 | `consumed` | `EventConsumed` | input events | What sextant itself did with the input (informational) |
 | `pick_kind` | `PickKind` | `pick` | The kind of object clicked |
 | `pick_object` | int | `pick` | Its index within the kind: the `i` of `<kind>_data(i)` (on the plane, when `pick_plane >= 0`) |
-| `pick_index` | int | `pick` | The element: a point, bar, marker, vertex or surface sample; for a heatmap or `bar3d`, the flat cell index (`row * cols + col`) |
+| `pick_index` | int | `pick` | The element: a point, bar, marker, vertex or surface sample; for a heatmap or `bar3d`, the flat cell index (`row * cols + col`); for a fill, its segment *i*, between its points *i* and *i* + 1 |
 | `pick_row`, `pick_col` | int | `pick` | The cell of a heatmap or `bar3d` grid, else -1 |
 | `pick_plane` | int | `pick` | `Axes3D.plane_at()` index of the plane the object is on, or -1 |
+| `pick_twin` | int | `pick` | In a cell with twins, whose object `pick_object` indexes: 0 the axes' own, 1 its `twinx()`, 2 its `twiny()` |
 
 ---
 
@@ -611,4 +753,6 @@ attribute; those its kind does not fill keep their defaults (NaN for data coordi
 | `sextant.run()` | Wait until every open figure is closed, delivering their events |
 | `sextant.poll_events()` | Process window events once and deliver queued events, without waiting. On macOS, main thread only |
 | `sextant.set_message_handler(fn)` | Send sextant's diagnostics to `fn(message: str)`; `None` restores the default (`warnings.warn(message, RuntimeWarning)`). Returns the previous handler |
+| `sextant.register_colormap(name, colors, cyclic=False)` | Add a colormap for the rest of the process, usable by name (and with `_r`) wherever `cmap=` is taken: `colors` (two or more) spread evenly from `vmin` to `vmax`, interpolated linearly, alpha included. `cyclic=True` wraps values outside `[vmin, vmax]` (give it equal first and last colours). Returns the name. `ValueError` for fewer than two colours, an empty name, one ending in `_r`, or one already taken; it cannot be removed |
+| `sextant.colormaps()` | Every colormap's name, without `_r`: the built-ins, then the registered ones in registration order |
 | `sextant.set_repr_formats(*formats)` | What a `Figure` offers Jupyter/IPython to display: `"png"` (the default), `"svg"`, both, or none |

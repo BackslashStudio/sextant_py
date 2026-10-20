@@ -12,16 +12,16 @@ python -m pip install pysextant
 ```
 
 On PyPI it is **`pysextant`** (`sextant` there is an unrelated project); it imports as `sextant`. The current
-release is 1.1.0. Wheels cover Python 3.10 or later on Windows (x86-64), Linux (x86-64, glibc 2.27+) and macOS 11+ (Apple Silicon and Intel);
-the only dependency is numpy. **[doc/install.md](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/install.md)** has everything else: building
-[from source](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/install.md#from-source), [conda](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/install.md#in-a-conda-environment),
-[what each platform needs at run time](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/install.md#running-it) (X11/EGL on Linux, the main thread on macOS,
-OpenGL 3.3 on Windows) and [troubleshooting](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/install.md#troubleshooting).
+release is 1.2.0. Wheels cover Python 3.10 or later on Windows (x86-64), Linux (x86-64, glibc 2.27+) and macOS 11+ (Apple Silicon and Intel);
+the only dependency is numpy. **[doc/install.md](https://github.com/BackslashStudio/sextant_py/blob/v1.2.0/doc/install.md)** has everything else: building
+[from source](https://github.com/BackslashStudio/sextant_py/blob/v1.2.0/doc/install.md#from-source), [conda](https://github.com/BackslashStudio/sextant_py/blob/v1.2.0/doc/install.md#in-a-conda-environment),
+[what each platform needs at run time](https://github.com/BackslashStudio/sextant_py/blob/v1.2.0/doc/install.md#running-it) (X11/EGL on Linux, the main thread on macOS,
+OpenGL 3.3 on Windows) and [troubleshooting](https://github.com/BackslashStudio/sextant_py/blob/v1.2.0/doc/install.md#troubleshooting).
 
 ## Documentation
 
-[doc/README.md](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/README.md) indexes it: the [core API guide](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/api.md), [3D plots](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/3d.md),
-[`sextant.pyplot`](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/pyplot.md) and the [option reference](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/reference.md).
+[doc/README.md](https://github.com/BackslashStudio/sextant_py/blob/v1.2.0/doc/README.md) indexes it: the [core API guide](https://github.com/BackslashStudio/sextant_py/blob/v1.2.0/doc/api.md), [3D plots](https://github.com/BackslashStudio/sextant_py/blob/v1.2.0/doc/3d.md),
+[`sextant.pyplot`](https://github.com/BackslashStudio/sextant_py/blob/v1.2.0/doc/pyplot.md) and the [option reference](https://github.com/BackslashStudio/sextant_py/blob/v1.2.0/doc/reference.md).
 
 ## Examples
 
@@ -57,19 +57,39 @@ plt.savefig("mpl.png")
 plt.show()
 ```
 
-`pyplot` covers the common calls (`plot`, `scatter`, `bar`, `hist`, `errorbar`, `imshow`, `pcolormesh`, 3D
+`pyplot` covers the common calls (`plot`, `step`, `scatter`, `bar`/`barh`, `hist`, `fill_between`, `stackplot`,
+`quiver`, `axhline`/`axvspan`, `errorbar`, `imshow`, `pcolormesh`, log scales, `twinx`, shared axes, 3D
 `plot_surface`/`scatter`/`bar3d`, `text`/`annotate`, `$...$` math in labels, colorbars, `mpl_connect` events,
-`pause`/`ion`); what sextant cannot draw
-raises an error rather than being ignored. In Jupyter a figure displays inline as PNG.
+`pause`/`ion`); what sextant cannot draw raises an error rather than being ignored. In Jupyter a figure
+displays inline as PNG.
 
-Windows are interactive (pan, zoom, a panel to edit titles, ticks and data). In a script `show()` blocks until
+Windows are interactive (pan, zoom, box zoom with Back/Forward/Home, a panel to edit titles, ticks and data). In a script `show()` blocks until
 the window closes; in a REPL or IPython it returns and the window stays live.
+
+Beyond lines and scatter, the core API draws filled areas, stacked areas, arrow fields, bars in either
+orientation, reference lines and spans, with log and symlog axes, shared and twin axes and equal aspect, 26
+colormaps (plus your own, `register_colormap()`), per-point marker sizes and sixteen marker shapes. Math in any
+string covers fractions, roots, accents, big operators and bold and blackboard alphabets, in STIX or Computer
+Modern if you ask:
+
+```python
+import numpy as np
+import sextant
+
+t = np.linspace(0, 10, 200)
+fig = sextant.Figure(width=800, height=450, math_fontset="stix")
+ax = fig.axes()
+ax.fill(t, np.sin(t) - 0.3, np.sin(t) + 0.3, alpha=0.3, name=r"$\pm\,0.3$")
+ax.line(t, np.sin(t), name=r"$\sin t$").axline(0.0, linestyle="dashed")
+ax.set_title(r"$\hat{f}(\omega)=\int_{-\infty}^{\infty} f(t)\,e^{-i\omega t}\,dt$").legend()
+fig.savefig("math.png")
+```
 
 The package is typed (`py.typed`): keyword options and enum names are checked by a type checker (tested with mypy).
 
 ## Development
 
-Building needs the toolchain in [doc/install.md](https://github.com/BackslashStudio/sextant_py/blob/v1.1.0/doc/install.md#1-the-c-toolchain).
+Building needs the toolchain in [doc/install.md](https://github.com/BackslashStudio/sextant_py/blob/v1.2.0/doc/install.md#1-the-c-toolchain).
 
 ```sh
 git clone --recursive https://github.com/BackslashStudio/sextant_py.git

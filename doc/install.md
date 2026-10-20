@@ -6,7 +6,7 @@ On PyPI the package is **`pysextant`** (`sextant` there is an unrelated project)
 python -m pip install pysextant
 ```
 
-The current release is **1.1.0** (`pysextant==1.1.0` to ask for it by number).
+The current release is **1.2.0** (`pysextant==1.2.0` to ask for it by number).
 
 PyPI has wheels, which install without a compiler, for Python 3.10 or later on Windows x86-64, Linux x86-64
 (glibc 2.27 or later) and macOS 11 or later (Apple Silicon and Intel). Anywhere else pip builds from the source
@@ -145,7 +145,7 @@ Pick the file whose tags match your Python and platform:
 `<platform>` is `win_amd64`, a `manylinux_…_x86_64` tag, `macosx_11_0_arm64` or `macosx_11_0_x86_64`.
 
 ```sh
-python -m pip install path/to/pysextant-1.1.0-cp312-abi3-win_amd64.whl
+python -m pip install path/to/pysextant-1.2.0-cp312-abi3-win_amd64.whl
 ```
 
 pip refuses a wheel that does not fit your interpreter or platform ("is not a supported wheel on this
@@ -187,6 +187,10 @@ python -m pip install "git+https://github.com/BackslashStudio/sextant_py.git"
 Exporting (`savefig()`, `render_png()`, `render_svg()`) works on any machine the package installs on.
 Windows need a little more, depending on the platform.
 
+Math in text is drawn in the text font unless you ask for another with `Figure(math_fontset="stix")` or
+`"cm"` (or `"custom"` with `math_font_path=`). Those use fonts installed on the machine, none is bundled:
+STIX Two or Latin Modern Math, say. With none found the text font is used, and a `RuntimeWarning` says so.
+
 ### Linux
 
 - **Windows use X11.** Under Wayland they open through XWayland, so `DISPLAY` must be set (it is, in a normal
@@ -202,6 +206,8 @@ Windows need a little more, depending on the platform.
   ```
 
 ### macOS
+
+The Dock shows the sextant icon while a window is open: a Python process has no bundle icon of its own.
 
 Windows belong to the main thread. A window responds while the main thread is inside sextant (`show()`,
 `wait_closed()`, `run()`, `poll_events()`) or waiting at an interactive prompt (`python -i`, IPython). A script
