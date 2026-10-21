@@ -196,6 +196,39 @@ def _takes_visible(method):
     return call
 
 
+# The 2D core kinds that take a zorder.
+_ZORDERED = frozenset({"line", "scatter", "scatter_z", "bar", "heatmap", "fill", "quiver",
+                       "axline", "axspan"})
+
+
+def _zorder(default):
+    """matplotlib's zorder= on a 2D plotting call, with that artist's default (images 0,
+    patches and collections 1, lines 2): popped from the call's keywords and given to
+    every core object the call makes (a plot() line and its markers), through
+    _AxesBase._add. None means the default."""
+    def decorate(method):
+        @functools.wraps(method)
+        def call(self, *args, **kw):
+            z = kw.pop("zorder", None)
+            outer = self._z
+            # A decorated call made by another one (pcolormesh -> imshow) keeps the outer's.
+            self._z = outer if z is None and outer is not None else _finite_zorder(
+                default if z is None else z)
+            try:
+                return method(self, *args, **kw)
+            finally:
+                self._z = outer
+        return call
+    return decorate
+
+
+def _finite_zorder(z):
+    z = float(z)
+    if not math.isfinite(z):
+        raise ValueError(f"zorder must be finite, not {z}")
+    return z
+
+
 def _hide(out):
     if isinstance(out, _Artist):
         out.set_visible(False)
@@ -305,6 +338,19 @@ class _Artist:
     def _parts(self):
         """(kind, index, entry) of each core object this artist draws."""
         return [(self._kind, self._index, self._entry)]
+
+    def get_zorder(self):
+        return float(self._entry[2].get("zorder", 0.0))
+
+    def set_zorder(self, z):
+        """Paint order: objects draw in ascending zorder, equal ones in the order they were
+        made. Sets every core object the artist draws (a plot() line and its markers) and
+        replays the axes' calls."""
+        z = _finite_zorder(z)
+        self._check()
+        for _, _, entry in self._parts():
+            entry[2]["zorder"] = z
+        self.axes._rebuild()
 
     def get_visible(self):
         return self._entry[2].get("visible", True)
@@ -751,6 +797,15 @@ class Text(_Artist):
     def _args(self):
         return self._entry[1]
 
+    # matplotlib's text zorder; sextant draws texts above all data, so it only reads back.
+    _zorder_value = 3.0
+
+    def get_zorder(self):
+        return self._zorder_value
+
+    def set_zorder(self, z):
+        self._zorder_value = _finite_zorder(z)
+
     def get_text(self):
         return self._args()[self._slots[0]]
 
@@ -1034,8 +1089,12 @@ class _AxesBase:
         self.core.set_axes_style(**self._style)
         self.figure._changed()
 
+    _z = None  # the running 2D plotting call's zorder (_zorder)
+
     def _add(self, kind, method, *args, **kw):
         """A plotting call; returns (index, entry)."""
+        if kind in _ZORDERED and self._z is not None:
+            kw.setdefault("zorder", self._z)
         index = getattr(self.core, f"{kind}_count")()
         return index, self._call(method, *args, **kw)
 
@@ -1325,6 +1384,7 @@ class Axes(_AxesBase):
 
     # --- plot --------------------------------------------------------------------
 
+    @_zorder(2)
     @_takes_visible
     def line(self, *args, **kw):
         """line([x], y, [fmt], [x2], y2, [fmt2], ..., **kwargs): matplotlib's plot(),
@@ -1400,6 +1460,7 @@ class Axes(_AxesBase):
             raise ValueError("plot(): linestyle and marker are both 'none': nothing to draw")
         return handle
 
+    @_zorder(1)
     @_takes_visible
     def scatter(self, x, y, s=None, c=None, marker=None, cmap=None, vmin=None, vmax=None,
                 alpha=None, label=None, colorbar=False, **kw):
@@ -1453,10 +1514,12 @@ class Axes(_AxesBase):
             raise ValueError(f"scatter(): s must be a scalar or one value per point ({n}), not {a.size}")
         return {"sizes": np.sqrt(np.clip(a, 0.0, None)) * PT}
 
+    @_zorder(1)
     @_takes_visible
     def bar(self, x, height, width=0.8, bottom=None, *, align="center", **kw):
         return self._bar_series("bar", x, height, width, bottom, align, "vertical", **kw)
 
+    @_zorder(1)
     @_takes_visible
     def barh(self, y, width, height=0.8, left=None, *, align="center", **kw):
         """matplotlib's barh(): bars along x from `left`, `height` thick along y; xerr is
@@ -1499,6 +1562,7 @@ class Axes(_AxesBase):
             (self.set_xticks if orientation == "vertical" else self.set_yticks)(x, labels)
         return BarContainer(self, "bar", i, entry, label)
 
+    @_zorder(1)
     @_takes_visible
     def hist(self, x, bins=10, range=None, density=False, weights=None, cumulative=False, bottom=None,
              histtype="bar", orientation="vertical", color=None, label=None, alpha=None, rwidth=None,
@@ -1527,11 +1591,13 @@ class Axes(_AxesBase):
         take without moving the cycle on."""
         return self._cycle[0] if self._cycle is not None else _hex(TAB10[0])
 
+    @_zorder(2)
     @_takes_visible
     def axhline(self, y=0, xmin=0, xmax=1, **kw):
         """A line across the axes at y, from xmin to xmax (fractions of the frame)."""
         return self._axline(y, xmin, xmax, "horizontal", kw)
 
+    @_zorder(2)
     @_takes_visible
     def axvline(self, x=0, ymin=0, ymax=1, **kw):
         """A line across the axes at x, from ymin to ymax (fractions of the frame)."""
@@ -1555,12 +1621,14 @@ class Axes(_AxesBase):
         i, entry = self._add("axline", "axline", float(value), **opts)
         return RefLine(self, "axline", i, entry, label)
 
+    @_zorder(1)
     @_takes_visible
     def axhspan(self, ymin, ymax, xmin=0, xmax=1, **kw):
         """A band over y in [ymin, ymax], from xmin to xmax (fractions of the frame).
         Opaque C0 by default, as in matplotlib; pass alpha= to see through it."""
         return self._axspan(ymin, ymax, xmin, xmax, "horizontal", kw)
 
+    @_zorder(1)
     @_takes_visible
     def axvspan(self, xmin, xmax, ymin=0, ymax=1, **kw):
         """A band over x in [xmin, xmax], from ymin to ymax (fractions of the frame)."""
@@ -1588,12 +1656,14 @@ class Axes(_AxesBase):
 
     # --- filled areas --------------------------------------------------------------
 
+    @_zorder(1)
     @_takes_visible
     def fill_between(self, x, y1, y2=0, where=None, interpolate=False, step=None, *, data=None, **kw):
         """The area between y1(x) and y2(x), as matplotlib's. Returns a
         FillBetweenPolyCollection."""
         return self._fill_between("fill_between", x, y1, y2, where, interpolate, step, "horizontal", data, kw)
 
+    @_zorder(1)
     @_takes_visible
     def fill_betweenx(self, y, x1, x2=0, where=None, step=None, interpolate=False, *, data=None, **kw):
         """The area between x1(y) and x2(y), as matplotlib's."""
@@ -1627,6 +1697,7 @@ class Axes(_AxesBase):
         i, entry = self._add("fill", "fill", t, f1, f2, **opts)
         return FillBetweenPolyCollection(self, "fill", i, entry, label, alpha, lw)
 
+    @_zorder(1)
     @_takes_visible
     def stackplot(self, x, *args, labels=(), colors=None, hatch=None, baseline="zero", data=None, **kw):
         """Stacked areas, as matplotlib's: one FillBetweenPolyCollection per layer, in a
@@ -1672,6 +1743,7 @@ class Axes(_AxesBase):
 
     # --- arrow fields ---------------------------------------------------------------
 
+    @_zorder(1)
     @_takes_visible
     def quiver(self, *args, scale=None, scale_units=None, units="width", angles="uv", width=None, headwidth=3,
                headlength=5, pivot="tail", color=None, cmap=None, norm=None, clim=None, alpha=None, label=None,
@@ -1739,6 +1811,7 @@ class Axes(_AxesBase):
         k, m = c1 - c0 + 1, r1 - r0 + 1
         return k * cw + (k - 1) * 0.2 * cw, m * ch + (m - 1) * 0.2 * ch
 
+    @_zorder(2)
     @_takes_visible
     def errorbar(self, x, y, yerr=None, xerr=None, fmt="", ecolor=None, elinewidth=None, capsize=None,
                  label=None, **kw):
@@ -1798,6 +1871,7 @@ class Axes(_AxesBase):
         opts["errorbar"] = style
         return _sextant.ErrorBar(x_cap_lo=xlo, x_cap_hi=xhi, y_cap_lo=ylo, y_cap_hi=yhi)
 
+    @_zorder(0)
     @_takes_visible
     def imshow(self, X, cmap=None, vmin=None, vmax=None, origin=None, extent=None, alpha=None,
                label=None, colorbar=False, aspect=None, **kw):
@@ -1834,6 +1908,7 @@ class Axes(_AxesBase):
         self.figure._mappable = handle
         return handle
 
+    @_zorder(1)
     @_takes_visible
     def pcolormesh(self, *args, cmap=None, vmin=None, vmax=None, shading=None, **kw):
         _drop_ignored(kw)

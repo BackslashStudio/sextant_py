@@ -65,6 +65,7 @@ class LineOptions(TypedDict, total=False):
     name: str
     show_legend: bool
     visible: bool
+    zorder: float
     alpha: float
     loop: bool
     drawstyle: DrawStyleLike
@@ -79,6 +80,7 @@ class ScatterOptions(TypedDict, total=False):
     name: str
     show_legend: bool
     visible: bool
+    zorder: float
     alpha: float
     edgecolor: str | tuple[float, ...] | None
     edge_alpha: float
@@ -101,6 +103,7 @@ class ScatterZOptions(TypedDict, total=False):
     name: str
     show_legend: bool
     visible: bool
+    zorder: float
     errorbar: ErrorBarOptions
     hint_labels: collections.abc.Sequence[str]
 
@@ -113,6 +116,7 @@ class BarOptions(TypedDict, total=False):
     name: str
     show_legend: bool
     visible: bool
+    zorder: float
     edgecolor: str | tuple[float, ...]
     linewidth: float
     errorbar: ErrorBarOptions
@@ -129,6 +133,7 @@ class AxLineOptions(TypedDict, total=False):
     name: str
     show_legend: bool
     visible: bool
+    zorder: float
 
 class AxSpanOptions(TypedDict, total=False):
     orientation: OrientationLike
@@ -141,6 +146,7 @@ class AxSpanOptions(TypedDict, total=False):
     name: str
     show_legend: bool
     visible: bool
+    zorder: float
 
 class FillOptions(TypedDict, total=False):
     orientation: OrientationLike
@@ -155,6 +161,7 @@ class FillOptions(TypedDict, total=False):
     name: str
     show_legend: bool
     visible: bool
+    zorder: float
 
 class StackOptions(TypedDict, total=False):
     orientation: OrientationLike
@@ -168,6 +175,7 @@ class StackOptions(TypedDict, total=False):
     drawstyle: DrawStyleLike
     show_legend: bool
     visible: bool
+    zorder: float
 
 class QuiverOptions(TypedDict, total=False):
     color: str | tuple[float, ...] | None
@@ -184,6 +192,7 @@ class QuiverOptions(TypedDict, total=False):
     name: str
     show_legend: bool
     visible: bool
+    zorder: float
     hint_labels: collections.abc.Sequence[str]
 
 class HeatmapOptions(TypedDict, total=False):
@@ -193,6 +202,7 @@ class HeatmapOptions(TypedDict, total=False):
     colorbar: bool
     name: str
     visible: bool
+    zorder: float
     origin: str
     contours: ArrayLike | float | None
     contour_color: str | tuple[float, ...]
@@ -1047,7 +1057,7 @@ class Axes:
 
         A line through (x, y); line(y) plots y against 0, 1, 2, ...
 
-        Keyword options (LineOptions): color, linewidth, linestyle, name, show_legend, visible, alpha, loop, drawstyle, errorbar, hint_labels.
+        Keyword options (LineOptions): color, linewidth, linestyle, name, show_legend, visible, zorder, alpha, loop, drawstyle, errorbar, hint_labels.
         """
 
     def scatter(self, x: ArrayLike, y: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[ScatterOptions]) -> Axes:
@@ -1056,7 +1066,7 @@ class Axes:
 
         Markers at (x, y).
 
-        Keyword options (ScatterOptions): color, size, sizes, marker, name, show_legend, visible, alpha, edgecolor, edge_alpha, edge_linewidth, errorbar, hint_labels.
+        Keyword options (ScatterOptions): color, size, sizes, marker, name, show_legend, visible, zorder, alpha, edgecolor, edge_alpha, edge_linewidth, errorbar, hint_labels.
         """
 
     def scatter_z(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[ScatterZOptions]) -> Axes:
@@ -1065,7 +1075,7 @@ class Axes:
 
         Markers at (x, y), coloured by z through cmap/vmin/vmax.
 
-        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, edgecolor, edge_alpha, edge_linewidth, vmin, vmax, colorbar, name, show_legend, visible, errorbar, hint_labels.
+        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, edgecolor, edge_alpha, edge_linewidth, vmin, vmax, colorbar, name, show_legend, visible, zorder, errorbar, hint_labels.
         """
 
     def bar(self, x: ArrayLike, height: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[BarOptions]) -> Axes:
@@ -1074,7 +1084,7 @@ class Axes:
 
         Bars centred on x.
 
-        Keyword options (BarOptions): color, orientation, bottom, width, alpha, name, show_legend, visible, edgecolor, linewidth, errorbar, hint_labels.
+        Keyword options (BarOptions): color, orientation, bottom, width, alpha, name, show_legend, visible, zorder, edgecolor, linewidth, errorbar, hint_labels.
         """
 
     def heatmap(self, data: ArrayLike, xrange: tuple[float, float], yrange: tuple[float, float], **opts: Unpack[HeatmapOptions]) -> Axes:
@@ -1083,7 +1093,7 @@ class Axes:
 
         A 2-D array (rows, cols) drawn over xrange x yrange, (lo, hi) tuples of outer cell edges.
 
-        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, visible, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
+        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, visible, zorder, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
         """
 
     def imshow(self, data: ArrayLike, **opts: Unpack[HeatmapOptions]) -> Axes:
@@ -1092,7 +1102,7 @@ class Axes:
 
         heatmap() over x in [0, cols], y in [0, rows].
 
-        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, visible, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
+        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, visible, zorder, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
         """
 
     def fill(self, x: ArrayLike, y1: ArrayLike, y2: float | ArrayLike = 0.0, **opts: Unpack[FillOptions]) -> Axes:
@@ -1104,7 +1114,7 @@ class Axes:
         then reading y, x1, x2 (fill_betweenx). exclude= leaves points out (the inverse of
         matplotlib's where); a NaN splits the fill. ValueError for lengths that differ.
 
-        Keyword options (FillOptions): orientation, color, alpha, edgecolor, linewidth, linestyle, drawstyle, exclude, interpolate, name, show_legend, visible.
+        Keyword options (FillOptions): orientation, color, alpha, edgecolor, linewidth, linestyle, drawstyle, exclude, interpolate, name, show_legend, visible, zorder.
         """
 
     def stack(self, x: ArrayLike, ys: ArrayLike, **opts: Unpack[StackOptions]) -> Axes:
@@ -1115,7 +1125,7 @@ class Axes:
         sequence of 1-D arrays), each one value per x. Each layer is added as an ordinary
         fill(), read back and edited as one. colors/names: empty, or one per layer.
 
-        Keyword options (StackOptions): orientation, baseline, colors, names, alpha, edgecolor, linewidth, linestyle, drawstyle, show_legend, visible.
+        Keyword options (StackOptions): orientation, baseline, colors, names, alpha, edgecolor, linewidth, linestyle, drawstyle, show_legend, visible, zorder.
         """
 
     def quiver(self, x: ArrayLike, y: ArrayLike, u: ArrayLike, v: ArrayLike, c: ArrayLike | None = None, **opts: Unpack[QuiverOptions]) -> Axes:
@@ -1128,7 +1138,7 @@ class Axes:
         cmap/vmin/vmax. width, head_width and head_length are pixels. ValueError for
         lengths that differ or an amp that is not finite and > 0.
 
-        Keyword options (QuiverOptions): color, alpha, cmap, vmin, vmax, colorbar, amp, pivot, width, head_width, head_length, name, show_legend, visible, hint_labels.
+        Keyword options (QuiverOptions): color, alpha, cmap, vmin, vmax, colorbar, amp, pivot, width, head_width, head_length, name, show_legend, visible, zorder, hint_labels.
         """
 
     def cla(self) -> Axes:
@@ -1156,6 +1166,20 @@ class Axes:
         (PickKind, index) of the object with this id, the i of line_data(i) and the
         other read-back calls; None if it is not here, was removed, or is a text,
         axline or axspan.
+        """
+
+    def set_zorder(self, id: int, zorder: float) -> bool:
+        """
+        Set the paint order of the object with this id: objects draw in ascending zorder,
+        equal ones in the order of the calls (the legend and colorbars stay in call
+        order). True; False and a message for an id that is not here or a text. A zorder
+        that is not finite raises ValueError.
+        """
+
+    def zorder(self, id: int) -> float | None:
+        """
+        The zorder of the object with this id; None (and a message) for an id that is
+        not here or a text.
         """
 
     def line_count(self) -> int: ...
@@ -1327,7 +1351,7 @@ class Axes:
 
         Histogram as bars. width defaults to 1.0 here (bins touch), not bar()'s 0.8.
 
-        Keyword options (BarOptions): color, orientation, bottom, width, alpha, name, show_legend, visible, edgecolor, linewidth, errorbar, hint_labels.
+        Keyword options (BarOptions): color, orientation, bottom, width, alpha, name, show_legend, visible, zorder, edgecolor, linewidth, errorbar, hint_labels.
         """
 
     def axline(self, value: float, **opts: Unpack[AxLineOptions]) -> Axes:
@@ -1339,7 +1363,7 @@ class Axes:
         whatever the limits. Automatic limits take value as a point on its axis. Not
         hovered or picked. ValueError for a non-finite value, from_ or to.
 
-        Keyword options (AxLineOptions): orientation, color, linewidth, linestyle, alpha, from_, to, name, show_legend, visible.
+        Keyword options (AxLineOptions): orientation, color, linewidth, linestyle, alpha, from_, to, name, show_legend, visible, zorder.
         """
 
     def axspan(self, lo: float, hi: float, **opts: Unpack[AxSpanOptions]) -> Axes:
@@ -1350,7 +1374,7 @@ class Axes:
         orientation='vertical' (axvspan); lo > hi is stored swapped. Limits take both ends
         as axline() takes its value. Takes no color from the color cycle (unset: blue).
 
-        Keyword options (AxSpanOptions): orientation, color, alpha, edgecolor, linewidth, from_, to, name, show_legend, visible.
+        Keyword options (AxSpanOptions): orientation, color, alpha, edgecolor, linewidth, from_, to, name, show_legend, visible, zorder.
         """
 
     def axline_count(self) -> int: ...
@@ -1573,7 +1597,7 @@ class Plane2D:
 
         A line through (x, y); line(y) plots y against 0, 1, 2, ...
 
-        Keyword options (LineOptions): color, linewidth, linestyle, name, show_legend, visible, alpha, loop, drawstyle, errorbar, hint_labels.
+        Keyword options (LineOptions): color, linewidth, linestyle, name, show_legend, visible, zorder, alpha, loop, drawstyle, errorbar, hint_labels.
         """
 
     def scatter(self, x: ArrayLike, y: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[ScatterOptions]) -> Plane2D:
@@ -1582,7 +1606,7 @@ class Plane2D:
 
         Markers at (x, y).
 
-        Keyword options (ScatterOptions): color, size, sizes, marker, name, show_legend, visible, alpha, edgecolor, edge_alpha, edge_linewidth, errorbar, hint_labels.
+        Keyword options (ScatterOptions): color, size, sizes, marker, name, show_legend, visible, zorder, alpha, edgecolor, edge_alpha, edge_linewidth, errorbar, hint_labels.
         """
 
     def scatter_z(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[ScatterZOptions]) -> Plane2D:
@@ -1591,7 +1615,7 @@ class Plane2D:
 
         Markers at (x, y), coloured by z through cmap/vmin/vmax.
 
-        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, edgecolor, edge_alpha, edge_linewidth, vmin, vmax, colorbar, name, show_legend, visible, errorbar, hint_labels.
+        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, edgecolor, edge_alpha, edge_linewidth, vmin, vmax, colorbar, name, show_legend, visible, zorder, errorbar, hint_labels.
         """
 
     def bar(self, x: ArrayLike, height: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[BarOptions]) -> Plane2D:
@@ -1600,7 +1624,7 @@ class Plane2D:
 
         Bars centred on x.
 
-        Keyword options (BarOptions): color, orientation, bottom, width, alpha, name, show_legend, visible, edgecolor, linewidth, errorbar, hint_labels.
+        Keyword options (BarOptions): color, orientation, bottom, width, alpha, name, show_legend, visible, zorder, edgecolor, linewidth, errorbar, hint_labels.
         """
 
     def heatmap(self, data: ArrayLike, xrange: tuple[float, float], yrange: tuple[float, float], **opts: Unpack[HeatmapOptions]) -> Plane2D:
@@ -1609,7 +1633,7 @@ class Plane2D:
 
         A 2-D array (rows, cols) drawn over xrange x yrange, (lo, hi) tuples of outer cell edges.
 
-        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, visible, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
+        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, visible, zorder, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
         """
 
     def imshow(self, data: ArrayLike, **opts: Unpack[HeatmapOptions]) -> Plane2D:
@@ -1618,7 +1642,7 @@ class Plane2D:
 
         heatmap() over x in [0, cols], y in [0, rows].
 
-        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, visible, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
+        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, visible, zorder, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
         """
 
     def fill(self, x: ArrayLike, y1: ArrayLike, y2: float | ArrayLike = 0.0, **opts: Unpack[FillOptions]) -> Plane2D:
@@ -1630,7 +1654,7 @@ class Plane2D:
         then reading y, x1, x2 (fill_betweenx). exclude= leaves points out (the inverse of
         matplotlib's where); a NaN splits the fill. ValueError for lengths that differ.
 
-        Keyword options (FillOptions): orientation, color, alpha, edgecolor, linewidth, linestyle, drawstyle, exclude, interpolate, name, show_legend, visible.
+        Keyword options (FillOptions): orientation, color, alpha, edgecolor, linewidth, linestyle, drawstyle, exclude, interpolate, name, show_legend, visible, zorder.
         """
 
     def stack(self, x: ArrayLike, ys: ArrayLike, **opts: Unpack[StackOptions]) -> Plane2D:
@@ -1641,7 +1665,7 @@ class Plane2D:
         sequence of 1-D arrays), each one value per x. Each layer is added as an ordinary
         fill(), read back and edited as one. colors/names: empty, or one per layer.
 
-        Keyword options (StackOptions): orientation, baseline, colors, names, alpha, edgecolor, linewidth, linestyle, drawstyle, show_legend, visible.
+        Keyword options (StackOptions): orientation, baseline, colors, names, alpha, edgecolor, linewidth, linestyle, drawstyle, show_legend, visible, zorder.
         """
 
     def quiver(self, x: ArrayLike, y: ArrayLike, u: ArrayLike, v: ArrayLike, c: ArrayLike | None = None, **opts: Unpack[QuiverOptions]) -> Plane2D:
@@ -1654,7 +1678,7 @@ class Plane2D:
         cmap/vmin/vmax. width, head_width and head_length are pixels. ValueError for
         lengths that differ or an amp that is not finite and > 0.
 
-        Keyword options (QuiverOptions): color, alpha, cmap, vmin, vmax, colorbar, amp, pivot, width, head_width, head_length, name, show_legend, visible, hint_labels.
+        Keyword options (QuiverOptions): color, alpha, cmap, vmin, vmax, colorbar, amp, pivot, width, head_width, head_length, name, show_legend, visible, zorder, hint_labels.
         """
 
     def cla(self) -> Plane2D:
@@ -1682,6 +1706,20 @@ class Plane2D:
         (PickKind, index) of the object with this id, the i of line_data(i) and the
         other read-back calls; None if it is not here, was removed, or is a text,
         axline or axspan.
+        """
+
+    def set_zorder(self, id: int, zorder: float) -> bool:
+        """
+        Set the paint order of the object with this id: objects draw in ascending zorder,
+        equal ones in the order of the calls (the legend and colorbars stay in call
+        order). True; False and a message for an id that is not here or a text. A zorder
+        that is not finite raises ValueError.
+        """
+
+    def zorder(self, id: int) -> float | None:
+        """
+        The zorder of the object with this id; None (and a message) for an id that is
+        not here or a text.
         """
 
     def line_count(self) -> int: ...

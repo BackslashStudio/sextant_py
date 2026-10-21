@@ -236,6 +236,22 @@ namespace sextant_py {
                      "(PickKind, index) of the object with this id, the i of line_data(i) and the\n"
                      "other read-back calls; None if it is not here, was removed, or is a text,\n"
                      "axline or axspan.")
+                .def("set_zorder",
+                     [](W& w, std::uint64_t id, double zorder) {
+                         return read(w, [&](T& t) { return t.set_zorder(id, zorder); });
+                     },
+                     "id"_a, "zorder"_a,
+                     "Set the paint order of the object with this id: objects draw in ascending zorder,\n"
+                     "equal ones in the order of the calls (the legend and colorbars stay in call\n"
+                     "order). True; False and a message for an id that is not here or a text. A zorder\n"
+                     "that is not finite raises ValueError.")
+                .def("zorder",
+                     [](W& w, std::uint64_t id) {
+                         return read(w, [&](T& t) { return t.zorder(id); });
+                     },
+                     "id"_a,
+                     "The zorder of the object with this id; None (and a message) for an id that is\n"
+                     "not here or a text.")
 
                 // --- read-back ---------------------------------------------
                 .def("line_count", [](W& w) { return read(w, [](T& t) { return t.line_count(); }); })

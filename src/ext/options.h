@@ -168,34 +168,34 @@ namespace sextant_py {
                        F(edge_alpha))
 
     SEXTANT_PY_OPTIONS(LineOptions,
-                       F(color), F(linewidth), F(linestyle), F(name), F(show_legend), F(visible), F(alpha),
+                       F(color), F(linewidth), F(linestyle), F(name), F(show_legend), F(visible), F(zorder), F(alpha),
                        F(loop), F(drawstyle), F(errorbar), F(hint_labels))
     SEXTANT_PY_OPTIONS(ScatterOptions,
-                       F(color), F(size), F(sizes), F(marker), F(name), F(show_legend), F(visible), F(alpha),
+                       F(color), F(size), F(sizes), F(marker), F(name), F(show_legend), F(visible), F(zorder), F(alpha),
                        F(edgecolor), F(edge_alpha), F(edge_linewidth), F(errorbar), F(hint_labels))
     SEXTANT_PY_OPTIONS(ScatterZOptions,
                        F(cmap), F(size), F(sizes), F(marker), F(alpha), F(edgecolor), F(edge_alpha),
-                       F(edge_linewidth), F(vmin), F(vmax), F(colorbar), F(name), F(show_legend), F(visible), F(errorbar), F(hint_labels))
+                       F(edge_linewidth), F(vmin), F(vmax), F(colorbar), F(name), F(show_legend), F(visible), F(zorder), F(errorbar), F(hint_labels))
     SEXTANT_PY_OPTIONS(BarOptions,
-                       F(color), F(orientation), F(bottom), F(width), F(alpha), F(name), F(show_legend), F(visible),
+                       F(color), F(orientation), F(bottom), F(width), F(alpha), F(name), F(show_legend), F(visible), F(zorder),
                        F(edgecolor), F(linewidth), F(errorbar), F(hint_labels))
     SEXTANT_PY_OPTIONS(AxLineOptions,
                        F(orientation), F(color), F(linewidth), F(linestyle), F(alpha), F_KW(from), F(to),
-                       F(name), F(show_legend), F(visible))
+                       F(name), F(show_legend), F(visible), F(zorder))
     SEXTANT_PY_OPTIONS(AxSpanOptions,
                        F(orientation), F(color), F(alpha), F(edgecolor), F(linewidth), F_KW(from), F(to),
-                       F(name), F(show_legend), F(visible))
+                       F(name), F(show_legend), F(visible), F(zorder))
     SEXTANT_PY_OPTIONS(FillOptions,
                        F(orientation), F(color), F(alpha), F(edgecolor), F(linewidth), F(linestyle),
-                       F(drawstyle), F(exclude), F(interpolate), F(name), F(show_legend), F(visible))
+                       F(drawstyle), F(exclude), F(interpolate), F(name), F(show_legend), F(visible), F(zorder))
     SEXTANT_PY_OPTIONS(StackOptions,
                        F(orientation), F(baseline), F(colors), F(names), F(alpha), F(edgecolor), F(linewidth),
-                       F(linestyle), F(drawstyle), F(show_legend), F(visible))
+                       F(linestyle), F(drawstyle), F(show_legend), F(visible), F(zorder))
     SEXTANT_PY_OPTIONS(QuiverOptions,
                        F(color), F(alpha), F(cmap), F(vmin), F(vmax), F(colorbar), F(amp), F(pivot), F(width),
-                       F(head_width), F(head_length), F(name), F(show_legend), F(visible), F(hint_labels))
+                       F(head_width), F(head_length), F(name), F(show_legend), F(visible), F(zorder), F(hint_labels))
     SEXTANT_PY_OPTIONS(HeatmapOptions,
-                       F(cmap), F(vmin), F(vmax), F(colorbar), F(name), F(visible), F(origin), F(contours),
+                       F(cmap), F(vmin), F(vmax), F(colorbar), F(name), F(visible), F(zorder), F(origin), F(contours),
                        F(contour_color), F(contour_linewidth), F(contour_labels),
                        F(contour_fontsize), F(hint_labels))
     SEXTANT_PY_OPTIONS(GridOptions, F(color), F(linestyle), F(linewidth), F(minor), F(minor_color))
