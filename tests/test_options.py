@@ -91,6 +91,7 @@ ENUM_SAMPLE = {
     "PanelTheme": "dark", "Projection": "perspective", "VAlign": "top", "ArrowHead": "open",
     "DrawStyle": "steps_mid", "Orientation": "vertical", "StackBaseline": "wiggle", "QuiverPivot": "middle",
     "MathFontset": "text",  # a preset warns where its fonts are missing
+    "Coords": "fraction",
 }
 BY_NAME = {  # values a generic one would make invalid
     "width": 64, "height": 48, "supersample": 1, "peel_layers": 2, "dpi": 96, "origin": "upper",
@@ -158,6 +159,9 @@ def apply(struct, kwargs):
         "AxLineOptions": lambda: ax.axline(1.0, **kwargs),
         "AxSpanOptions": lambda: ax.axspan(0.5, 1.5, **kwargs),
         "FillOptions": lambda: ax.fill(x, x, 0.0, **kwargs),
+        "PolyOptions": lambda: ax.shape_poly([0.1, 0.9, 0.5], [0.1, 0.1, 0.9], **kwargs),
+        "CircleOptions": lambda: ax.shape_circle(1, 1, 1, **kwargs),
+        "WedgeOptions": lambda: ax.shape_wedge(1, 1, 3, 0, 90, **kwargs),  # inner (2) < r
         "StackOptions": lambda: ax.stack(x, [x, x], **kwargs),
         "QuiverOptions": lambda: ax.quiver(x, x, x, x, **kwargs),
         "HeatmapOptions": lambda: ax.heatmap(np.ones((2, 2)), (0, 1), (0, 1), **kwargs),

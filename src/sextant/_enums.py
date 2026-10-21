@@ -212,10 +212,19 @@ class VAlign(_Named):
 
 
 class Coords(_Named):
-    """What a 2D text coordinate is in: data units, or a fraction of the plot frame."""
+    """What a 2D position (or a length) is in: data units, a fraction of the plot frame, or pixels."""
 
     DATA = "data"
     FRACTION = "fraction"
+    PIXELS = "pixels"
+
+
+class AxLineMode(_Named):
+    """How an axline() is given: a value, a point and a slope, or two points."""
+
+    VALUE = "value"
+    POINT_SLOPE = "point_slope"
+    TWO_POINTS = "two_points"
 
 
 class ArrowHead(_Named):
@@ -277,6 +286,9 @@ class PickKind(_Named):
     LINE3D = "line3d"
     QUIVER = "quiver"
     FILL = "fill"
+    POLY = "poly"
+    CIRCLE = "circle"
+    WEDGE = "wedge"
 
 
 class EventConsumed(_Named):
@@ -289,6 +301,7 @@ class EventConsumed(_Named):
 __all__ = [
     "Adjustable",
     "ArrowHead",
+    "AxLineMode",
     "AxisPosition",
     "CapStyle",
     "ColorbarAnchor",

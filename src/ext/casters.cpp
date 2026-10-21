@@ -200,6 +200,7 @@ namespace sextant_py {
         add_enum<sextant::HAlign>(d);
         add_enum<sextant::VAlign>(d);
         add_enum<sextant::Coords>(d);
+        add_enum<sextant::AxLineMode>(d);
         add_enum<sextant::ArrowHead>(d);
         add_enum<sextant::PanelTheme>(d);
         add_enum<sextant::MathFontset>(d);
@@ -231,6 +232,9 @@ namespace sextant_py {
         add_fields<sextant::AxLineOptions>(d);
         add_fields<sextant::AxSpanOptions>(d);
         add_fields<sextant::FillOptions>(d);
+        add_fields<sextant::PolyOptions>(d);
+        add_fields<sextant::CircleOptions>(d);
+        add_fields<sextant::WedgeOptions>(d);
         add_fields<sextant::StackOptions>(d);
         add_fields<sextant::QuiverOptions>(d);
         add_fields<sextant::HeatmapOptions>(d);

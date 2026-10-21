@@ -179,7 +179,8 @@ namespace sextant_py {
                     ({"top", Top}, {"center", Center}, {"baseline", Baseline}, {"bottom", Bottom}),
                     ({"centre", Center}))
     // Alias: matplotlib's xycoords name for a frame fraction.
-    SEXTANT_PY_ENUM(Coords, ({"data", Data}, {"fraction", Fraction}), ({"axes fraction", Fraction}))
+    SEXTANT_PY_ENUM(Coords, ({"data", Data}, {"fraction", Fraction}, {"pixels", Pixels}), ({"axes fraction", Fraction}))
+    SEXTANT_PY_ENUM(AxLineMode, ({"value", Value}, {"point_slope", PointSlope}, {"two_points", TwoPoints}), ())
     SEXTANT_PY_ENUM(ArrowHead, ({"none", None}, {"open", Open}, {"filled", Filled}, {"bar", Bar}), ())
     SEXTANT_PY_ENUM(PanelTheme,
                     ({"dark", Dark}, {"light", Light}, {"classic", Classic}), ())
@@ -205,7 +206,8 @@ namespace sextant_py {
                     ({"none", None}, {"line", Line}, {"scatter", Scatter}, {"scatter_z", ScatterZ},
                      {"bar", Bar}, {"heatmap", Heatmap}, {"bar3d", Bar3D}, {"surface", Surface},
                      {"surface_tri", SurfaceTri}, {"scatter3d", Scatter3D}, {"line3d", Line3D},
-                     {"quiver", Quiver}, {"fill", Fill}),
+                     {"quiver", Quiver}, {"fill", Fill}, {"poly", Poly}, {"circle", Circle},
+                     {"wedge", Wedge}),
                     ())
     SEXTANT_PY_ENUM(EventConsumed,
                     ({"none", None}, {"select", Select}, {"navigate", Navigate}, {"grid_drag", GridDrag}),
@@ -328,6 +330,7 @@ namespace nanobind::detail {
     SEXTANT_PY_ENUM_CASTER(HAlign)
     SEXTANT_PY_ENUM_CASTER(VAlign)
     SEXTANT_PY_ENUM_CASTER(Coords)
+    SEXTANT_PY_ENUM_CASTER(AxLineMode)
     SEXTANT_PY_ENUM_CASTER(ArrowHead)
     SEXTANT_PY_ENUM_CASTER(PanelTheme)
     SEXTANT_PY_ENUM_CASTER(MathFontset)

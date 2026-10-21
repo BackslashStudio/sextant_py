@@ -38,6 +38,18 @@ def plots() -> None:
     ax3.text2d("caption", 0.02, 0.95).annotate(1.0, 1.0, 1.0, "tip", 40.0, 30.0, arrow={"tail": "bar"})
     t3: sextant.Text3DData = ax3.text_data(0)
 
+    ax.shape_poly([0, 1, 0], [0, 0, 1], space="fraction", edgecolor="k", linewidth=1.0)
+    ax.shape_circle(50, 50, 20, coords="pixels", rcoords="pixels", color="red")
+    ax.shape_wedge(0, 0, 2, 0, 90, inner=0.5).axline(0, 0, slope=2.0).axline(0, 0, 1, 1, coords="fraction")
+    ax.set_shape_circle_data(0, 1, 2, 3, coords="data").set_shape_wedge_data(0, 0, 0, 2, 0, 90, inner=0.1)
+    plane.axspan(0, 1, color="red").shape_circle(0, 0, 1)
+    cd: sextant.CircleData = ax.shape_circle_data(0)
+    pd: sextant.PolyData = ax.shape_poly_data(0)
+    wd: sextant.WedgeData = plane.shape_wedge_data(0)
+    ald: sextant.AxLineData = ax.axline_data(0)
+    mode: sextant.AxLineMode = ald.mode
+    pk: sextant.PickKind = sextant.PickKind.WEDGE
+
     data: sextant.LineData = ax.line_data(0)
     xs: npt.NDArray[np.float64] = data.x
     rgba: npt.NDArray[np.uint8] = fig.render_rgba(width=64, height=48, dpi=1.0)
@@ -91,8 +103,10 @@ def plots() -> None:
     ax3.set_line3d_visible(0, False).set_text_visible(0, True)
 
     # What the stubs must reject.
-    ax.axline(0.5, orientation="diagonal")  # type: ignore[arg-type]
-    ax.axline(0.5, xmin=0.2)  # type: ignore[call-arg]
+    ax.axline(0.5, orientation="diagonal")  # type: ignore[call-overload]
+    ax.axline(0.5, xmin=0.2)  # type: ignore[call-overload]
+    ax.axline(0, 0, 1)  # type: ignore[call-overload]  # a point needs slope=
+    ax.shape_circle(0, 0, 1, rcoords="inches")  # type: ignore[arg-type]
     ax.line([0, 1], colour="red")  # type: ignore[call-arg]
     ax.line([0, 1], linestyle="dashy")  # type: ignore[arg-type]
     ax.line([0, 1], linewidth="thick")  # type: ignore[arg-type]
@@ -100,7 +114,7 @@ def plots() -> None:
     ax3.bar3d("xz", [0], [0], [[1]])  # type: ignore[arg-type]
     fig.render_png(max_splits=3)  # type: ignore[call-arg]
     bad: sextant.Axes3D = ax.grid(True)  # type: ignore[assignment]
-    ax.text("t", 0, 0, coords="pixels")  # type: ignore[arg-type]
+    ax.text("t", 0, 0, coords="inches")  # type: ignore[arg-type]
     ax.annotate(0, 0, "t", 1, 1, arrow={"style": "->"})  # type: ignore[arg-type]
     ax.set_xscale("logit")  # type: ignore[arg-type]
     ax.set_xscale("log", subs=[2])  # type: ignore[call-arg]

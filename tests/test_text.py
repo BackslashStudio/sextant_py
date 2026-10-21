@@ -102,8 +102,9 @@ def test_bad_options():
         ax.annotate(1, 1, "t", 2, 2, arrow=True)
     with pytest.raises(TypeError, match=r"'arrow' has no field 'style'"):
         ax.annotate(1, 1, "t", 2, 2, arrow={"style": "->"})
+    ax.text("t", 1, 1, coords="pixels")  # pixels from the frame corner
     with pytest.raises(TypeError):
-        ax.text("t", 1, 1, coords="pixels")
+        ax.text("t", 1, 1, coords="inches")
 
 
 def test_text_draws_and_hides_out_of_view():

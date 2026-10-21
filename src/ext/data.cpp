@@ -172,7 +172,51 @@ namespace sextant_py {
         return d;
     }
 
+
+    namespace {
+        sextant::Pos at(double v, sextant::Coords c) {
+            sextant::Pos p(v);
+            p.space = c;
+            return p;
+        }
+    } // namespace
+
+    PyPolyData to_python(sextant::PolyData&& d) { return {vec(std::move(d.x)), vec(std::move(d.y))}; }
+
+    PyCircleData to_python(sextant::CircleData&& d) {
+        return {d.cx.v, d.cy.v, d.r.v, d.cx.space, d.cy.space, d.r.space};
+    }
+
+    PyWedgeData to_python(sextant::WedgeData&& d) {
+        return {d.cx.v, d.cy.v, d.r.v, d.theta1, d.theta2, d.inner, d.cx.space, d.cy.space, d.r.space};
+    }
+
+    PyAxLineData to_python(sextant::AxLineData&& d) {
+        return {d.value, d.mode, d.x.v, d.y.v, d.x2.v, d.y2.v, d.slope, d.x.space, d.y.space, d.x2.space, d.y2.space};
+    }
+
+    sextant::CircleData PyCircleData::to_cpp() const {
+        return {at(cx, cxcoords), at(cy, cycoords), at(r, rcoords)};
+    }
+
+    sextant::WedgeData PyWedgeData::to_cpp() const {
+        return {at(cx, cxcoords), at(cy, cycoords), at(r, rcoords), theta1, theta2, inner};
+    }
+
+    sextant::AxLineData PyAxLineData::to_cpp() const {
+        sextant::AxLineData d;
+        d.value = value;
+        d.mode = mode;
+        d.x = at(x, xcoords);
+        d.y = at(y, ycoords);
+        d.x2 = at(x2, x2coords);
+        d.y2 = at(y2, y2coords);
+        d.slope = slope;
+        return d;
+    }
+
     void bind_data(nb::module_& m) {
+        using sextant::Coords;
         using OV = std::optional<Vec>;
         nb::class_<PyErrorBar>(m, "ErrorBar",
                                "Per-point error-bar data for line/scatter/scatter_z/bar (err=...).\n"
@@ -263,11 +307,83 @@ namespace sextant_py {
             });
 
         nb::class_<PyAxLineData>(m, "AxLineData",
-                                 "Axes.axline(): where the line is, on the axis its orientation names.")
-            .def("__init__", [](PyAxLineData* p, double value) { new (p) PyAxLineData{value}; }, "value"_a)
+                                 "Axes.axline(): mode 'value' is the line at `value` (on the axis its\n"
+                                 "orientation names); 'point_slope' goes through (x, y) with `slope`;\n"
+                                 "'two_points' through (x, y) and (x2, y2). Each coordinate has its coords\n"
+                                 "('data', 'fraction' or 'pixels'); the unused fields are 0.")
+            .def("__init__",
+                 [](PyAxLineData* p, double value, sextant::AxLineMode mode, double x, double y, double x2, double y2,
+                    double slope, Coords xcoords, Coords ycoords, Coords x2coords, Coords y2coords) {
+                     new (p) PyAxLineData{value, mode, x, y, x2, y2, slope, xcoords, ycoords, x2coords, y2coords};
+                 },
+                 "value"_a = 0.0, nb::kw_only(), "mode"_a = sextant::AxLineMode::Value, "x"_a = 0.0, "y"_a = 0.0,
+                 "x2"_a = 0.0, "y2"_a = 0.0, "slope"_a = 0.0, "xcoords"_a = Coords::Data, "ycoords"_a = Coords::Data,
+                 "x2coords"_a = Coords::Data, "y2coords"_a = Coords::Data)
             .def_rw("value", &PyAxLineData::value)
+            .def_rw("mode", &PyAxLineData::mode)
+            .def_rw("x", &PyAxLineData::x)
+            .def_rw("y", &PyAxLineData::y)
+            .def_rw("x2", &PyAxLineData::x2)
+            .def_rw("y2", &PyAxLineData::y2)
+            .def_rw("slope", &PyAxLineData::slope)
+            .def_rw("xcoords", &PyAxLineData::xcoords)
+            .def_rw("ycoords", &PyAxLineData::ycoords)
+            .def_rw("x2coords", &PyAxLineData::x2coords)
+            .def_rw("y2coords", &PyAxLineData::y2coords)
             .def("__repr__", [](const PyAxLineData& d) {
-                return repr_fields("AxLineData", {{"value", nb::cast(d.value)}});
+                return repr_fields("AxLineData", {{"value", nb::cast(d.value)}, {"mode", nb::cast(d.mode)},
+                                                  {"x", nb::cast(d.x)}, {"y", nb::cast(d.y)},
+                                                  {"x2", nb::cast(d.x2)}, {"y2", nb::cast(d.y2)},
+                                                  {"slope", nb::cast(d.slope)}, {"xcoords", nb::cast(d.xcoords)},
+                                                  {"ycoords", nb::cast(d.ycoords)}, {"x2coords", nb::cast(d.x2coords)},
+                                                  {"y2coords", nb::cast(d.y2coords)}});
+            });
+
+        nb::class_<PyPolyData>(m, "PolyData", "shape_poly(): the vertices, in the options' `space`.")
+            .def(nb::init<F64, F64>(), "x"_a, "y"_a)
+            .def_rw("x", &PyPolyData::x)
+            .def_rw("y", &PyPolyData::y)
+            .def("__repr__", [](const PyPolyData& d) { return repr_fields("PolyData", {{"x", d.x}, {"y", d.y}}); });
+
+        nb::class_<PyCircleData>(m, "CircleData",
+                                 "shape_circle(): the centre and radius, each a value and what it is in\n"
+                                 "('data', 'fraction' of the frame, or 'pixels'). A data radius needs a data\n"
+                                 "centre.")
+            .def(nb::init<double, double, double, Coords, Coords, Coords>(), "cx"_a, "cy"_a, "r"_a,
+                 "cxcoords"_a = Coords::Data, "cycoords"_a = Coords::Data, "rcoords"_a = Coords::Data)
+            .def_rw("cx", &PyCircleData::cx)
+            .def_rw("cy", &PyCircleData::cy)
+            .def_rw("r", &PyCircleData::r)
+            .def_rw("cxcoords", &PyCircleData::cxcoords)
+            .def_rw("cycoords", &PyCircleData::cycoords)
+            .def_rw("rcoords", &PyCircleData::rcoords)
+            .def("__repr__", [](const PyCircleData& d) {
+                return repr_fields("CircleData", {{"cx", nb::cast(d.cx)}, {"cy", nb::cast(d.cy)}, {"r", nb::cast(d.r)},
+                                                  {"cxcoords", nb::cast(d.cxcoords)}, {"cycoords", nb::cast(d.cycoords)},
+                                                  {"rcoords", nb::cast(d.rcoords)}});
+            });
+
+        nb::class_<PyWedgeData>(m, "WedgeData",
+                                "shape_wedge(): a CircleData's numbers, the sweep theta1 to theta2 in degrees\n"
+                                "counter-clockwise from +x, and `inner`, the radius of the hole (0 = none) in\n"
+                                "the space of `r`.")
+            .def(nb::init<double, double, double, double, double, double, Coords, Coords, Coords>(), "cx"_a, "cy"_a,
+                 "r"_a, "theta1"_a, "theta2"_a, "inner"_a = 0.0, "cxcoords"_a = Coords::Data,
+                 "cycoords"_a = Coords::Data, "rcoords"_a = Coords::Data)
+            .def_rw("cx", &PyWedgeData::cx)
+            .def_rw("cy", &PyWedgeData::cy)
+            .def_rw("r", &PyWedgeData::r)
+            .def_rw("theta1", &PyWedgeData::theta1)
+            .def_rw("theta2", &PyWedgeData::theta2)
+            .def_rw("inner", &PyWedgeData::inner)
+            .def_rw("cxcoords", &PyWedgeData::cxcoords)
+            .def_rw("cycoords", &PyWedgeData::cycoords)
+            .def_rw("rcoords", &PyWedgeData::rcoords)
+            .def("__repr__", [](const PyWedgeData& d) {
+                return repr_fields("WedgeData", {{"cx", nb::cast(d.cx)}, {"cy", nb::cast(d.cy)}, {"r", nb::cast(d.r)},
+                                                 {"theta1", nb::cast(d.theta1)}, {"theta2", nb::cast(d.theta2)},
+                                                 {"inner", nb::cast(d.inner)}, {"cxcoords", nb::cast(d.cxcoords)},
+                                                 {"cycoords", nb::cast(d.cycoords)}, {"rcoords", nb::cast(d.rcoords)}});
             });
 
         nb::class_<PyAxSpanData>(m, "AxSpanData", "Axes.axspan(): the band's ends, lo <= hi as stored.")
@@ -359,7 +475,6 @@ namespace sextant_py {
                 return repr_fields("Line3DData", {{"x", d.x}, {"y", d.y}, {"z", d.z}, {"colors", d.colors}});
             });
 
-        using sextant::Coords;
         nb::class_<PyTextData>(m, "TextData",
                                "Axes.text() and annotate(): the string, its position (each coordinate a\n"
                                "value and what it is in, 'data' or 'fraction' of the frame), and for an\n"

@@ -17,7 +17,7 @@ from . import _interactive, _sextant
 from ._mpl import Axes, Axes3D, Figure, axes_for, interactive_session, pause_loop
 
 __all__ = [
-    "Axes", "Axes3D", "Figure", "annotate", "axes", "axes_for", "axhline", "axhspan", "axis", "axvline", "axvspan",
+    "Axes", "Axes3D", "Figure", "annotate", "axes", "axes_for", "axhline", "axhspan", "axis", "axline", "axvline", "axvspan",
     "bar", "barh", "cla", "clf", "close", "colorbar", "connect", "disconnect", "draw", "errorbar", "figure",
     "fill_between", "fill_betweenx", "gca", "gcf", "get_fignums", "grid", "hist", "imshow", "ioff", "ion",
     "isinteractive", "legend", "line", "loglog", "minorticks_off", "minorticks_on", "pause", "pcolormesh", "plot",
@@ -180,6 +180,10 @@ def step(*args, **kw):
 
 def axhline(*args, **kw):
     return gca().axhline(*args, **kw)
+
+
+def axline(*args, **kw):
+    return gca().axline(*args, **kw)
 
 
 def axvline(*args, **kw):

@@ -1439,3 +1439,157 @@ def test_artist_remove_on_a_twin_and_after_cla():
     ax.cla()
     with pytest.raises(ValueError):
         own.remove()
+
+
+# --- axline with a slope or two points, and the patches (sextant 1.3 stage 2) ----------------
+
+def test_axline_point_slope_and_two_points():
+    fig, ax = plt.subplots()
+    ax.set_xlim(0, 4)
+    ax.set_ylim(0, 4)
+    a = ax.axline((1, 0), slope=1, color="r", lw=3, ls="--", alpha=0.5, label="s")
+    b = ax.axline((0, 1), (2, 1))
+    d = ax.core.axline_data(0)
+    assert (d.mode, d.x, d.y, d.slope) == ("point_slope", 1.0, 0.0, 1.0)
+    d = ax.core.axline_data(1)
+    assert (d.mode, d.x2, d.y2) == ("two_points", 2.0, 1.0)
+    kw = a._entry[2]
+    assert kw["linestyle"] == "dashed" and kw["alpha"] == 0.5 and kw["name"] == "s"
+    assert kw["linewidth"] == pytest.approx(3 * _mpl.PT) and "orientation" not in kw and "from_" not in kw
+    assert color_of(b._entry) == hexrgba(_mpl.TAB10[0]) and b.get_zorder() == 2.0  # C0, a line's zorder
+    assert a.get_slope() == 1.0 and a.get_xy1() == (1.0, 0.0) and a.get_xy2() is None
+    assert b.get_slope() == 0.0 and b.get_xy2() == (2.0, 1.0)
+    a.set_slope(2)
+    a.set_xy1(0, 0)
+    b.set_xy2(3, 2)
+    assert (ax.core.axline_data(0).slope, ax.core.axline_data(0).x) == (2.0, 0.0)
+    assert ax.core.axline_data(1).y2 == 2.0 and b.get_slope() == pytest.approx(1 / 3)
+    with pytest.raises(ValueError, match="'xy2' is set"):
+        b.set_slope(1)
+    with pytest.raises(ValueError, match="'slope' is set"):
+        a.set_xy2(1, 1)
+    with pytest.raises(NotImplementedError):
+        a.get_xdata()
+    a.set_color("blue")  # replays with the move kept
+    assert ax.core.axline_data(0).slope == 2.0 and color_of(a._entry) == (0, 0, 1, 1)
+    a.remove()
+    assert ax.core.axline_count() == 1 and b.get_xy1() == (0.0, 1.0)
+    fig.core.render_rgba()
+
+
+def test_axline_follows_matplotlibs_argument_rules():
+    ax = plt.gca()
+    with pytest.raises(TypeError, match="Must specify either"):
+        ax.axline((0, 0))
+    with pytest.raises(TypeError, match="Cannot specify both"):
+        ax.axline((0, 0), (1, 1), slope=1)
+    with pytest.raises(NotImplementedError):
+        ax.axline((0, 0), slope=1, transform=ax.transAxes)
+    with pytest.raises(ValueError):
+        ax.axline((1, 1), (1, 1))  # the core refuses two equal points
+    assert ax.core.axline_count() == 0 and not ax._log
+    ax.axline((0, 0), slope=1, transform=ax.transData)
+    assert plt.axline((0, 1), slope=2).get_slope() == 2.0  # the pyplot function
+    hidden = ax.axline((0, 0), (1, 1), visible=False)
+    assert hidden.get_visible() is False and ax.core.axline_visible(2) is False
+    assert ax.axline((0, 0), (1, 1), zorder=7).get_zorder() == 7.0
+
+
+def test_patches_circle_wedge_polygon():
+    from sextant.patches import Circle, Polygon, Wedge
+
+    fig, ax = plt.subplots()
+    ax.plot([0, 4], [0, 4], label="line")
+    c = Circle((2, 2), 1, fc="green", ec="k", lw=2, alpha=0.5, label="disc", zorder=4)
+    assert c.axes is None and c.get_zorder() == 4.0
+    assert ax.add_patch(c) is c and c.axes is ax
+    assert ax.core.shape_circle_data(0).r == 1.0
+    kw = c._entry[2]
+    assert kw["alpha"] == 0.5 and kw["name"] == "disc" and kw["zorder"] == 4.0
+    assert color_of(c._entry) == hexrgba("#008000") and kw["linewidth"] == pytest.approx(2 * _mpl.PT)
+
+    w = ax.add_patch(Wedge((1, 1), 1, 0, 90, width=0.25))
+    assert ax.core.shape_wedge_data(0).inner == pytest.approx(0.75) and w.get_zorder() == 1.0
+    assert color_of(w._entry) == hexrgba(_mpl.TAB10[0])  # patch.facecolor, C0
+    p = ax.add_patch(Polygon([[0, 0], [1, 0], [0.5, 1]]))
+    np.testing.assert_array_equal(ax.core.shape_poly_data(0).y, [0, 0, 1])
+    assert "linewidth" not in p._entry[2]  # no outline unless one is asked for
+    ax.legend()
+    svg = fig.core.render_svg()[0]
+    assert "disc" in svg
+    fig.core.render_rgba()
+
+
+def test_patch_setters_before_and_after_add():
+    from sextant.patches import Circle
+
+    fig, ax = plt.subplots()
+    c = Circle((0, 0), 1)
+    c.set_facecolor("red")
+    c.set_zorder(3)
+    c.set_visible(False)
+    c.set_label("x")
+    c.set_alpha(0.25)
+    assert ax.core.shape_circle_count() == 0
+    ax.add_patch(c)
+    assert color_of(c._entry) == (1, 0, 0, 1) and c.get_zorder() == 3.0 and c.get_visible() is False
+    assert ax.core.shape_circle_visible(0) is False and ax.core.shape_circle_data(0).r == 1.0
+    c.set_visible(True)
+    c.set_facecolor("blue")  # replay
+    c.set_zorder(0.5)
+    c.set_edgecolor("k")
+    c.set_linewidth(2)
+    c.set_linestyle("--")
+    assert ax.core.shape_circle_visible(0) is True and color_of(c._entry) == (0, 0, 1, 1)
+    assert c._entry[2]["linestyle"] == "dashed" and c.get_zorder() == 0.5
+    with pytest.raises(ValueError, match="re-use an artist"):
+        plt.figure().gca().add_patch(c)
+
+
+def test_patch_remove_and_pick():
+    from sextant.patches import Circle, Polygon, Wedge
+
+    fig, ax = plt.subplots()
+    c = ax.add_patch(Circle((0, 0), 1))
+    w = ax.add_patch(Wedge((0, 0), 2, 0, 90))
+    p = ax.add_patch(Polygon([[0, 0], [1, 0], [0, 1]]))
+    picked = [twin_event(fig, ax, pick_kind=kind, pick_object=oid, pick_index=0)
+              for kind, oid in ((sextant.PickKind.CIRCLE, ax.core.last_object() - 2),
+                                (sextant.PickKind.WEDGE, ax.core.last_object() - 1),
+                                (sextant.PickKind.POLY, ax.core.last_object()))]
+    assert [m.artist for m in picked] == [c, w, p]
+    c.remove()
+    assert ax.core.shape_circle_count() == 0 and ax.core.shape_wedge_count() == 1
+    with pytest.raises(ValueError):
+        c.remove()
+    w.set_facecolor("red")  # the others still work after the replay
+    assert color_of(w._entry) == (1, 0, 0, 1) and ax.core.shape_wedge_count() == 1
+    ax.cla()
+    assert ax.core.shape_poly_count() == 0
+
+
+def test_patch_limits_and_errors():
+    from sextant.patches import Circle, Polygon, Wedge
+
+    fig, ax = plt.subplots()
+    with pytest.raises(NotImplementedError, match="fill=False"):
+        Circle((0, 0), 1, fill=False)
+    with pytest.raises(NotImplementedError, match="data coordinates"):
+        Circle((0, 0), 1, transform=ax.transAxes)
+    Circle((0, 0), 1, transform=ax.transData)
+    with pytest.raises(ValueError, match="hatching"):
+        Circle((0, 0), 1, hatch="//")
+    with pytest.raises(NotImplementedError, match="closed"):
+        Polygon([[0, 0], [1, 0], [0, 1]], closed=False)
+    with pytest.raises(ValueError, match="shape"):
+        Polygon([0, 1, 2])
+    with pytest.raises(TypeError):
+        ax.add_patch(object())
+    for bad in (Circle((0, 0), 0), Wedge((0, 0), 1, 0, 90, width=2), Polygon([[0, 0], [1, 1]])):
+        with pytest.raises(ValueError):
+            ax.add_patch(bad)
+        assert bad.axes is None
+    assert not ax._log and not ax._artists
+    ax.add_patch(Circle((10, 20), 5))
+    lo, hi = ax.core.xlim()
+    assert lo <= 5 and hi >= 15  # autoscale takes the shape

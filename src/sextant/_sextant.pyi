@@ -33,14 +33,15 @@ LegendAnchorLike: TypeAlias = sextant._enums.LegendAnchor | Literal["inside_tl",
 ColorbarAnchorLike: TypeAlias = sextant._enums.ColorbarAnchor | Literal["left", "right", "top", "bottom"]
 HAlignLike: TypeAlias = sextant._enums.HAlign | Literal["left", "center", "right", "centre"]
 VAlignLike: TypeAlias = sextant._enums.VAlign | Literal["top", "center", "baseline", "bottom", "centre"]
-CoordsLike: TypeAlias = sextant._enums.Coords | Literal["data", "fraction", "axes fraction"]
+CoordsLike: TypeAlias = sextant._enums.Coords | Literal["data", "fraction", "pixels", "axes fraction"]
+AxLineModeLike: TypeAlias = sextant._enums.AxLineMode | Literal["value", "point_slope", "two_points"]
 ArrowHeadLike: TypeAlias = sextant._enums.ArrowHead | Literal["none", "open", "filled", "bar"]
 PanelThemeLike: TypeAlias = sextant._enums.PanelTheme | Literal["dark", "light", "classic"]
 MathFontsetLike: TypeAlias = sextant._enums.MathFontset | Literal["text", "stix", "cm", "custom", "stixsans", "dejavusans", "dejavuserif"]
 ProjectionLike: TypeAlias = sextant._enums.Projection | Literal["orthographic", "perspective", "ortho", "persp"]
 PlaneOrientationLike: TypeAlias = sextant._enums.PlaneOrientation | Literal["xy", "yz", "zx"]
 EventKindLike: TypeAlias = sextant._enums.EventKind | Literal["close", "mouse_down", "mouse_up", "mouse_move", "scroll", "key_down", "key_up", "resize", "pick", "close_event", "button_press_event", "button_release_event", "motion_notify_event", "scroll_event", "key_press_event", "key_release_event", "resize_event", "pick_event"]
-PickKindLike: TypeAlias = sextant._enums.PickKind | Literal["none", "line", "scatter", "scatter_z", "bar", "heatmap", "bar3d", "surface", "surface_tri", "scatter3d", "line3d", "quiver", "fill"]
+PickKindLike: TypeAlias = sextant._enums.PickKind | Literal["none", "line", "scatter", "scatter_z", "bar", "heatmap", "bar3d", "surface", "surface_tri", "scatter3d", "line3d", "quiver", "fill", "poly", "circle", "wedge"]
 EventConsumedLike: TypeAlias = sextant._enums.EventConsumed | Literal["none", "select", "navigate", "grid_drag"]
 
 
@@ -158,6 +159,41 @@ class FillOptions(TypedDict, total=False):
     drawstyle: DrawStyleLike
     exclude: ArrayLike | None
     interpolate: bool
+    name: str
+    show_legend: bool
+    visible: bool
+    zorder: float
+
+class PolyOptions(TypedDict, total=False):
+    color: str | tuple[float, ...] | None
+    alpha: float
+    edgecolor: str | tuple[float, ...] | None
+    linewidth: float
+    linestyle: LineStyleLike
+    space: CoordsLike
+    name: str
+    show_legend: bool
+    visible: bool
+    zorder: float
+
+class CircleOptions(TypedDict, total=False):
+    color: str | tuple[float, ...] | None
+    alpha: float
+    edgecolor: str | tuple[float, ...] | None
+    linewidth: float
+    linestyle: LineStyleLike
+    name: str
+    show_legend: bool
+    visible: bool
+    zorder: float
+
+class WedgeOptions(TypedDict, total=False):
+    color: str | tuple[float, ...] | None
+    alpha: float
+    edgecolor: str | tuple[float, ...] | None
+    linewidth: float
+    linestyle: LineStyleLike
+    inner: float
     name: str
     show_legend: bool
     visible: bool
@@ -692,15 +728,211 @@ class QuiverData:
     def __repr__(self) -> str: ...
 
 class AxLineData:
-    """Axes.axline(): where the line is, on the axis its orientation names."""
+    """
+    Axes.axline(): mode 'value' is the line at `value` (on the axis its
+    orientation names); 'point_slope' goes through (x, y) with `slope`;
+    'two_points' through (x, y) and (x2, y2). Each coordinate has its coords
+    ('data', 'fraction' or 'pixels'); the unused fields are 0.
+    """
 
-    def __init__(self, value: float) -> None: ...
+    def __init__(self, value: float = 0.0, *, mode: AxLineModeLike = sextant._enums.AxLineMode.VALUE, x: float = 0.0, y: float = 0.0, x2: float = 0.0, y2: float = 0.0, slope: float = 0.0, xcoords: CoordsLike = sextant._enums.Coords.DATA, ycoords: CoordsLike = sextant._enums.Coords.DATA, x2coords: CoordsLike = sextant._enums.Coords.DATA, y2coords: CoordsLike = sextant._enums.Coords.DATA) -> None: ...
 
     @property
     def value(self) -> float: ...
 
     @value.setter
     def value(self, arg: float, /) -> None: ...
+
+    @property
+    def mode(self) -> sextant._enums.AxLineMode: ...
+
+    @mode.setter
+    def mode(self, arg: AxLineModeLike, /) -> None: ...
+
+    @property
+    def x(self) -> float: ...
+
+    @x.setter
+    def x(self, arg: float, /) -> None: ...
+
+    @property
+    def y(self) -> float: ...
+
+    @y.setter
+    def y(self, arg: float, /) -> None: ...
+
+    @property
+    def x2(self) -> float: ...
+
+    @x2.setter
+    def x2(self, arg: float, /) -> None: ...
+
+    @property
+    def y2(self) -> float: ...
+
+    @y2.setter
+    def y2(self, arg: float, /) -> None: ...
+
+    @property
+    def slope(self) -> float: ...
+
+    @slope.setter
+    def slope(self, arg: float, /) -> None: ...
+
+    @property
+    def xcoords(self) -> sextant._enums.Coords: ...
+
+    @xcoords.setter
+    def xcoords(self, arg: CoordsLike, /) -> None: ...
+
+    @property
+    def ycoords(self) -> sextant._enums.Coords: ...
+
+    @ycoords.setter
+    def ycoords(self, arg: CoordsLike, /) -> None: ...
+
+    @property
+    def x2coords(self) -> sextant._enums.Coords: ...
+
+    @x2coords.setter
+    def x2coords(self, arg: CoordsLike, /) -> None: ...
+
+    @property
+    def y2coords(self) -> sextant._enums.Coords: ...
+
+    @y2coords.setter
+    def y2coords(self, arg: CoordsLike, /) -> None: ...
+
+    def __repr__(self) -> str: ...
+
+class PolyData:
+    """shape_poly(): the vertices, in the options' `space`."""
+
+    def __init__(self, x: ArrayLike, y: ArrayLike) -> None: ...
+
+    @property
+    def x(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @x.setter
+    def x(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def y(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @y.setter
+    def y(self, arg: ArrayLike, /) -> None: ...
+
+    def __repr__(self) -> str: ...
+
+class CircleData:
+    """
+    shape_circle(): the centre and radius, each a value and what it is in
+    ('data', 'fraction' of the frame, or 'pixels'). A data radius needs a data
+    centre.
+    """
+
+    def __init__(self, cx: float, cy: float, r: float, cxcoords: CoordsLike = sextant._enums.Coords.DATA, cycoords: CoordsLike = sextant._enums.Coords.DATA, rcoords: CoordsLike = sextant._enums.Coords.DATA) -> None: ...
+
+    @property
+    def cx(self) -> float: ...
+
+    @cx.setter
+    def cx(self, arg: float, /) -> None: ...
+
+    @property
+    def cy(self) -> float: ...
+
+    @cy.setter
+    def cy(self, arg: float, /) -> None: ...
+
+    @property
+    def r(self) -> float: ...
+
+    @r.setter
+    def r(self, arg: float, /) -> None: ...
+
+    @property
+    def cxcoords(self) -> sextant._enums.Coords: ...
+
+    @cxcoords.setter
+    def cxcoords(self, arg: CoordsLike, /) -> None: ...
+
+    @property
+    def cycoords(self) -> sextant._enums.Coords: ...
+
+    @cycoords.setter
+    def cycoords(self, arg: CoordsLike, /) -> None: ...
+
+    @property
+    def rcoords(self) -> sextant._enums.Coords: ...
+
+    @rcoords.setter
+    def rcoords(self, arg: CoordsLike, /) -> None: ...
+
+    def __repr__(self) -> str: ...
+
+class WedgeData:
+    """
+    shape_wedge(): a CircleData's numbers, the sweep theta1 to theta2 in degrees
+    counter-clockwise from +x, and `inner`, the radius of the hole (0 = none) in
+    the space of `r`.
+    """
+
+    def __init__(self, cx: float, cy: float, r: float, theta1: float, theta2: float, inner: float = 0.0, cxcoords: CoordsLike = sextant._enums.Coords.DATA, cycoords: CoordsLike = sextant._enums.Coords.DATA, rcoords: CoordsLike = sextant._enums.Coords.DATA) -> None: ...
+
+    @property
+    def cx(self) -> float: ...
+
+    @cx.setter
+    def cx(self, arg: float, /) -> None: ...
+
+    @property
+    def cy(self) -> float: ...
+
+    @cy.setter
+    def cy(self, arg: float, /) -> None: ...
+
+    @property
+    def r(self) -> float: ...
+
+    @r.setter
+    def r(self, arg: float, /) -> None: ...
+
+    @property
+    def theta1(self) -> float: ...
+
+    @theta1.setter
+    def theta1(self, arg: float, /) -> None: ...
+
+    @property
+    def theta2(self) -> float: ...
+
+    @theta2.setter
+    def theta2(self, arg: float, /) -> None: ...
+
+    @property
+    def inner(self) -> float: ...
+
+    @inner.setter
+    def inner(self, arg: float, /) -> None: ...
+
+    @property
+    def cxcoords(self) -> sextant._enums.Coords: ...
+
+    @cxcoords.setter
+    def cxcoords(self, arg: CoordsLike, /) -> None: ...
+
+    @property
+    def cycoords(self) -> sextant._enums.Coords: ...
+
+    @cycoords.setter
+    def cycoords(self, arg: CoordsLike, /) -> None: ...
+
+    @property
+    def rcoords(self) -> sextant._enums.Coords: ...
+
+    @rcoords.setter
+    def rcoords(self, arg: CoordsLike, /) -> None: ...
 
     def __repr__(self) -> str: ...
 
@@ -1141,6 +1373,56 @@ class Axes:
         Keyword options (QuiverOptions): color, alpha, cmap, vmin, vmax, colorbar, amp, pivot, width, head_width, head_length, name, show_legend, visible, zorder, hint_labels.
         """
 
+    def axspan(self, lo: float, hi: float, **opts: Unpack[AxSpanOptions]) -> Axes:
+        """
+        axspan(lo, hi, **opts)
+
+        A band across the frame over y in [lo, hi] (matplotlib's axhspan), or over x with
+        orientation='vertical' (axvspan); lo > hi is stored swapped. Limits take both ends
+        as axline() takes its value. Takes no color from the color cycle (unset: blue).
+        On a Plane2D the band spans the plane's v (its u when vertical).
+
+        Keyword options (AxSpanOptions): orientation, color, alpha, edgecolor, linewidth, from_, to, name, show_legend, visible, zorder.
+        """
+
+    def shape_poly(self, x: ArrayLike, y: ArrayLike, **opts: Unpack[PolyOptions]) -> Axes:
+        """
+        shape_poly(x, y, **opts)
+
+        A filled polygon through the vertices (x[i], y[i]), closed implicitly, in `space`
+        ('data' by default, 'fraction' of the frame, or 'pixels' from its bottom left
+        corner). A simple polygon only. ValueError for fewer than 3 vertices, lengths that
+        differ or a non-finite number; nothing is added then.
+
+        Keyword options (PolyOptions): color, alpha, edgecolor, linewidth, linestyle, space, name, show_legend, visible, zorder.
+        """
+
+    def shape_circle(self, cx: float, cy: float, r: float, *, coords: CoordsLike = sextant._enums.Coords.DATA, xcoords: CoordsLike | None = None, ycoords: CoordsLike | None = None, rcoords: CoordsLike | None = None, **opts: Unpack[CircleOptions]) -> Axes:
+        """
+        shape_circle(cx, cy, r, *, coords='data', xcoords=None, ycoords=None, rcoords=None, **opts)
+
+        A filled circle. Each of cx, cy and r is in xcoords/ycoords/rcoords (default:
+        coords): 'data', 'fraction' of the frame, or 'pixels'. A data radius is measured
+        along each axis, so it is an ellipse on unequal axes and bends on a log axis; a
+        'fraction' radius is a fraction of the frame's shorter side, and a pixel one a
+        length; both are round. ValueError for a non-finite number, r <= 0, or a data
+        radius with a centre that is not in data units.
+
+        Keyword options (CircleOptions): color, alpha, edgecolor, linewidth, linestyle, name, show_legend, visible, zorder.
+        """
+
+    def shape_wedge(self, cx: float, cy: float, r: float, theta1: float, theta2: float, *, coords: CoordsLike = sextant._enums.Coords.DATA, xcoords: CoordsLike | None = None, ycoords: CoordsLike | None = None, rcoords: CoordsLike | None = None, **opts: Unpack[WedgeOptions]) -> Axes:
+        """
+        shape_wedge(cx, cy, r, theta1, theta2, *, coords='data', xcoords=None, ycoords=None, rcoords=None, **opts)
+
+        A sector of the circle, from theta1 to theta2 degrees counter-clockwise from +x
+        (theta2 < theta1 wraps; 360 or more apart is the whole circle), with a hole of
+        radius `inner` in r's space (a ring segment). Checks as shape_circle(), plus finite
+        angles and 0 <= inner < r.
+
+        Keyword options (WedgeOptions): color, alpha, edgecolor, linewidth, linestyle, inner, name, show_legend, visible, zorder.
+        """
+
     def cla(self) -> Axes:
         """
         Clear all plot objects (on Axes, also reset limits, the color cycle and the
@@ -1213,6 +1495,22 @@ class Axes:
 
     def quiver_data(self, i: int) -> QuiverData: ...
 
+    def axspan_count(self) -> int: ...
+
+    def axspan_data(self, i: int) -> AxSpanData: ...
+
+    def shape_poly_count(self) -> int: ...
+
+    def shape_circle_count(self) -> int: ...
+
+    def shape_wedge_count(self) -> int: ...
+
+    def shape_poly_data(self, i: int) -> PolyData: ...
+
+    def shape_circle_data(self, i: int) -> CircleData: ...
+
+    def shape_wedge_data(self, i: int) -> WedgeData: ...
+
     @overload
     def set_line_data(self, i: int, data: LineData) -> Axes: ...
 
@@ -1254,6 +1552,39 @@ class Axes:
 
     @overload
     def set_quiver_data(self, i: int, x: ArrayLike, y: ArrayLike, u: ArrayLike, v: ArrayLike) -> Axes: ...
+
+    @overload
+    def set_axspan_data(self, i: int, data: AxSpanData) -> Axes: ...
+
+    @overload
+    def set_axspan_data(self, i: int, lo: float, hi: float) -> Axes:
+        """Move span i (validated as axspan(); lo > hi stored swapped)."""
+
+    @overload
+    def set_shape_poly_data(self, i: int, data: PolyData) -> Axes: ...
+
+    @overload
+    def set_shape_poly_data(self, i: int, x: ArrayLike, y: ArrayLike) -> Axes: ...
+
+    @overload
+    def set_shape_circle_data(self, i: int, data: CircleData) -> Axes: ...
+
+    @overload
+    def set_shape_circle_data(self, i: int, cx: float, cy: float, r: float, *, coords: CoordsLike | None = None, xcoords: CoordsLike | None = None, ycoords: CoordsLike | None = None, rcoords: CoordsLike | None = None) -> Axes:
+        """
+        Replace circle i's centre and radius (validated as shape_circle()). Each keeps its
+        current coords unless coords/xcoords/ycoords/rcoords says otherwise.
+        """
+
+    @overload
+    def set_shape_wedge_data(self, i: int, data: WedgeData) -> Axes: ...
+
+    @overload
+    def set_shape_wedge_data(self, i: int, cx: float, cy: float, r: float, theta1: float, theta2: float, *, inner: float | None = None, coords: CoordsLike | None = None, xcoords: CoordsLike | None = None, ycoords: CoordsLike | None = None, rcoords: CoordsLike | None = None) -> Axes:
+        """
+        Replace wedge i's numbers (validated as shape_wedge()). inner keeps its value when
+        left out; each coords is kept as for set_shape_circle_data().
+        """
 
     def set_line_visible(self, i: int, visible: bool) -> Axes:
         """
@@ -1318,15 +1649,6 @@ class Axes:
 
     def quiver_visible(self, i: int) -> bool: ...
 
-    def set_axline_visible(self, i: int, visible: bool) -> Axes:
-        """
-        Show or hide object i of this kind (its options' visible). A hidden object is
-        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
-        and leaves the automatic limits; its data, color and draw order stay.
-        """
-
-    def axline_visible(self, i: int) -> bool: ...
-
     def set_axspan_visible(self, i: int, visible: bool) -> Axes:
         """
         Show or hide object i of this kind (its options' visible). A hidden object is
@@ -1335,6 +1657,42 @@ class Axes:
         """
 
     def axspan_visible(self, i: int) -> bool: ...
+
+    def set_shape_poly_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def shape_poly_visible(self, i: int) -> bool: ...
+
+    def set_shape_circle_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def shape_circle_visible(self, i: int) -> bool: ...
+
+    def set_shape_wedge_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def shape_wedge_visible(self, i: int) -> bool: ...
+
+    def set_axline_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def axline_visible(self, i: int) -> bool: ...
 
     def set_text_visible(self, i: int, visible: bool) -> Axes:
         """
@@ -1354,6 +1712,7 @@ class Axes:
         Keyword options (BarOptions): color, orientation, bottom, width, alpha, name, show_legend, visible, zorder, edgecolor, linewidth, errorbar, hint_labels.
         """
 
+    @overload
     def axline(self, value: float, **opts: Unpack[AxLineOptions]) -> Axes:
         """
         axline(value, **opts)
@@ -1362,49 +1721,55 @@ class Axes:
         orientation='vertical' (axvline). It runs from from_ to to, fractions of the frame,
         whatever the limits. Automatic limits take value as a point on its axis. Not
         hovered or picked. ValueError for a non-finite value, from_ or to.
+        Also axline(x, y, *, slope=...) and axline(x1, y1, x2, y2): see the next overloads.
 
         Keyword options (AxLineOptions): orientation, color, linewidth, linestyle, alpha, from_, to, name, show_legend, visible, zorder.
         """
 
-    def axspan(self, lo: float, hi: float, **opts: Unpack[AxSpanOptions]) -> Axes:
+    @overload
+    def axline(self, x: float, y: float, *, slope: float, coords: CoordsLike = sextant._enums.Coords.DATA, xcoords: CoordsLike | None = None, ycoords: CoordsLike | None = None, **opts: Unpack[AxLineOptions]) -> Axes:
         """
-        axspan(lo, hi, **opts)
+        axline(x, y, *, slope, coords='data', xcoords=None, ycoords=None, **opts)
 
-        A band across the frame over y in [lo, hi] (matplotlib's axhspan), or over x with
-        orientation='vertical' (axvspan); lo > hi is stored swapped. Limits take both ends
-        as axline() takes its value. Takes no color from the color cycle (unset: blue).
+        The infinite line through (x, y) with slope dy/dx (matplotlib's axline). With the
+        point in data units it is the straight line of the data: it bends on a log or symlog
+        axis. With a 'fraction' or 'pixels' coordinate it is a straight screen line, its slope
+        the screen's (y up). orientation, from_ and to do not apply. Automatic limits take the
+        point. ValueError for a non-finite number.
 
-        Keyword options (AxSpanOptions): orientation, color, alpha, edgecolor, linewidth, from_, to, name, show_legend, visible, zorder.
+        Keyword options (AxLineOptions): orientation, color, linewidth, linestyle, alpha, from_, to, name, show_legend, visible, zorder.
+        """
+
+    @overload
+    def axline(self, x1: float, y1: float, x2: float, y2: float, *, coords: CoordsLike = sextant._enums.Coords.DATA, xcoords: CoordsLike | None = None, ycoords: CoordsLike | None = None, **opts: Unpack[AxLineOptions]) -> Axes:
+        """
+        axline(x1, y1, x2, y2, *, coords='data', xcoords=None, ycoords=None, **opts)
+
+        The infinite line through two points, as above; equal x gives a vertical line.
+        ValueError for a non-finite number or two equal points.
+
+        Keyword options (AxLineOptions): orientation, color, linewidth, linestyle, alpha, from_, to, name, show_legend, visible, zorder.
         """
 
     def axline_count(self) -> int: ...
 
-    def axspan_count(self) -> int: ...
-
     def axline_data(self, i: int) -> AxLineData: ...
-
-    def axspan_data(self, i: int) -> AxSpanData: ...
 
     @overload
     def set_axline_data(self, i: int, data: AxLineData) -> Axes: ...
 
     @overload
     def set_axline_data(self, i: int, value: float) -> Axes:
-        """Move reference line i (validated as axline())."""
-
-    @overload
-    def set_axspan_data(self, i: int, data: AxSpanData) -> Axes: ...
-
-    @overload
-    def set_axspan_data(self, i: int, lo: float, hi: float) -> Axes:
-        """Move span i (validated as axspan(); lo > hi stored swapped)."""
+        """
+        Move reference line i to this value (mode 'value'; validated as axline()).
+        """
 
     def text(self, s: str, x: float, y: float, *, coords: CoordsLike = sextant._enums.Coords.DATA, xcoords: CoordsLike | None = None, ycoords: CoordsLike | None = None, **opts: Unpack[TextOptions]) -> Axes:
         """
         text(s, x, y, *, coords='data', xcoords=None, ycoords=None, **opts)
 
         Text at (x, y), drawn over the data at a fixed pixel size. Each coordinate is in
-        xcoords/ycoords (default: coords): 'data', or 'fraction' of the plot frame from its
+        xcoords/ycoords (default: coords): 'data', 'fraction' of the plot frame or 'pixels', from its
         bottom-left corner. Never widens the auto limits; hidden while a data coordinate is
         out of view (unless clip_to_frame=True, which cuts it at the frame instead).
 
@@ -1681,6 +2046,56 @@ class Plane2D:
         Keyword options (QuiverOptions): color, alpha, cmap, vmin, vmax, colorbar, amp, pivot, width, head_width, head_length, name, show_legend, visible, zorder, hint_labels.
         """
 
+    def axspan(self, lo: float, hi: float, **opts: Unpack[AxSpanOptions]) -> Plane2D:
+        """
+        axspan(lo, hi, **opts)
+
+        A band across the frame over y in [lo, hi] (matplotlib's axhspan), or over x with
+        orientation='vertical' (axvspan); lo > hi is stored swapped. Limits take both ends
+        as axline() takes its value. Takes no color from the color cycle (unset: blue).
+        On a Plane2D the band spans the plane's v (its u when vertical).
+
+        Keyword options (AxSpanOptions): orientation, color, alpha, edgecolor, linewidth, from_, to, name, show_legend, visible, zorder.
+        """
+
+    def shape_poly(self, x: ArrayLike, y: ArrayLike, **opts: Unpack[PolyOptions]) -> Plane2D:
+        """
+        shape_poly(x, y, **opts)
+
+        A filled polygon through the vertices (x[i], y[i]), closed implicitly, in `space`
+        ('data' by default, 'fraction' of the frame, or 'pixels' from its bottom left
+        corner). A simple polygon only. ValueError for fewer than 3 vertices, lengths that
+        differ or a non-finite number; nothing is added then.
+
+        Keyword options (PolyOptions): color, alpha, edgecolor, linewidth, linestyle, space, name, show_legend, visible, zorder.
+        """
+
+    def shape_circle(self, cx: float, cy: float, r: float, *, coords: CoordsLike = sextant._enums.Coords.DATA, xcoords: CoordsLike | None = None, ycoords: CoordsLike | None = None, rcoords: CoordsLike | None = None, **opts: Unpack[CircleOptions]) -> Plane2D:
+        """
+        shape_circle(cx, cy, r, *, coords='data', xcoords=None, ycoords=None, rcoords=None, **opts)
+
+        A filled circle. Each of cx, cy and r is in xcoords/ycoords/rcoords (default:
+        coords): 'data', 'fraction' of the frame, or 'pixels'. A data radius is measured
+        along each axis, so it is an ellipse on unequal axes and bends on a log axis; a
+        'fraction' radius is a fraction of the frame's shorter side, and a pixel one a
+        length; both are round. ValueError for a non-finite number, r <= 0, or a data
+        radius with a centre that is not in data units.
+
+        Keyword options (CircleOptions): color, alpha, edgecolor, linewidth, linestyle, name, show_legend, visible, zorder.
+        """
+
+    def shape_wedge(self, cx: float, cy: float, r: float, theta1: float, theta2: float, *, coords: CoordsLike = sextant._enums.Coords.DATA, xcoords: CoordsLike | None = None, ycoords: CoordsLike | None = None, rcoords: CoordsLike | None = None, **opts: Unpack[WedgeOptions]) -> Plane2D:
+        """
+        shape_wedge(cx, cy, r, theta1, theta2, *, coords='data', xcoords=None, ycoords=None, rcoords=None, **opts)
+
+        A sector of the circle, from theta1 to theta2 degrees counter-clockwise from +x
+        (theta2 < theta1 wraps; 360 or more apart is the whole circle), with a hole of
+        radius `inner` in r's space (a ring segment). Checks as shape_circle(), plus finite
+        angles and 0 <= inner < r.
+
+        Keyword options (WedgeOptions): color, alpha, edgecolor, linewidth, linestyle, inner, name, show_legend, visible, zorder.
+        """
+
     def cla(self) -> Plane2D:
         """
         Clear all plot objects (on Axes, also reset limits, the color cycle and the
@@ -1753,6 +2168,22 @@ class Plane2D:
 
     def quiver_data(self, i: int) -> QuiverData: ...
 
+    def axspan_count(self) -> int: ...
+
+    def axspan_data(self, i: int) -> AxSpanData: ...
+
+    def shape_poly_count(self) -> int: ...
+
+    def shape_circle_count(self) -> int: ...
+
+    def shape_wedge_count(self) -> int: ...
+
+    def shape_poly_data(self, i: int) -> PolyData: ...
+
+    def shape_circle_data(self, i: int) -> CircleData: ...
+
+    def shape_wedge_data(self, i: int) -> WedgeData: ...
+
     @overload
     def set_line_data(self, i: int, data: LineData) -> Plane2D: ...
 
@@ -1794,6 +2225,39 @@ class Plane2D:
 
     @overload
     def set_quiver_data(self, i: int, x: ArrayLike, y: ArrayLike, u: ArrayLike, v: ArrayLike) -> Plane2D: ...
+
+    @overload
+    def set_axspan_data(self, i: int, data: AxSpanData) -> Plane2D: ...
+
+    @overload
+    def set_axspan_data(self, i: int, lo: float, hi: float) -> Plane2D:
+        """Move span i (validated as axspan(); lo > hi stored swapped)."""
+
+    @overload
+    def set_shape_poly_data(self, i: int, data: PolyData) -> Plane2D: ...
+
+    @overload
+    def set_shape_poly_data(self, i: int, x: ArrayLike, y: ArrayLike) -> Plane2D: ...
+
+    @overload
+    def set_shape_circle_data(self, i: int, data: CircleData) -> Plane2D: ...
+
+    @overload
+    def set_shape_circle_data(self, i: int, cx: float, cy: float, r: float, *, coords: CoordsLike | None = None, xcoords: CoordsLike | None = None, ycoords: CoordsLike | None = None, rcoords: CoordsLike | None = None) -> Plane2D:
+        """
+        Replace circle i's centre and radius (validated as shape_circle()). Each keeps its
+        current coords unless coords/xcoords/ycoords/rcoords says otherwise.
+        """
+
+    @overload
+    def set_shape_wedge_data(self, i: int, data: WedgeData) -> Plane2D: ...
+
+    @overload
+    def set_shape_wedge_data(self, i: int, cx: float, cy: float, r: float, theta1: float, theta2: float, *, inner: float | None = None, coords: CoordsLike | None = None, xcoords: CoordsLike | None = None, ycoords: CoordsLike | None = None, rcoords: CoordsLike | None = None) -> Plane2D:
+        """
+        Replace wedge i's numbers (validated as shape_wedge()). inner keeps its value when
+        left out; each coords is kept as for set_shape_circle_data().
+        """
 
     def set_line_visible(self, i: int, visible: bool) -> Plane2D:
         """
@@ -1857,6 +2321,42 @@ class Plane2D:
         """
 
     def quiver_visible(self, i: int) -> bool: ...
+
+    def set_axspan_visible(self, i: int, visible: bool) -> Plane2D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def axspan_visible(self, i: int) -> bool: ...
+
+    def set_shape_poly_visible(self, i: int, visible: bool) -> Plane2D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def shape_poly_visible(self, i: int) -> bool: ...
+
+    def set_shape_circle_visible(self, i: int, visible: bool) -> Plane2D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def shape_circle_visible(self, i: int) -> bool: ...
+
+    def set_shape_wedge_visible(self, i: int, visible: bool) -> Plane2D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def shape_wedge_visible(self, i: int) -> bool: ...
 
     def set_offset(self, offset: float) -> Plane2D:
         """Position along the plane's normal axis, in data units."""

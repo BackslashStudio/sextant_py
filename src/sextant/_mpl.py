@@ -198,7 +198,9 @@ def _takes_visible(method):
 
 # The 2D core kinds that take a zorder.
 _ZORDERED = frozenset({"line", "scatter", "scatter_z", "bar", "heatmap", "fill", "quiver",
-                       "axline", "axspan"})
+                       "axline", "axspan", "shape_poly", "shape_circle", "shape_wedge"})
+# A pick event's PickKind -> the adapter's kind (the core method's name) where they differ.
+_PICK_KINDS = {"poly": "shape_poly", "circle": "shape_circle", "wedge": "shape_wedge"}
 
 
 def _zorder(default):
@@ -584,16 +586,58 @@ class RefLine(_Artist):
         self._set_options(alpha=1.0 if a is None else float(a))
 
 
-class Span(_Artist):
-    """axhspan()/axvspan()'s return (a Rectangle in matplotlib): its colors, alpha and
-    outline; get_span()/set_span() (not matplotlib) read and move its two ends."""
+class AxLine(RefLine):
+    """axline()'s return for a point and a slope or two points (matplotlib's AxLine): get/set_xy1,
+    get/set_xy2 (two points) and get/set_slope (a slope), in data coordinates, over RefLine's style
+    setters. It has no finite data."""
 
-    def get_span(self):
-        d = self.axes.core.axspan_data(self._index)
-        return d.lo, d.hi
+    def _no_data(self, *args):
+        raise NotImplementedError("an axline has no finite data: use get_xy1(), get_xy2() or get_slope()")
 
-    def set_span(self, lo, hi):
-        self._set_args("set_axspan_data", float(lo), float(hi))
+    get_xdata = get_ydata = set_xdata = set_ydata = _no_data
+
+    def _data(self):
+        return self.axes.core.axline_data(self._index)
+
+    def get_xy1(self):
+        d = self._data()
+        return d.x, d.y
+
+    def get_xy2(self):
+        d = self._data()
+        return (d.x2, d.y2) if d.mode == "two_points" else None
+
+    def get_slope(self):
+        d = self._data()
+        if d.mode == "point_slope":
+            return d.slope
+        return (d.y2 - d.y) / (d.x2 - d.x) if d.x2 != d.x else math.inf
+
+    def _edit(self, mode, put):
+        """Change the recorded call's numbers and replay; `mode` is the only form `put` fits."""
+        self._check()
+        if self._data().mode != mode:
+            other = "slope" if mode == "two_points" else "xy2"
+            raise ValueError(f"Cannot set this value while '{other}' is set; they differ but their "
+                             "functionalities overlap")
+        put(self._entry[1], self._entry[2])
+        self.axes._rebuild()
+
+    def set_xy1(self, x, y):
+        self._check()
+        self._entry[1][:2] = [float(x), float(y)]
+        self.axes._rebuild()
+
+    def set_xy2(self, x, y):
+        self._edit("two_points", lambda args, kw: args.__setitem__(slice(2, 4), [float(x), float(y)]))
+
+    def set_slope(self, slope):
+        self._edit("point_slope", lambda args, kw: kw.update(slope=float(slope)))
+
+
+class _Painted:
+    """The colour setters of the filled artists whose options are a face, an outline and an alpha
+    (Span, the patches)."""
 
     def get_facecolor(self):
         return self._entry[2].get("color")
@@ -612,8 +656,23 @@ class Span(_Artist):
     def set_linewidth(self, lw):
         self._set_options(linewidth=float(lw) * PT)
 
+    def set_linestyle(self, ls):
+        self._set_options(linestyle=_linestyle(ls))
+
     def set_alpha(self, a):
         self._set_options(alpha=1.0 if a is None else float(a))
+
+
+class Span(_Painted, _Artist):
+    """axhspan()/axvspan()'s return (a Rectangle in matplotlib): its colors, alpha and
+    outline; get_span()/set_span() (not matplotlib) read and move its two ends."""
+
+    def get_span(self):
+        d = self.axes.core.axspan_data(self._index)
+        return d.lo, d.hi
+
+    def set_span(self, lo, hi):
+        self._set_args("set_axspan_data", float(lo), float(hi))
 
 
 class FillBetweenPolyCollection(_Artist):
@@ -682,6 +741,117 @@ class FillBetweenPolyCollection(_Artist):
         if "edgecolor" in opts:  # matplotlib fades the outline too
             opts["edgecolor"] = to_rgba(opts["edgecolor"], 1.0 if a is None else a)
         self.axes._rebuild()
+
+
+def _patch_opts(kw):
+    """A patch's keywords as the core shape call's options (the colour unset when none is given:
+    add_patch() takes the axes' C0, as matplotlib's patch.facecolor)."""
+    transform = kw.pop("transform", None)
+    if transform is not None and getattr(transform, "coords", None) != "data":
+        raise NotImplementedError("patches are in data coordinates (transform= is not mapped)")
+    if kw.pop("fill", True) is False:
+        raise NotImplementedError("fill=False: sextant shapes always fill")
+    if kw.pop("hatch", None) is not None:
+        raise ValueError("sextant draws no hatching")
+    zorder = kw.pop("zorder", None)
+    _drop_ignored(kw)
+    color = _pop(kw, "color", "c")
+    face = _pop(kw, "facecolor", "fc", default=color)
+    edge = _pop(kw, "edgecolor", "ec")
+    lw = _pop(kw, "linewidth", "lw")
+    ls = _linestyle(_pop(kw, "linestyle", "ls"))
+    alpha = kw.pop("alpha", None)
+    label = kw.pop("label", None)
+    opts = dict(kw)
+    if face is not None:
+        opts["color"] = to_rgba(face)
+    if alpha is not None:
+        opts["alpha"] = float(alpha)
+    # An outline only when one is asked for: matplotlib's default edge is invisible.
+    if edge is not None and not (isinstance(edge, str) and edge.lower() in ("none", "face")):
+        opts.update(edgecolor=to_rgba(edge, alpha), linewidth=(1.0 if lw is None else float(lw)) * PT)
+    elif color is not None and lw is not None:  # color= is the edge too
+        opts["linewidth"] = float(lw) * PT
+    if ls is not None:
+        opts["linestyle"] = ls
+    if zorder is not None:
+        opts["zorder"] = _finite_zorder(zorder)
+    if label is not None:
+        opts["name"] = str(label)
+    return opts, label
+
+
+class _Patch(_Painted, _Artist):
+    """Circle, Wedge and Polygon: built with their numbers and style, drawn once ax.add_patch()
+    has them. Before that the setters just edit what will be drawn; after, they replay the
+    axes' calls like any artist's."""
+
+    def __init__(self, kind, args, kw):
+        opts, label = _patch_opts(kw)
+        self.axes = self._index = None
+        self._kind, self._label = kind, label
+        self._entry = [kind, args, opts]
+
+    def _add_to(self, axes):
+        method, args, opts = self._entry
+        opts.setdefault("color", axes._c0())
+        index, self._entry = axes._add(method, method, *args, **opts)
+        self.axes, self._index = axes, index
+        axes._artists[(method, index)] = self
+        return self
+
+    def _set_options(self, **kw):
+        if self.axes is None:
+            self._entry[2].update(kw)
+        else:
+            super()._set_options(**kw)
+
+    def get_zorder(self):
+        return float(self._entry[2].get("zorder", 1.0))
+
+    def set_zorder(self, z):
+        if self.axes is None:
+            self._entry[2]["zorder"] = _finite_zorder(z)
+        else:
+            super().set_zorder(z)
+
+    def set_visible(self, b):
+        if self.axes is None:
+            self._entry[2]["visible"] = bool(b)
+        else:
+            super().set_visible(b)
+
+
+class Circle(_Patch):
+    """matplotlib.patches.Circle((x, y), radius): the radius in data units, so an ellipse on
+    unequal axes, as in matplotlib. Drawn by ax.add_patch()."""
+
+    def __init__(self, xy, radius, **kw):
+        x, y = (float(v) for v in xy)
+        super().__init__("shape_circle", [x, y, float(radius)], kw)
+
+
+class Wedge(_Patch):
+    """matplotlib.patches.Wedge(center, r, theta1, theta2, width=None): a sector from theta1 to
+    theta2 degrees counter-clockwise from +x; `width` makes it a ring segment (hole radius r - width)."""
+
+    def __init__(self, center, r, theta1, theta2, width=None, **kw):
+        x, y = (float(v) for v in center)
+        super().__init__("shape_wedge", [x, y, float(r), float(theta1), float(theta2)], kw)
+        if width is not None:
+            self._entry[2]["inner"] = float(r) - float(width)
+
+
+class Polygon(_Patch):
+    """matplotlib.patches.Polygon(xy, closed=True): xy is (N, 2). Always closed and filled."""
+
+    def __init__(self, xy, *, closed=True, **kw):
+        if not closed:
+            raise NotImplementedError("Polygon(closed=False): sextant polygons are always closed")
+        xy = np.asarray(xy, dtype=float)
+        if xy.ndim != 2 or xy.shape[1] != 2:
+            raise ValueError(f"Polygon: xy must have shape (N, 2), not {xy.shape}")
+        super().__init__("shape_poly", [xy[:, 0].copy(), xy[:, 1].copy()], kw)
 
 
 class Quiver(_Artist):
@@ -1604,22 +1774,46 @@ class Axes(_AxesBase):
         return self._axline(x, ymin, ymax, "vertical", kw)
 
     def _axline(self, value, lo, hi, orientation, kw):
+        opts, label = self._axline_style(kw)
+        opts.update(orientation=orientation, from_=float(lo), to=float(hi))
+        i, entry = self._add("axline", "axline", float(value), **opts)
+        return RefLine(self, "axline", i, entry, label)
+
+    def _axline_style(self, kw):
         _drop_ignored(kw)
         color = to_rgba(_pop(kw, "color", "c")) or self._c0()
         lw = _pop(kw, "linewidth", "lw")
         ls = _linestyle(_pop(kw, "linestyle", "ls"))
         alpha = kw.pop("alpha", None)
         label = kw.pop("label", None)
-        opts = dict(kw, orientation=orientation, color=color, linewidth=(1.5 if lw is None else float(lw)) * PT,
-                    from_=float(lo), to=float(hi))
+        opts = dict(kw, color=color, linewidth=(1.5 if lw is None else float(lw)) * PT)
         if ls is not None:
             opts["linestyle"] = ls
         if alpha is not None:
             opts["alpha"] = float(alpha)
         if label is not None:
             opts["name"] = str(label)
-        i, entry = self._add("axline", "axline", float(value), **opts)
-        return RefLine(self, "axline", i, entry, label)
+        return opts, label
+
+    @_zorder(2)
+    @_takes_visible
+    def axline(self, xy1, xy2=None, *, slope=None, **kw):
+        """The infinite line through xy1 and xy2, or through xy1 with `slope`, as matplotlib's;
+        points in data coordinates (a log axis draws the curve). transform= is not mapped."""
+        if kw.pop("transform", None) not in (None, self.transData):
+            raise NotImplementedError("axline(): sextant draws it in data coordinates (transform= is not mapped)")
+        if xy2 is not None and slope is not None:
+            raise TypeError("Cannot specify both 'xy2' and 'slope'")
+        if xy2 is None and slope is None:
+            raise TypeError("Must specify either 'xy2' or 'slope'")
+        opts, label = self._axline_style(kw)
+        x1, y1 = (float(v) for v in xy1)
+        if xy2 is None:
+            args, opts["slope"] = [x1, y1], float(slope)
+        else:
+            args = [x1, y1, *(float(v) for v in xy2)]
+        i, entry = self._add("axline", "axline", *args, **opts)
+        return AxLine(self, "axline", i, entry, label)
 
     @_zorder(1)
     @_takes_visible
@@ -1653,6 +1847,17 @@ class Axes(_AxesBase):
             opts["name"] = str(label)
         i, entry = self._add("axspan", "axspan", float(lo), float(hi), **opts)
         return Span(self, "axspan", i, entry, label)
+
+    @_zorder(1)
+    def add_patch(self, p):
+        """Draw a sextant.patches Circle, Wedge or Polygon in this axes (matplotlib's name);
+        returns it."""
+        if not isinstance(p, _Patch):
+            raise TypeError(f"add_patch(): sextant draws Circle, Wedge and Polygon patches, not {type(p).__name__}")
+        if p.axes is not None:
+            raise ValueError("Can not reset the Axes. You are probably trying to re-use an artist in more "
+                             "than one Axes which is not supported")
+        return p._add_to(self)
 
     # --- filled areas --------------------------------------------------------------
 
@@ -2652,7 +2857,7 @@ class MplEvent:
             # the artists are keyed by (kind, index), which survives a log replay (new ids).
             ax = host._twins.get({1: "x", 2: "y"}[e.pick_twin]) if twins and e.pick_twin else host
             loc = ax.core.find_object(e.pick_object) if ax and e.pick_plane == 0 else None
-            self.artist = ax._artists.get((str(loc[0]), loc[1])) if loc else None
+            self.artist = ax._artists.get((_PICK_KINDS.get(str(loc[0]), str(loc[0])), loc[1])) if loc else None
             self.ind = np.array([e.pick_index])
             self.mouseevent = self
 

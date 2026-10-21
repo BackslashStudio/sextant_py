@@ -183,7 +183,29 @@ namespace sextant_py {
         sextant::TextData to_cpp() const;
     };
     using PyText3DData = sextant::Text3DData; // plain fields, bound as they are
-    using PyAxLineData = sextant::AxLineData;
+    // sextant::PolyData, CircleData, WedgeData and AxLineData with each Pos split into a
+    // value and its Coords (as PyTextData).
+    struct PyPolyData { F64 x, y; };
+    struct PyCircleData {
+        double cx = 0.0, cy = 0.0, r = 1.0;
+        sextant::Coords cxcoords = sextant::Coords::Data, cycoords = sextant::Coords::Data,
+                        rcoords = sextant::Coords::Data;
+        sextant::CircleData to_cpp() const;
+    };
+    struct PyWedgeData {
+        double cx = 0.0, cy = 0.0, r = 1.0, theta1 = 0.0, theta2 = 90.0, inner = 0.0;
+        sextant::Coords cxcoords = sextant::Coords::Data, cycoords = sextant::Coords::Data,
+                        rcoords = sextant::Coords::Data;
+        sextant::WedgeData to_cpp() const;
+    };
+    struct PyAxLineData {
+        double value = 0.0;
+        sextant::AxLineMode mode = sextant::AxLineMode::Value;
+        double x = 0.0, y = 0.0, x2 = 0.0, y2 = 0.0, slope = 0.0;
+        sextant::Coords xcoords = sextant::Coords::Data, ycoords = sextant::Coords::Data,
+                        x2coords = sextant::Coords::Data, y2coords = sextant::Coords::Data;
+        sextant::AxLineData to_cpp() const;
+    };
     using PyAxSpanData = sextant::AxSpanData;
 
     PyLineData to_python(sextant::LineData&& d);
@@ -199,6 +221,10 @@ namespace sextant_py {
     PyScatter3DData to_python(sextant::Scatter3DData&& d);
     PyLine3DData to_python(sextant::Line3DData&& d);
     PyTextData to_python(sextant::TextData&& d);
+    PyPolyData to_python(sextant::PolyData&& d);
+    PyCircleData to_python(sextant::CircleData&& d);
+    PyWedgeData to_python(sextant::WedgeData&& d);
+    PyAxLineData to_python(sextant::AxLineData&& d);
 
     void bind_data(nb::module_& m);
     void bind_events(nb::module_& m, nb::class_<PyFigure>& fig);

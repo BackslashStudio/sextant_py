@@ -116,6 +116,33 @@ namespace sextant_py {
                 "data and kept. With c (one value per arrow), each arrow is colored through\n"
                 "cmap/vmin/vmax. width, head_width and head_length are pixels. ValueError for\n"
                 "lengths that differ or an amp that is not finite and > 0.");
+            static const std::string axspan_doc = opts_doc<sextant::AxSpanOptions>(
+                "axspan(lo, hi, **opts)",
+                "A band across the frame over y in [lo, hi] (matplotlib's axhspan), or over x with\n"
+                "orientation='vertical' (axvspan); lo > hi is stored swapped. Limits take both ends\n"
+                "as axline() takes its value. Takes no color from the color cycle (unset: blue).\n"
+                "On a Plane2D the band spans the plane's v (its u when vertical).");
+            static const std::string poly_doc = opts_doc<sextant::PolyOptions>(
+                "shape_poly(x, y, **opts)",
+                "A filled polygon through the vertices (x[i], y[i]), closed implicitly, in `space`\n"
+                "('data' by default, 'fraction' of the frame, or 'pixels' from its bottom left\n"
+                "corner). A simple polygon only. ValueError for fewer than 3 vertices, lengths that\n"
+                "differ or a non-finite number; nothing is added then.");
+            static const std::string circle_doc = opts_doc<sextant::CircleOptions>(
+                "shape_circle(cx, cy, r, *, coords='data', xcoords=None, ycoords=None, rcoords=None, **opts)",
+                "A filled circle. Each of cx, cy and r is in xcoords/ycoords/rcoords (default:\n"
+                "coords): 'data', 'fraction' of the frame, or 'pixels'. A data radius is measured\n"
+                "along each axis, so it is an ellipse on unequal axes and bends on a log axis; a\n"
+                "'fraction' radius is a fraction of the frame's shorter side, and a pixel one a\n"
+                "length; both are round. ValueError for a non-finite number, r <= 0, or a data\n"
+                "radius with a centre that is not in data units.");
+            static const std::string wedge_doc = opts_doc<sextant::WedgeOptions>(
+                "shape_wedge(cx, cy, r, theta1, theta2, *, coords='data', xcoords=None, ycoords=None, "
+                "rcoords=None, **opts)",
+                "A sector of the circle, from theta1 to theta2 degrees counter-clockwise from +x\n"
+                "(theta2 < theta1 wraps; 360 or more apart is the whole circle), with a hole of\n"
+                "radius `inner` in r's space (a ring segment). Checks as shape_circle(), plus finite\n"
+                "angles and 0 <= inner < r.");
 
             cls.def("line",
                     [](Self self, const Vec& x, const std::optional<Vec>& y, const PyErrorBar* err,
@@ -209,6 +236,42 @@ namespace sextant_py {
                          });
                      },
                      "x"_a, "y"_a, "u"_a, "v"_a, "c"_a.none() = nb::none(), "opts"_a, quiver_doc.c_str())
+                .def("axspan",
+                     [](Self self, double lo, double hi, const nb::kwargs& kw) {
+                         auto o = options<sextant::AxSpanOptions>("axspan()", kw);
+                         return chain(self, [&](T& t) { t.axspan(lo, hi, std::move(o)); });
+                     },
+                     "lo"_a, "hi"_a, "opts"_a, axspan_doc.c_str())
+                .def("shape_poly",
+                     [](Self self, const Vec& x, const Vec& y, const nb::kwargs& kw) {
+                         auto o = options<sextant::PolyOptions>("shape_poly()", kw);
+                         return chain(self, [&](T& t) { t.shape_poly(x.span(), y.span(), std::move(o)); });
+                     },
+                     "x"_a, "y"_a, "opts"_a, poly_doc.c_str())
+                .def("shape_circle",
+                     [](Self self, double cx, double cy, double r, Coords coords, std::optional<Coords> xcoords,
+                        std::optional<Coords> ycoords, std::optional<Coords> rcoords, const nb::kwargs& kw) {
+                         auto o = options<sextant::CircleOptions>("shape_circle()", kw);
+                         return chain(self, [&](T& t) {
+                             t.shape_circle(pos(cx, xcoords.value_or(coords)), pos(cy, ycoords.value_or(coords)),
+                                            pos(r, rcoords.value_or(coords)), std::move(o));
+                         });
+                     },
+                     "cx"_a, "cy"_a, "r"_a, nb::kw_only(), "coords"_a = Coords::Data, "xcoords"_a = nb::none(),
+                     "ycoords"_a = nb::none(), "rcoords"_a = nb::none(), "opts"_a, circle_doc.c_str())
+                .def("shape_wedge",
+                     [](Self self, double cx, double cy, double r, double theta1, double theta2, Coords coords,
+                        std::optional<Coords> xcoords, std::optional<Coords> ycoords, std::optional<Coords> rcoords,
+                        const nb::kwargs& kw) {
+                         auto o = options<sextant::WedgeOptions>("shape_wedge()", kw);
+                         return chain(self, [&](T& t) {
+                             t.shape_wedge(pos(cx, xcoords.value_or(coords)), pos(cy, ycoords.value_or(coords)),
+                                           pos(r, rcoords.value_or(coords)), theta1, theta2, std::move(o));
+                         });
+                     },
+                     "cx"_a, "cy"_a, "r"_a, "theta1"_a, "theta2"_a, nb::kw_only(), "coords"_a = Coords::Data,
+                     "xcoords"_a = nb::none(), "ycoords"_a = nb::none(), "rcoords"_a = nb::none(), "opts"_a,
+                     wedge_doc.c_str())
                 .def("cla", [](Self self) { return chain(self, [](T& t) { t.cla(); }); },
                      "Clear all plot objects (on Axes, also reset limits, the color cycle and the\n"
                      "aspect; a shared axis stays shared).")
@@ -296,6 +359,33 @@ namespace sextant_py {
                 .def("quiver_data",
                      [](W& w, std::int64_t i) {
                          return to_python(read(w, [&](T& t) { return t.quiver_data(index(i, t.quiver_count())); }));
+                     },
+                     "i"_a)
+                .def("axspan_count", [](W& w) { return read(w, [](T& t) { return t.axspan_count(); }); })
+                .def("axspan_data",
+                     [](W& w, std::int64_t i) {
+                         return read(w, [&](T& t) { return t.axspan_data(index(i, t.axspan_count())); });
+                     },
+                     "i"_a)
+                .def("shape_poly_count", [](W& w) { return read(w, [](T& t) { return t.shape_poly_count(); }); })
+                .def("shape_circle_count", [](W& w) { return read(w, [](T& t) { return t.shape_circle_count(); }); })
+                .def("shape_wedge_count", [](W& w) { return read(w, [](T& t) { return t.shape_wedge_count(); }); })
+                .def("shape_poly_data",
+                     [](W& w, std::int64_t i) {
+                         return to_python(
+                             read(w, [&](T& t) { return t.shape_poly_data(index(i, t.shape_poly_count())); }));
+                     },
+                     "i"_a)
+                .def("shape_circle_data",
+                     [](W& w, std::int64_t i) {
+                         return to_python(
+                             read(w, [&](T& t) { return t.shape_circle_data(index(i, t.shape_circle_count())); }));
+                     },
+                     "i"_a)
+                .def("shape_wedge_data",
+                     [](W& w, std::int64_t i) {
+                         return to_python(
+                             read(w, [&](T& t) { return t.shape_wedge_data(index(i, t.shape_wedge_count())); }));
                      },
                      "i"_a)
 
@@ -394,7 +484,79 @@ namespace sextant_py {
                              t.set_quiver_data(index(i, t.quiver_count()), x.span(), y.span(), u.span(), v.span());
                          });
                      },
-                     "i"_a, "x"_a, "y"_a, "u"_a, "v"_a);
+                     "i"_a, "x"_a, "y"_a, "u"_a, "v"_a)
+                .def("set_axspan_data",
+                     [](Self self, std::int64_t i, const PyAxSpanData& d) {
+                         return chain(self, [&](T& t) { t.set_axspan_data(index(i, t.axspan_count()), d); });
+                     },
+                     "i"_a, "data"_a)
+                .def("set_axspan_data",
+                     [](Self self, std::int64_t i, double lo, double hi) {
+                         return chain(self, [&](T& t) { t.set_axspan_data(index(i, t.axspan_count()), {lo, hi}); });
+                     },
+                     "i"_a, "lo"_a, "hi"_a, "Move span i (validated as axspan(); lo > hi stored swapped).")
+                .def("set_shape_poly_data",
+                     [](Self self, std::int64_t i, const PyPolyData& d) {
+                         const auto x = as_array<1>(d.x, "PolyData.x"), y = as_array<1>(d.y, "PolyData.y");
+                         return chain(self, [&](T& t) {
+                             t.set_shape_poly_data(index(i, t.shape_poly_count()), x.span(), y.span());
+                         });
+                     },
+                     "i"_a, "data"_a)
+                .def("set_shape_poly_data",
+                     [](Self self, std::int64_t i, const Vec& x, const Vec& y) {
+                         return chain(self, [&](T& t) {
+                             t.set_shape_poly_data(index(i, t.shape_poly_count()), x.span(), y.span());
+                         });
+                     },
+                     "i"_a, "x"_a, "y"_a)
+                .def("set_shape_circle_data",
+                     [](Self self, std::int64_t i, const PyCircleData& d) {
+                         const sextant::CircleData cd = d.to_cpp();
+                         return chain(self, [&](T& t) { t.set_shape_circle_data(index(i, t.shape_circle_count()), cd); });
+                     },
+                     "i"_a, "data"_a)
+                .def("set_shape_circle_data",
+                     [](Self self, std::int64_t i, double cx, double cy, double r, std::optional<Coords> coords,
+                        std::optional<Coords> xcoords, std::optional<Coords> ycoords, std::optional<Coords> rcoords) {
+                         return chain(self, [&](T& t) {
+                             const std::size_t k = index(i, t.shape_circle_count());
+                             const sextant::CircleData cur = t.shape_circle_data(k);
+                             t.set_shape_circle_data(
+                                 k, {pos(cx, xcoords ? *xcoords : coords ? *coords : cur.cx.space),
+                                     pos(cy, ycoords ? *ycoords : coords ? *coords : cur.cy.space),
+                                     pos(r, rcoords ? *rcoords : coords ? *coords : cur.r.space)});
+                         });
+                     },
+                     "i"_a, "cx"_a, "cy"_a, "r"_a, nb::kw_only(), "coords"_a = nb::none(), "xcoords"_a = nb::none(),
+                     "ycoords"_a = nb::none(), "rcoords"_a = nb::none(),
+                     "Replace circle i's centre and radius (validated as shape_circle()). Each keeps its\n"
+                     "current coords unless coords/xcoords/ycoords/rcoords says otherwise.")
+                .def("set_shape_wedge_data",
+                     [](Self self, std::int64_t i, const PyWedgeData& d) {
+                         const sextant::WedgeData cd = d.to_cpp();
+                         return chain(self, [&](T& t) { t.set_shape_wedge_data(index(i, t.shape_wedge_count()), cd); });
+                     },
+                     "i"_a, "data"_a)
+                .def("set_shape_wedge_data",
+                     [](Self self, std::int64_t i, double cx, double cy, double r, double theta1, double theta2,
+                        std::optional<double> inner, std::optional<Coords> coords, std::optional<Coords> xcoords,
+                        std::optional<Coords> ycoords, std::optional<Coords> rcoords) {
+                         return chain(self, [&](T& t) {
+                             const std::size_t k = index(i, t.shape_wedge_count());
+                             const sextant::WedgeData cur = t.shape_wedge_data(k);
+                             t.set_shape_wedge_data(
+                                 k, {pos(cx, xcoords ? *xcoords : coords ? *coords : cur.cx.space),
+                                     pos(cy, ycoords ? *ycoords : coords ? *coords : cur.cy.space),
+                                     pos(r, rcoords ? *rcoords : coords ? *coords : cur.r.space), theta1, theta2,
+                                     inner.value_or(cur.inner)});
+                         });
+                     },
+                     "i"_a, "cx"_a, "cy"_a, "r"_a, "theta1"_a, "theta2"_a, nb::kw_only(), "inner"_a = nb::none(),
+                     "coords"_a = nb::none(), "xcoords"_a = nb::none(), "ycoords"_a = nb::none(),
+                     "rcoords"_a = nb::none(),
+                     "Replace wedge i's numbers (validated as shape_wedge()). inner keeps its value when\n"
+                     "left out; each coords is kept as for set_shape_circle_data().");
 
             // --- hiding plotted objects ---------------------------------------
             bind_visible(cls, "set_line_visible", "line_visible", &T::line_count, &T::set_line_visible,
@@ -411,6 +573,14 @@ namespace sextant_py {
                          &T::fill_visible);
             bind_visible(cls, "set_quiver_visible", "quiver_visible", &T::quiver_count,
                          &T::set_quiver_visible, &T::quiver_visible);
+            bind_visible(cls, "set_axspan_visible", "axspan_visible", &T::axspan_count, &T::set_axspan_visible,
+                         &T::axspan_visible);
+            bind_visible(cls, "set_shape_poly_visible", "shape_poly_visible", &T::shape_poly_count,
+                         &T::set_shape_poly_visible, &T::shape_poly_visible);
+            bind_visible(cls, "set_shape_circle_visible", "shape_circle_visible", &T::shape_circle_count,
+                         &T::set_shape_circle_visible, &T::shape_circle_visible);
+            bind_visible(cls, "set_shape_wedge_visible", "shape_wedge_visible", &T::shape_wedge_count,
+                         &T::set_shape_wedge_visible, &T::shape_wedge_visible);
         }
     } // namespace
 
@@ -426,12 +596,19 @@ namespace sextant_py {
             "A line across the frame at y = value (matplotlib's axhline), or at x = value with\n"
             "orientation='vertical' (axvline). It runs from from_ to to, fractions of the frame,\n"
             "whatever the limits. Automatic limits take value as a point on its axis. Not\n"
-            "hovered or picked. ValueError for a non-finite value, from_ or to.");
-        static const std::string axspan_doc = opts_doc<sextant::AxSpanOptions>(
-            "axspan(lo, hi, **opts)",
-            "A band across the frame over y in [lo, hi] (matplotlib's axhspan), or over x with\n"
-            "orientation='vertical' (axvspan); lo > hi is stored swapped. Limits take both ends\n"
-            "as axline() takes its value. Takes no color from the color cycle (unset: blue).");
+            "hovered or picked. ValueError for a non-finite value, from_ or to.\n"
+            "Also axline(x, y, *, slope=...) and axline(x1, y1, x2, y2): see the next overloads.");
+        static const std::string axline_slope_doc = opts_doc<sextant::AxLineOptions>(
+            "axline(x, y, *, slope, coords='data', xcoords=None, ycoords=None, **opts)",
+            "The infinite line through (x, y) with slope dy/dx (matplotlib's axline). With the\n"
+            "point in data units it is the straight line of the data: it bends on a log or symlog\n"
+            "axis. With a 'fraction' or 'pixels' coordinate it is a straight screen line, its slope\n"
+            "the screen's (y up). orientation, from_ and to do not apply. Automatic limits take the\n"
+            "point. ValueError for a non-finite number.");
+        static const std::string axline_two_doc = opts_doc<sextant::AxLineOptions>(
+            "axline(x1, y1, x2, y2, *, coords='data', xcoords=None, ycoords=None, **opts)",
+            "The infinite line through two points, as above; equal x gives a vertical line.\n"
+            "ValueError for a non-finite number or two equal points.");
         static const std::string grid_doc = opts_doc<sextant::GridOptions>("grid(enable=True, **opts)", "Grid lines.");
         static const std::string style_doc = opts_doc<sextant::AxesStyle>(
             "set_axes_style(**opts)", "Spines, ticks, labels and titles. Unnamed fields reset to their defaults.");
@@ -440,7 +617,7 @@ namespace sextant_py {
         static const std::string text_doc = opts_doc<sextant::TextOptions>(
             "text(s, x, y, *, coords='data', xcoords=None, ycoords=None, **opts)",
             "Text at (x, y), drawn over the data at a fixed pixel size. Each coordinate is in\n"
-            "xcoords/ycoords (default: coords): 'data', or 'fraction' of the plot frame from its\n"
+            "xcoords/ycoords (default: coords): 'data', 'fraction' of the plot frame or 'pixels', from its\n"
             "bottom-left corner. Never widens the auto limits; hidden while a data coordinate is\n"
             "out of view (unless clip_to_frame=True, which cuts it at the frame instead).");
         static const std::string annotate_doc = opts_doc<sextant::TextOptions>(
@@ -465,8 +642,6 @@ namespace sextant_py {
         bind_plot2d<Axes>(cls);
         bind_visible(cls, "set_axline_visible", "axline_visible", &Axes::axline_count, &Axes::set_axline_visible,
                      &Axes::axline_visible);
-        bind_visible(cls, "set_axspan_visible", "axspan_visible", &Axes::axspan_count, &Axes::set_axspan_visible,
-                     &Axes::axspan_visible);
         bind_visible(cls, "set_text_visible", "text_visible", &Axes::text_count, &Axes::set_text_visible,
                      &Axes::text_visible);
         cls.def("hist",
@@ -488,44 +663,45 @@ namespace sextant_py {
                      return chain(self, [&](Axes& ax) { ax.axline(value, std::move(o)); });
                  },
                  "value"_a, "opts"_a, axline_doc.c_str())
-            .def("axspan",
-                 [](Self self, double lo, double hi, const nb::kwargs& kw) {
-                     auto o = options<sextant::AxSpanOptions>("axspan()", kw);
-                     return chain(self, [&](Axes& ax) { ax.axspan(lo, hi, std::move(o)); });
+            .def("axline",
+                 [](Self self, double x, double y, double slope, Coords coords, std::optional<Coords> xcoords,
+                    std::optional<Coords> ycoords, const nb::kwargs& kw) {
+                     auto o = options<sextant::AxLineOptions>("axline()", kw);
+                     return chain(self, [&](Axes& ax) {
+                         ax.axline(pos(x, xcoords.value_or(coords)), pos(y, ycoords.value_or(coords)), slope,
+                                   std::move(o));
+                     });
                  },
-                 "lo"_a, "hi"_a, "opts"_a, axspan_doc.c_str())
+                 "x"_a, "y"_a, nb::kw_only(), "slope"_a, "coords"_a = Coords::Data, "xcoords"_a = nb::none(),
+                 "ycoords"_a = nb::none(), "opts"_a, axline_slope_doc.c_str())
+            .def("axline",
+                 [](Self self, double x1, double y1, double x2, double y2, Coords coords,
+                    std::optional<Coords> xcoords, std::optional<Coords> ycoords, const nb::kwargs& kw) {
+                     auto o = options<sextant::AxLineOptions>("axline()", kw);
+                     return chain(self, [&](Axes& ax) {
+                         ax.axline(pos(x1, xcoords.value_or(coords)), pos(y1, ycoords.value_or(coords)),
+                                   pos(x2, xcoords.value_or(coords)), pos(y2, ycoords.value_or(coords)), std::move(o));
+                     });
+                 },
+                 "x1"_a, "y1"_a, "x2"_a, "y2"_a, nb::kw_only(), "coords"_a = Coords::Data, "xcoords"_a = nb::none(),
+                 "ycoords"_a = nb::none(), "opts"_a, axline_two_doc.c_str())
             .def("axline_count", [](PyAxes& a) { return read(a, [](Axes& ax) { return ax.axline_count(); }); })
-            .def("axspan_count", [](PyAxes& a) { return read(a, [](Axes& ax) { return ax.axspan_count(); }); })
             .def("axline_data",
                  [](PyAxes& a, std::int64_t i) {
-                     return read(a, [&](Axes& ax) { return ax.axline_data(index(i, ax.axline_count())); });
-                 },
-                 "i"_a)
-            .def("axspan_data",
-                 [](PyAxes& a, std::int64_t i) {
-                     return read(a, [&](Axes& ax) { return ax.axspan_data(index(i, ax.axspan_count())); });
+                     return to_python(read(a, [&](Axes& ax) { return ax.axline_data(index(i, ax.axline_count())); }));
                  },
                  "i"_a)
             .def("set_axline_data",
                  [](Self self, std::int64_t i, const PyAxLineData& d) {
-                     return chain(self, [&](Axes& ax) { ax.set_axline_data(index(i, ax.axline_count()), d); });
+                     const sextant::AxLineData cd = d.to_cpp();
+                     return chain(self, [&](Axes& ax) { ax.set_axline_data(index(i, ax.axline_count()), cd); });
                  },
                  "i"_a, "data"_a)
             .def("set_axline_data",
                  [](Self self, std::int64_t i, double value) {
                      return chain(self, [&](Axes& ax) { ax.set_axline_data(index(i, ax.axline_count()), {value}); });
                  },
-                 "i"_a, "value"_a, "Move reference line i (validated as axline()).")
-            .def("set_axspan_data",
-                 [](Self self, std::int64_t i, const PyAxSpanData& d) {
-                     return chain(self, [&](Axes& ax) { ax.set_axspan_data(index(i, ax.axspan_count()), d); });
-                 },
-                 "i"_a, "data"_a)
-            .def("set_axspan_data",
-                 [](Self self, std::int64_t i, double lo, double hi) {
-                     return chain(self, [&](Axes& ax) { ax.set_axspan_data(index(i, ax.axspan_count()), {lo, hi}); });
-                 },
-                 "i"_a, "lo"_a, "hi"_a, "Move span i (validated as axspan(); lo > hi stored swapped).")
+                 "i"_a, "value"_a, "Move reference line i to this value (mode 'value'; validated as axline()).")
 
             // --- text ----------------------------------------------------------
             .def("text",
