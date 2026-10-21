@@ -436,7 +436,8 @@ def test_mpl_event_translation():
     e = types.SimpleNamespace(
         kind=sextant.EventKind.PICK, x=10.0, y=100.0, inaxes=ax.core, has_data=True, xdata=1.0,
         ydata=1.0, key="", double_click=False, button=1, scroll_y=0.0, width=0, height=0,
-        pick_kind=sextant.PickKind.LINE, pick_object=0, pick_index=1, pick_plane=-1)
+        pick_kind=sextant.PickKind.LINE, pick_object=ax.core.last_object(), pick_index=1,
+        pick_plane=0)
     m = _mpl.MplEvent(fig, "pick_event", e)
     assert m.inaxes is ax and m.artist is h and list(m.ind) == [1]
     assert m.button == 3  # sextant's right button is matplotlib's 3
@@ -452,7 +453,8 @@ def test_pick_finds_fills_and_stack_layers():
     fig, ax = plt.subplots()
     band = ax.fill_between([0, 1, 2], [0, 1, 0], [2, 3, 2])
     layers = ax.stackplot([0, 1, 2], [1, 1, 1], [2, 2, 2])
-    picked = [twin_event(fig, ax, pick_kind=sextant.PickKind.FILL, pick_object=i, pick_index=1)
+    band_id = ax.core.last_object() - 2  # the fill, then the stack's two layers, made back to back
+    picked = [twin_event(fig, ax, pick_kind=sextant.PickKind.FILL, pick_object=band_id + i, pick_index=1)
               for i in range(3)]
     assert [m.artist for m in picked] == [band, *layers]
     assert list(picked[0].ind) == [1]
@@ -476,7 +478,7 @@ def twin_event(fig, host, **fields):
     e = dict(kind=sextant.EventKind.PICK, x=10.0, y=100.0, inaxes=host.core, has_data=True, xdata=1.0,
              ydata=2.0, x2data=math.nan, y2data=math.nan, key="", double_click=False, button=0,
              scroll_y=0.0, width=0, height=0, pick_kind=sextant.PickKind.LINE, pick_object=0,
-             pick_index=0, pick_plane=-1, pick_twin=0)
+             pick_index=0, pick_plane=0, pick_twin=0)
     e.update(fields)
     return _mpl.MplEvent(fig, "pick_event", types.SimpleNamespace(**e))
 
@@ -484,14 +486,19 @@ def twin_event(fig, host, **fields):
 def test_events_over_a_twin_report_the_twin():
     fig, ax = plt.subplots()
     own = ax.plot([0, 1], [0, 1])[0]
+    own_id = ax.core.last_object()
     tw = ax.twinx()
     theirs = tw.plot([0, 1], [5, 6])[0]
+    their_id = tw.core.last_object()
     # matplotlib's inaxes is the topmost axes, with ydata in its coordinates.
-    m = twin_event(fig, ax, y2data=5.5)
+    m = twin_event(fig, ax, y2data=5.5, pick_object=own_id)
     assert m.inaxes is tw and m.xdata == 1.0 and m.ydata == 5.5
     # A pick on the twin's object (pick_twin=1) finds the twin's artist, not the host's.
     assert m.artist is own
-    assert twin_event(fig, ax, pick_twin=1).artist is theirs
+    assert twin_event(fig, ax, pick_twin=1, pick_object=their_id).artist is theirs
+    # An id the axes no longer has (or a plane's object) finds no artist.
+    assert twin_event(fig, ax, pick_object=their_id).artist is None
+    assert twin_event(fig, ax, pick_object=own_id, pick_plane=7).artist is None
     ty = ax.twiny()
     m = twin_event(fig, ax, x2data=7.0, y2data=5.5)
     assert m.inaxes is ty and m.xdata == 7.0 and m.ydata == 2.0  # the last twin made is on top
@@ -1381,3 +1388,54 @@ def test_parse_math_and_usetex():
     off = plt.figure(mathtext=False)
     off.add_subplot().set_title(r"$x^2$")
     assert ">$x^2$</text>" in off.core.render_svg()[0]
+
+
+# --- Artist.remove() (sextant 1.3) --------------------------------------------------------
+
+def test_artist_remove_drops_it_and_relocates_the_rest():
+    fig, ax = plt.subplots()
+    a = ax.plot([0, 1, 2], [0, 1, 0], label="a")[0]
+    b = ax.plot([0, 1, 2], [5, 6, 5], label="b")[0]
+    c = ax.plot([0, 1, 2], [9, 8, 9], label="c")[0]
+    a.remove()
+    assert ax.core.line_count() == 2
+    assert list(b.get_ydata()) == [5, 6, 5] and list(c.get_ydata()) == [9, 8, 9]
+    b.set_ydata([7, 7, 7])  # lands on b's own object after the indices moved
+    assert list(ax.core.line_data(0).y) == [7, 7, 7] and list(ax.core.line_data(1).y) == [9, 8, 9]
+    # Picks still find the artists: by the (new) id, through find_object.
+    assert twin_event(fig, ax, pick_object=ax.core.last_object()).artist is c
+    with pytest.raises(ValueError, match="not in its axes"):
+        a.remove()
+    with pytest.raises(ValueError, match="removed"):
+        a.set_label("x")
+
+
+def test_artist_remove_takes_markers_and_stack_layers_whole():
+    fig, ax = plt.subplots()
+    ln = ax.plot([0, 1, 2], [0, 1, 0], "-o")[0]
+    other = ax.plot([0, 1, 2], [3, 3, 3])[0]
+    assert ax.core.line_count() == 2 and ax.core.scatter_count() == 1
+    ln.remove()
+    assert ax.core.line_count() == 1 and ax.core.scatter_count() == 0
+    assert list(other.get_ydata()) == [3, 3, 3]
+
+    layers = ax.stackplot([0, 1, 2], [1, 1, 1], [2, 2, 2], [3, 3, 3])
+    assert ax.core.fill_count() == 3
+    layers[1].remove()
+    assert ax.core.fill_count() == 2
+    layers[2].set_visible(False)  # still addresses its own fill
+    assert ax.core.fill_visible(1) is False and ax.core.fill_visible(0) is True
+
+
+def test_artist_remove_on_a_twin_and_after_cla():
+    fig, ax = plt.subplots()
+    own = ax.plot([0, 1], [0, 1])[0]
+    tw = ax.twinx()
+    t1 = tw.plot([0, 1], [5, 6])[0]
+    t2 = tw.plot([0, 1], [7, 8])[0]
+    t1.remove()
+    assert tw.core.line_count() == 1 and ax.core.line_count() == 1
+    assert list(t2.get_ydata()) == [7, 8] and list(own.get_ydata()) == [0, 1]
+    ax.cla()
+    with pytest.raises(ValueError):
+        own.remove()

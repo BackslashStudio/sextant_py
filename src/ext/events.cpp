@@ -152,7 +152,7 @@ namespace sextant_py {
                 out += ", pick_kind='" + std::string(enum_to_string(e.pick_kind)) + "', pick_object=" +
                        std::to_string(e.pick_object) + ", pick_index=" + std::to_string(e.pick_index);
                 if (e.pick_row >= 0) out += ", pick_row=" + std::to_string(e.pick_row) + ", pick_col=" + std::to_string(e.pick_col);
-                if (e.pick_plane >= 0) out += ", pick_plane=" + std::to_string(e.pick_plane);
+                if (e.pick_plane != 0) out += ", pick_plane=" + std::to_string(e.pick_plane);
                 if (e.pick_twin != 0) out += ", pick_twin=" + std::to_string(e.pick_twin);
             }
             if (e.consumed != sextant::EventConsumed::None)
@@ -205,8 +205,10 @@ namespace sextant_py {
             .def_prop_ro("height", [](const PyEvent& ev) { return ev.e.height; })
             .def_prop_ro("pick_kind", [](const PyEvent& ev) { return ev.e.pick_kind; })
             .def_prop_ro("pick_object", [](const PyEvent& ev) { return ev.e.pick_object; },
-                         "Index within its kind: the i of line_data(i), bar3d_data(i), ... (on the plane\n"
-                         "when pick_plane >= 0).")
+                         "The picked object's id (0 = none), as Axes.last_object() returned it.\n"
+                         "Axes.find_object(id) (Plane2D.find_object(id) when pick_plane != 0) gives its\n"
+                         "kind and index, the i of line_data(i), bar3d_data(i), ...; None if the object\n"
+                         "was removed since.")
             .def_prop_ro("pick_index", [](const PyEvent& ev) { return ev.e.pick_index; },
                          "The element: point, bar, marker or vertex index; a surface sample; a heatmap's\n"
                          "or bar3d's flat cell index; a fill's segment i, between its points i and i + 1.\n"
@@ -214,7 +216,8 @@ namespace sextant_py {
             .def_prop_ro("pick_row", [](const PyEvent& ev) { return ev.e.pick_row; })
             .def_prop_ro("pick_col", [](const PyEvent& ev) { return ev.e.pick_col; })
             .def_prop_ro("pick_plane", [](const PyEvent& ev) { return ev.e.pick_plane; },
-                         "Axes3D.plane_at() index of the plane the picked object is on, or -1.")
+                         "The id of the plane the picked object is on (Plane2D.id(); Axes3D.plane_index(id) gives its\n"
+                         "plane_at() index), or 0 for an object of the axes itself.")
             .def_prop_ro("pick_twin", [](const PyEvent& ev) { return ev.e.pick_twin; },
                          "Whose object pick_object indexes in a 2D cell with twins: 0 inaxes' own,\n"
                          "1 inaxes.twinx()'s, 2 inaxes.twiny()'s.")

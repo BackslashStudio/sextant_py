@@ -1137,6 +1137,27 @@ class Axes:
         aspect; a shared axis stays shared).
         """
 
+    def last_object(self) -> int:
+        """
+        The id (an int, 0 = none) of the object the latest plotting call made; the last
+        one when a call makes several (stack()). Events name picked objects by it.
+        """
+
+    def remove(self, id: int) -> bool:
+        """
+        Take the object with this id out for good: True. An id that is not here (removed
+        already, unknown, another axes') changes nothing, returns False and sends a
+        message to the message handler. Later objects of its kind move down one index
+        (line_data(i) and the rest follow); ids stay.
+        """
+
+    def find_object(self, id: int) -> tuple[sextant._enums.PickKind, int] | None:
+        """
+        (PickKind, index) of the object with this id, the i of line_data(i) and the
+        other read-back calls; None if it is not here, was removed, or is a text,
+        axline or axspan.
+        """
+
     def line_count(self) -> int: ...
 
     def scatter_count(self) -> int: ...
@@ -1642,6 +1663,27 @@ class Plane2D:
         aspect; a shared axis stays shared).
         """
 
+    def last_object(self) -> int:
+        """
+        The id (an int, 0 = none) of the object the latest plotting call made; the last
+        one when a call makes several (stack()). Events name picked objects by it.
+        """
+
+    def remove(self, id: int) -> bool:
+        """
+        Take the object with this id out for good: True. An id that is not here (removed
+        already, unknown, another axes') changes nothing, returns False and sends a
+        message to the message handler. Later objects of its kind move down one index
+        (line_data(i) and the rest follow); ids stay.
+        """
+
+    def find_object(self, id: int) -> tuple[sextant._enums.PickKind, int] | None:
+        """
+        (PickKind, index) of the object with this id, the i of line_data(i) and the
+        other read-back calls; None if it is not here, was removed, or is a text,
+        axline or axspan.
+        """
+
     def line_count(self) -> int: ...
 
     def scatter_count(self) -> int: ...
@@ -1784,6 +1826,11 @@ class Plane2D:
     def set_alpha(self, alpha: float) -> Plane2D:
         """Whole-plane opacity; multiplies the objects' own alpha."""
 
+    def id(self) -> int:
+        """
+        The plane's id, as events' pick_plane names it and Axes3D.remove_plane() takes it.
+        """
+
     def orientation(self) -> sextant._enums.PlaneOrientation: ...
 
     def offset(self) -> float: ...
@@ -1881,8 +1928,40 @@ class Axes3D:
     def plane_count(self) -> int: ...
 
     def plane_at(self, i: int) -> Plane2D:
+        """The i-th plane plane() made -- the same object."""
+
+    def last_plane(self) -> int:
+        """The id (an int, 0 = none) of the plane the latest plane() call made."""
+
+    def remove_plane(self, id: int) -> bool:
         """
-        The i-th plane plane() made -- the same object; the index a Pick event's plane names.
+        Take the plane with this id (Plane2D.id()) out of the box: True. The Plane2D you hold
+        keeps working but is no longer drawn; later planes move down one in plane_at(). An id
+        that is not one of this axes' planes returns False and sends a message.
+        """
+
+    def plane_index(self, id: int) -> int | None:
+        """
+        The i of plane_at(i) for the plane with this id; None if it is not here.
+        """
+
+    def last_object(self) -> int:
+        """
+        The id (an int, 0 = none) of the object the latest plotting call made on the axes
+        itself (a plane's objects are its own: Plane2D.last_object()).
+        """
+
+    def remove(self, id: int) -> bool:
+        """
+        Take the axes' own object with this id out for good: True. An id that is not here
+        (removed already, unknown, a plane's object) changes nothing, returns False and sends a
+        message. Later objects of its kind move down one index; ids stay.
+        """
+
+    def find_object(self, id: int) -> tuple[sextant._enums.PickKind, int] | None:
+        """
+        (PickKind, index) of the axes' own object with this id; None if it is not here, was
+        removed, or is a text.
         """
 
     def set_title(self, text: str, fontsize: float = 18.0) -> Axes3D: ...
@@ -2457,8 +2536,10 @@ class Event:
     @property
     def pick_object(self) -> int:
         """
-        Index within its kind: the i of line_data(i), bar3d_data(i), ... (on the plane
-        when pick_plane >= 0).
+        The picked object's id (0 = none), as Axes.last_object() returned it.
+        Axes.find_object(id) (Plane2D.find_object(id) when pick_plane != 0) gives its
+        kind and index, the i of line_data(i), bar3d_data(i), ...; None if the object
+        was removed since.
         """
 
     @property
@@ -2477,7 +2558,10 @@ class Event:
 
     @property
     def pick_plane(self) -> int:
-        """Axes3D.plane_at() index of the plane the picked object is on, or -1."""
+        """
+        The id of the plane the picked object is on (Plane2D.id(); Axes3D.plane_index(id) gives its
+        plane_at() index), or 0 for an object of the axes itself.
+        """
 
     @property
     def pick_twin(self) -> int:

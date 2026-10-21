@@ -3,6 +3,7 @@
 #include "wrappers.h"
 
 #include <nanobind/stl/optional.h>
+#include <nanobind/stl/pair.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/string_view.h>
 #include <nanobind/stl/vector.h>
@@ -247,7 +248,38 @@ namespace sextant_py {
                      auto p = read(a, [&](Axes3D& ax) { return ax.plane_at(index(i, ax.plane_count())); });
                      return wrap<PyPlane>(a.st, std::move(p));
                  },
-                 "i"_a, "The i-th plane plane() made -- the same object; the index a Pick event's plane names.")
+                 "i"_a, "The i-th plane plane() made -- the same object.")
+            .def("last_plane", [](PyAxes3D& a) { return read(a, [](Axes3D& ax) { return ax.last_plane(); }); },
+                 "The id (an int, 0 = none) of the plane the latest plane() call made.")
+            .def("remove_plane",
+                 [](PyAxes3D& a, std::uint64_t id) { return read(a, [&](Axes3D& ax) { return ax.remove_plane(id); }); },
+                 "id"_a,
+                 "Take the plane with this id (Plane2D.id()) out of the box: True. The Plane2D you hold\n"
+                 "keeps working but is no longer drawn; later planes move down one in plane_at(). An id\n"
+                 "that is not one of this axes' planes returns False and sends a message.")
+            .def("plane_index",
+                 [](PyAxes3D& a, std::uint64_t id) { return read(a, [&](Axes3D& ax) { return ax.plane_index(id); }); },
+                 "id"_a, "The i of plane_at(i) for the plane with this id; None if it is not here.")
+            .def("last_object", [](PyAxes3D& a) { return read(a, [](Axes3D& ax) { return ax.last_object(); }); },
+                 "The id (an int, 0 = none) of the object the latest plotting call made on the axes\n"
+                 "itself (a plane's objects are its own: Plane2D.last_object()).")
+            .def("remove",
+                 [](PyAxes3D& a, std::uint64_t id) { return read(a, [&](Axes3D& ax) { return ax.remove(id); }); },
+                 "id"_a,
+                 "Take the axes' own object with this id out for good: True. An id that is not here\n"
+                 "(removed already, unknown, a plane's object) changes nothing, returns False and sends a\n"
+                 "message. Later objects of its kind move down one index; ids stay.")
+            .def("find_object",
+                 [](PyAxes3D& a, std::uint64_t id) {
+                     return read(a, [&](Axes3D& ax) -> std::optional<std::pair<sextant::PickKind, std::size_t>> {
+                         const auto loc = ax.find_object(id);
+                         if (!loc) return std::nullopt;
+                         return std::pair{loc->kind, loc->index};
+                     });
+                 },
+                 "id"_a,
+                 "(PickKind, index) of the axes' own object with this id; None if it is not here, was\n"
+                 "removed, or is a text.")
 
             // --- decoration ------------------------------------------------
             .def("set_title",

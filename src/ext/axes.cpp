@@ -4,6 +4,7 @@
 #include "wrappers.h"
 
 #include <nanobind/stl/optional.h>
+#include <nanobind/stl/pair.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/string_view.h>
 #include <nanobind/stl/vector.h>
@@ -211,6 +212,30 @@ namespace sextant_py {
                 .def("cla", [](Self self) { return chain(self, [](T& t) { t.cla(); }); },
                      "Clear all plot objects (on Axes, also reset limits, the color cycle and the\n"
                      "aspect; a shared axis stays shared).")
+
+                // --- identity and removal -----------------------------------
+                .def("last_object", [](W& w) { return read(w, [](T& t) { return t.last_object(); }); },
+                     "The id (an int, 0 = none) of the object the latest plotting call made; the last\n"
+                     "one when a call makes several (stack()). Events name picked objects by it.")
+                .def("remove",
+                     [](W& w, std::uint64_t id) { return read(w, [&](T& t) { return t.remove(id); }); },
+                     "id"_a,
+                     "Take the object with this id out for good: True. An id that is not here (removed\n"
+                     "already, unknown, another axes') changes nothing, returns False and sends a\n"
+                     "message to the message handler. Later objects of its kind move down one index\n"
+                     "(line_data(i) and the rest follow); ids stay.")
+                .def("find_object",
+                     [](W& w, std::uint64_t id) {
+                         return read(w, [&](T& t) -> std::optional<std::pair<sextant::PickKind, std::size_t>> {
+                             const auto loc = t.find_object(id);
+                             if (!loc) return std::nullopt;
+                             return std::pair{loc->kind, loc->index};
+                         });
+                     },
+                     "id"_a,
+                     "(PickKind, index) of the object with this id, the i of line_data(i) and the\n"
+                     "other read-back calls; None if it is not here, was removed, or is a text,\n"
+                     "axline or axspan.")
 
                 // --- read-back ---------------------------------------------
                 .def("line_count", [](W& w) { return read(w, [](T& t) { return t.line_count(); }); })
@@ -699,6 +724,8 @@ namespace sextant_py {
             .def("set_alpha",
                  [](Self self, float alpha) { return chain(self, [&](Plane2D& p) { p.set_alpha(alpha); }); },
                  "alpha"_a, "Whole-plane opacity; multiplies the objects' own alpha.")
+            .def("id", [](PyPlane& p) { return read(p, [](Plane2D& pl) { return pl.id(); }); },
+                 "The plane's id, as events' pick_plane names it and Axes3D.remove_plane() takes it.")
             .def("orientation", [](PyPlane& p) { return read(p, [](Plane2D& pl) { return pl.orientation(); }); })
             .def("offset", [](PyPlane& p) { return read(p, [](Plane2D& pl) { return pl.offset(); }); });
     }

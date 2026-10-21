@@ -275,11 +275,29 @@ class _Artist:
         self._label = label
         self._set_options(name=label or "")
 
+    def remove(self):
+        """Take the artist out of its axes, as matplotlib's Artist.remove(): it is no longer
+        drawn, saved or in the legend, and the axes' other artists keep working. A second
+        call raises ValueError. The axes replays its recorded calls without it, so every
+        other artist's sextant index (not its id) moves; a removed artist is not to be set
+        or read again."""
+        self.axes._remove_artist(self)
+
+    def _check(self):
+        if self._index is None:
+            raise ValueError("this artist was removed from its axes")
+
+    def _relocate(self, where):
+        """After the axes replayed its log: this artist's objects' new (kind, index)."""
+        self._kind, self._index = where[id(self._entry)]
+
     def _set_options(self, **kw):
+        self._check()
         self._entry[2].update(kw)
         self.axes._rebuild()
 
     def _set_args(self, method, *args):
+        self._check()
         getattr(self.axes.core, method)(self._index, *args)
         self._entry[1][:len(args)] = args
         self.axes.figure._changed()
@@ -296,6 +314,7 @@ class _Artist:
         or colorbar, is not picked, and leaves the automatic limits (matplotlib's still
         count)."""
         b = bool(b)
+        self._check()
         for kind, index, entry in self._parts():
             entry[2]["visible"] = b
             getattr(self.axes.core, f"set_{kind}_visible")(index, b)
@@ -314,6 +333,11 @@ class Line2D(_Artist):
         if self._markers is not None:
             parts.append(("scatter", *self._markers))
         return parts
+
+    def _relocate(self, where):
+        super()._relocate(where)
+        if self._markers is not None:
+            self._markers = (where[id(self._markers[1])][1], self._markers[1])
 
     def get_data(self):
         core = self.axes.core
@@ -1015,14 +1039,43 @@ class _AxesBase:
         index = getattr(self.core, f"{kind}_count")()
         return index, self._call(method, *args, **kw)
 
-    def _rebuild(self):
+    def _rebuild(self, locate=False):
+        """Clear the core and replay the log. With `locate`, also return {id(entry): (kind,
+        index)} for each entry that made an object (the replay's indices)."""
         self.core.cla()
-        for method, args, kw in self._log:
+        where = {}
+        if locate:
+            kinds = [n[:-6] for n in dir(self.core) if n.endswith("_count") and n != "plane_count"]
+            seen = dict.fromkeys(kinds, 0)
+        for entry in self._log:
+            method, args, kw = entry
             getattr(self.core, method)(*args, **kw)
+            if locate:
+                for k in kinds:
+                    n = getattr(self.core, f"{k}_count")()
+                    if n != seen[k]:
+                        where[id(entry)] = (k, seen[k])
+                        seen[k] = n
         host = getattr(self, "_host", None)
         if host is not None:  # a twin's replayed style calls reset the host's fields
             host._restyle()
         self.figure._changed()
+        return where
+
+    def _remove_artist(self, artist):
+        parts = artist._parts()
+        gone = {id(e) for _, _, e in parts}
+        if artist._index is None or not all(any(e is x for x in self._log) for _, _, e in parts):
+            raise ValueError("remove(): the artist is not in its axes (removed already, or cleared)")
+        live = {id(a): a for a in self._artists.values() if a is not artist}
+        self._log[:] = [e for e in self._log if id(e) not in gone]
+        where = self._rebuild(locate=True)
+        artist._index = None
+        self._artists.clear()
+        for a in live.values():
+            a._relocate(where)
+            for kind, index, _ in a._parts():
+                self._artists[(kind, index)] = a
 
     def _next_color(self, patches=False):
         # matplotlib's rule, not sextant's single per-axes cycle: lines and
@@ -2520,9 +2573,11 @@ class MplEvent:
         if e.kind == "resize":
             self.width, self.height = e.width, e.height
         if e.kind == "pick":
-            # The object's own axes: a twin's objects are indexed in the twin.
+            # The object's own axes: a twin's objects are its own. The event names it by id;
+            # the artists are keyed by (kind, index), which survives a log replay (new ids).
             ax = host._twins.get({1: "x", 2: "y"}[e.pick_twin]) if twins and e.pick_twin else host
-            self.artist = ax._artists.get((str(e.pick_kind), e.pick_object)) if ax and e.pick_plane < 0 else None
+            loc = ax.core.find_object(e.pick_object) if ax and e.pick_plane == 0 else None
+            self.artist = ax._artists.get((str(loc[0]), loc[1])) if loc else None
             self.ind = np.array([e.pick_index])
             self.mouseevent = self
 
