@@ -679,9 +679,8 @@ class FillBetweenPolyCollection(_Artist):
     """fill_between()/fill_betweenx()'s return, and each stackplot() layer's: its
     curves (set_data, as matplotlib 3.10's), colours, outline and alpha."""
 
-    def __init__(self, axes, kind, index, entry, label, alpha=None, linewidth=PT):
+    def __init__(self, axes, kind, index, entry, label, linewidth=PT):
         super().__init__(axes, kind, index, entry, label)
-        self._alpha = alpha  # matplotlib's alpha, which the outline takes as well
         self._linewidth = linewidth  # the outline's, in px, whenever there is one
 
     def get_data(self):
@@ -722,7 +721,7 @@ class FillBetweenPolyCollection(_Artist):
             opts.pop("edgecolor", None)
             opts.pop("linewidth", None)
         else:
-            opts["edgecolor"] = to_rgba(c, self._alpha)
+            opts["edgecolor"] = to_rgba(c)
             opts["linewidth"] = self._linewidth
         self.axes._rebuild()
 
@@ -735,12 +734,7 @@ class FillBetweenPolyCollection(_Artist):
         self._set_options(linestyle=_linestyle(ls))
 
     def set_alpha(self, a):
-        opts = self._entry[2]
-        self._alpha = a
-        opts["alpha"] = 1.0 if a is None else float(a)
-        if "edgecolor" in opts:  # matplotlib fades the outline too
-            opts["edgecolor"] = to_rgba(opts["edgecolor"], 1.0 if a is None else a)
-        self.axes._rebuild()
+        self._set_options(alpha=1.0 if a is None else float(a))  # the outline fades too
 
 
 def _patch_opts(kw):
@@ -769,7 +763,7 @@ def _patch_opts(kw):
         opts["alpha"] = float(alpha)
     # An outline only when one is asked for: matplotlib's default edge is invisible.
     if edge is not None and not (isinstance(edge, str) and edge.lower() in ("none", "face")):
-        opts.update(edgecolor=to_rgba(edge, alpha), linewidth=(1.0 if lw is None else float(lw)) * PT)
+        opts.update(edgecolor=to_rgba(edge), linewidth=(1.0 if lw is None else float(lw)) * PT)
     elif color is not None and lw is not None:  # color= is the edge too
         opts["linewidth"] = float(lw) * PT
     if ls is not None:
@@ -1651,7 +1645,7 @@ class Axes(_AxesBase):
                 opts["edgecolor"] = to_rgba(edgecolors)
             opts["edge_linewidth"] = (1.5 if linewidths is None else float(np.asarray(linewidths).flat[0])) * PT
         if isinstance(facecolors, str) and facecolors.lower() == "none":
-            opts["alpha"] = 0.0  # hollow: only the outline
+            opts["filled"] = False  # hollow: only the outline
             facecolors = None
         if marker is not None:
             opts["marker"] = _marker(marker)
@@ -1898,9 +1892,9 @@ class Axes(_AxesBase):
             opts["interpolate"] = True
         if label is not None:
             opts["name"] = str(label)
-        alpha, lw = opts.pop("_alpha"), opts.pop("_linewidth")
+        lw = opts.pop("_linewidth")
         i, entry = self._add("fill", "fill", t, f1, f2, **opts)
-        return FillBetweenPolyCollection(self, "fill", i, entry, label, alpha, lw)
+        return FillBetweenPolyCollection(self, "fill", i, entry, label, lw)
 
     @_zorder(1)
     @_takes_visible
@@ -1920,7 +1914,7 @@ class Axes(_AxesBase):
         n = len(ys)
         edge = _pop(kw, "edgecolor", "edgecolors", "ec")
         opts = _area_style("stackplot", kw, edge, kw.pop("step", None))
-        alpha, lw = opts.pop("_alpha"), opts.pop("_linewidth")
+        lw = opts.pop("_linewidth")
         if colors is not None:
             colors = list(colors)
             fill_colors = [to_rgba(colors[k % len(colors)]) for k in range(n)]
@@ -1942,7 +1936,7 @@ class Axes(_AxesBase):
                 fopts["exclude"] = d.exclude
             entry = ["fill", [d.x, d.y1, d.y2], fopts]
             self._log.append(entry)
-            handles.append(FillBetweenPolyCollection(self, "fill", i0 + k, entry, names[k] or None, alpha, lw))
+            handles.append(FillBetweenPolyCollection(self, "fill", i0 + k, entry, names[k] or None, lw))
         self.figure._changed()
         return handles
 
@@ -2471,10 +2465,9 @@ def _values(c, n):
 
 def _area_style(method, kw, edge, step):
     """fill_between()'s and stackplot()'s shared keywords as FillOptions fields, plus
-    "_alpha" (matplotlib's alpha) and "_linewidth" (the outline's px) for the handle,
-    which the caller pops. matplotlib draws no outline unless edgecolor (or color=) is
-    given, and fades it with alpha; sextant draws it at its colour's own alpha, so
-    alpha goes into that colour. edge 'face' is each fill's own colour."""
+    "_linewidth" (the outline's px) for the handle, which the caller pops. matplotlib
+    draws no outline unless edgecolor (or color=) is given; alpha fades it, in both.
+    edge 'face' is each fill's own colour."""
     _drop_ignored(kw)
     alpha = kw.pop("alpha", None)
     lw = _pop(kw, "linewidth", "linewidths", "lw")
@@ -2485,7 +2478,7 @@ def _area_style(method, kw, edge, step):
         opts["alpha"] = float(alpha)
     if edge is not None and not (isinstance(edge, str) and edge.lower() == "none") and linewidth > 0:
         if not (isinstance(edge, str) and edge == "face"):
-            opts["edgecolor"] = to_rgba(edge, alpha)
+            opts["edgecolor"] = to_rgba(edge)
         opts["linewidth"] = linewidth
     if ls is not None:
         opts["linestyle"] = _linestyle(ls)
@@ -2493,7 +2486,7 @@ def _area_style(method, kw, edge, step):
         if step not in ("pre", "post", "mid"):
             raise ValueError(f"{method}(): step must be 'pre', 'post' or 'mid', not {step!r}")
         opts["drawstyle"] = "steps-" + step
-    opts["_alpha"], opts["_linewidth"] = alpha, linewidth
+    opts["_linewidth"] = linewidth
     return opts
 
 
@@ -2690,7 +2683,8 @@ class Axes3D(_AxesBase):
     @_takes_visible
     def plot_wireframe(self, X, Y, Z, color=None, linewidth=None, label=None, **kw):
         color = to_rgba(_pop(kw, "colors", default=color)) or self._next_color()
-        return self.plot_surface(X, Y, Z, color=color, alpha=0.0, edgecolor=color,
+        # The faces invisible (their colour's alpha 0; `alpha` would hide the wires too).
+        return self.plot_surface(X, Y, Z, color=color[:3] + (0.0,), edgecolor=color,
                                  linewidth=linewidth if linewidth is not None else 1.0, label=label, **kw)
 
     @_takes_visible

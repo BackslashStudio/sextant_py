@@ -83,8 +83,8 @@ class ScatterOptions(TypedDict, total=False):
     visible: bool
     zorder: float
     alpha: float
+    filled: bool
     edgecolor: str | tuple[float, ...] | None
-    edge_alpha: float
     edge_linewidth: float
     errorbar: ErrorBarOptions
     hint_labels: collections.abc.Sequence[str]
@@ -95,8 +95,8 @@ class ScatterZOptions(TypedDict, total=False):
     sizes: ArrayLike | float | None
     marker: MarkerStyleLike
     alpha: float
+    filled: bool
     edgecolor: str | tuple[float, ...] | None
-    edge_alpha: float
     edge_linewidth: float
     vmin: float
     vmax: float
@@ -417,7 +417,6 @@ class ErrorBar3DOptions(TypedDict, total=False):
     capstyle: CapStyleLike
     boxwidth: float
     box_alpha: float
-    edge_alpha: float
 
 class Plane2DOptions(TypedDict, total=False):
     alpha: float
@@ -432,7 +431,6 @@ class Bar3DOptions(TypedDict, total=False):
     shading: float
     edges: bool
     edgecolor: str | tuple[float, ...]
-    edge_alpha: float
     edge_linewidth: float
     name: str
     show_legend: bool
@@ -453,7 +451,6 @@ class SurfaceOptions(TypedDict, total=False):
     shading: float
     edges: bool
     edgecolor: str | tuple[float, ...]
-    edge_alpha: float
     edge_linewidth: float
     hint_labels: collections.abc.Sequence[str]
 
@@ -470,7 +467,6 @@ class SurfaceTriOptions(TypedDict, total=False):
     shading: float
     edges: bool
     edgecolor: str | tuple[float, ...]
-    edge_alpha: float
     edge_linewidth: float
     hint_labels: collections.abc.Sequence[str]
 
@@ -480,8 +476,8 @@ class Scatter3DOptions(TypedDict, total=False):
     sizes: ArrayLike | float | None
     marker: MarkerStyleLike
     alpha: float
+    filled: bool
     edgecolor: str | tuple[float, ...] | None
-    edge_alpha: float
     edge_linewidth: float
     depthshade: float
     cmap: ColormapLike
@@ -1298,7 +1294,7 @@ class Axes:
 
         Markers at (x, y).
 
-        Keyword options (ScatterOptions): color, size, sizes, marker, name, show_legend, visible, zorder, alpha, edgecolor, edge_alpha, edge_linewidth, errorbar, hint_labels.
+        Keyword options (ScatterOptions): color, size, sizes, marker, name, show_legend, visible, zorder, alpha, filled, edgecolor, edge_linewidth, errorbar, hint_labels.
         """
 
     def scatter_z(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[ScatterZOptions]) -> Axes:
@@ -1307,7 +1303,7 @@ class Axes:
 
         Markers at (x, y), coloured by z through cmap/vmin/vmax.
 
-        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, edgecolor, edge_alpha, edge_linewidth, vmin, vmax, colorbar, name, show_legend, visible, zorder, errorbar, hint_labels.
+        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, filled, edgecolor, edge_linewidth, vmin, vmax, colorbar, name, show_legend, visible, zorder, errorbar, hint_labels.
         """
 
     def bar(self, x: ArrayLike, height: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[BarOptions]) -> Axes:
@@ -1971,7 +1967,7 @@ class Plane2D:
 
         Markers at (x, y).
 
-        Keyword options (ScatterOptions): color, size, sizes, marker, name, show_legend, visible, zorder, alpha, edgecolor, edge_alpha, edge_linewidth, errorbar, hint_labels.
+        Keyword options (ScatterOptions): color, size, sizes, marker, name, show_legend, visible, zorder, alpha, filled, edgecolor, edge_linewidth, errorbar, hint_labels.
         """
 
     def scatter_z(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[ScatterZOptions]) -> Plane2D:
@@ -1980,7 +1976,7 @@ class Plane2D:
 
         Markers at (x, y), coloured by z through cmap/vmin/vmax.
 
-        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, edgecolor, edge_alpha, edge_linewidth, vmin, vmax, colorbar, name, show_legend, visible, zorder, errorbar, hint_labels.
+        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, filled, edgecolor, edge_linewidth, vmin, vmax, colorbar, name, show_legend, visible, zorder, errorbar, hint_labels.
         """
 
     def bar(self, x: ArrayLike, height: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[BarOptions]) -> Plane2D:
@@ -2381,7 +2377,7 @@ class Axes3D:
         Bars on the grid u x v, standing along orient's normal ('xy' -> along z). heights (and bottoms)
         are (len(u), len(v)) or flat, u major.
 
-        Keyword options (Bar3DOptions): color, alpha, width, depth, bottom, shading, edges, edgecolor, edge_alpha, edge_linewidth, name, show_legend, visible, hint_labels.
+        Keyword options (Bar3DOptions): color, alpha, width, depth, bottom, shading, edges, edgecolor, edge_linewidth, name, show_legend, visible, hint_labels.
         """
 
     def surface(self, orient: PlaneOrientationLike, u: ArrayLike, v: ArrayLike, heights: ArrayLike, **opts: Unpack[SurfaceOptions]) -> Axes3D:
@@ -2390,7 +2386,7 @@ class Axes3D:
 
         A surface over the grid u x v (at least 2 x 2), rising along orient's normal; heights as bar3d.
 
-        Keyword options (SurfaceOptions): color, colormap, cmap, vmin, vmax, colorbar, name, show_legend, visible, alpha, shading, edges, edgecolor, edge_alpha, edge_linewidth, hint_labels.
+        Keyword options (SurfaceOptions): color, colormap, cmap, vmin, vmax, colorbar, name, show_legend, visible, alpha, shading, edges, edgecolor, edge_linewidth, hint_labels.
         """
 
     def surface_tri(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, triangles: ArrayLike | None = None, *, orient: PlaneOrientationLike | None = None, colors: ArrayLike | None = None, **opts: Unpack[SurfaceTriOptions]) -> Axes3D:
@@ -2401,7 +2397,7 @@ class Axes3D:
         and orient (Delaunay triangulation of the points projected onto that plane). colors, one per
         vertex, colormaps the mesh.
 
-        Keyword options (SurfaceTriOptions): color, cmap, vmin, vmax, colorbar, name, show_legend, visible, alpha, shading, edges, edgecolor, edge_alpha, edge_linewidth, hint_labels.
+        Keyword options (SurfaceTriOptions): color, cmap, vmin, vmax, colorbar, name, show_legend, visible, alpha, shading, edges, edgecolor, edge_linewidth, hint_labels.
         """
 
     def scatter3d(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, *, colors: ArrayLike | None = None, err: ErrorBar3D | None = None, **opts: Unpack[Scatter3DOptions]) -> Axes3D:
@@ -2410,7 +2406,7 @@ class Axes3D:
 
         Markers at the points; colors (one per point) colormaps them. In 3D z is a coordinate.
 
-        Keyword options (Scatter3DOptions): color, size, sizes, marker, alpha, edgecolor, edge_alpha, edge_linewidth, depthshade, cmap, vmin, vmax, colorbar, name, show_legend, visible, errorbar, hint_labels.
+        Keyword options (Scatter3DOptions): color, size, sizes, marker, alpha, filled, edgecolor, edge_linewidth, depthshade, cmap, vmin, vmax, colorbar, name, show_legend, visible, errorbar, hint_labels.
         """
 
     def line3d(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, *, colors: ArrayLike | None = None, err: ErrorBar3D | None = None, **opts: Unpack[Line3DOptions]) -> Axes3D:

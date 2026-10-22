@@ -123,7 +123,7 @@ def test_hidden_ticks_3d():
 def test_hollow_marker_leaves_only_its_outline():
     filled = near(one_marker().render_rgba(), (0, 0, 255), 8)
     assert 1100 < filled < 1400
-    ring = near(one_marker(alpha=0.0, edge_linewidth=3.0).render_rgba(), (0, 0, 255), 60)
+    ring = near(one_marker(filled=False, edge_linewidth=3.0).render_rgba(), (0, 0, 255), 60)
     assert 220 < ring < 480 and ring < filled / 2
 
 
@@ -135,15 +135,16 @@ def test_outline_in_its_own_color_lies_inside_the_marker():
     assert red + blue < filled + 100
 
 
-def test_edge_alpha_is_independent_of_the_fill_alpha():
-    img = one_marker(alpha=0.0, edgecolor="#ff0000", edge_alpha=0.5, edge_linewidth=4.0).render_rgba()
+def test_alpha_fades_the_outline_too():
+    img = one_marker(filled=False, alpha=0.5, edgecolor="#ff0000", edge_linewidth=4.0).render_rgba()
     assert near(img, (255, 128, 128), 25) > 250
+    assert near(one_marker(alpha=0.0, edgecolor="#ff0000", edge_linewidth=4.0).render_rgba(), (255, 0, 0), 60) == 0
 
 
 @pytest.mark.parametrize("marker", ["circle", "square", "triangle", "cross", "plus", "diamond"])
 def test_every_shape_takes_an_outline(marker):
     full = near(one_marker(marker=marker).render_rgba(), (0, 0, 255), 60)
-    ring = near(one_marker(marker=marker, alpha=0.0, edge_linewidth=2.0).render_rgba(), (0, 0, 255), 60)
+    ring = near(one_marker(marker=marker, filled=False, edge_linewidth=2.0).render_rgba(), (0, 0, 255), 60)
     assert full > 100 and 40 < ring < full
 
 
@@ -152,7 +153,7 @@ def test_scatter_z_and_scatter3d_outlines():
     ax = fig.axes()
     ax.set_xlim(0, 10)
     ax.set_ylim(0, 10)
-    ax.scatter_z([5], [5], [0.5], size=40, alpha=0.0, edgecolor="#ff0000", edge_linewidth=3.0)
+    ax.scatter_z([5], [5], [0.5], size=40, filled=False, edgecolor="#ff0000", edge_linewidth=3.0)
     ring = near(fig.render_rgba(), (255, 0, 0), 60)
     assert 220 < ring < 480
     assert 'stroke="rgb(255,0,0)"' in fig.render_svg()[0]
@@ -160,14 +161,14 @@ def test_scatter_z_and_scatter3d_outlines():
     fig3 = sextant.Figure()
     ax3 = fig3.add_subplot3d(1, 1, 1)
     x = np.array([0.0, 1.0, 2.0])
-    ax3.scatter3d(x, [0, 1, 0.5], x, size=30, alpha=0.0, edgecolor="#ff0000", edge_linewidth=3.0)
+    ax3.scatter3d(x, [0, 1, 0.5], x, size=30, filled=False, edgecolor="#ff0000", edge_linewidth=3.0)
     img = fig3.render_rgba()
     assert near(img, (255, 0, 0), 60) > 150 and near(img, (0, 0, 255), 60) == 0
     assert fig3.render_svg()[0].count('stroke="rgb(255,0,0)"') >= 3
 
 
 def test_svg_outline_is_inset_and_legend_follows():
-    fig = one_marker(alpha=0.0, edgecolor="#ff0000", edge_alpha=0.5, edge_linewidth=3.0, name="pts")
+    fig = one_marker(filled=False, alpha=0.5, edgecolor="#ff0000", edge_linewidth=3.0, name="pts")
     fig.axes().legend()
     svg = fig.render_svg()[0]
     assert 'fill-opacity="0"' in svg and 'stroke-opacity="0.5"' in svg and 'stroke-width="3"' in svg

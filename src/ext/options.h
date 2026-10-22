@@ -164,17 +164,16 @@ namespace sextant_py {
                        F(color), F(linewidth), F(capsize), F(capstyle), F(boxwidth), F(box_alpha))
     SEXTANT_PY_OPTIONS(FigureMargins, F(left), F(right), F(top), F(bottom))
     SEXTANT_PY_OPTIONS(ErrorBar3DOptions,
-                       F(color), F(linewidth), F(capsize), F(capstyle), F(boxwidth), F(box_alpha),
-                       F(edge_alpha))
+                       F(color), F(linewidth), F(capsize), F(capstyle), F(boxwidth), F(box_alpha))
 
     SEXTANT_PY_OPTIONS(LineOptions,
                        F(color), F(linewidth), F(linestyle), F(name), F(show_legend), F(visible), F(zorder), F(alpha),
                        F(loop), F(drawstyle), F(errorbar), F(hint_labels))
     SEXTANT_PY_OPTIONS(ScatterOptions,
                        F(color), F(size), F(sizes), F(marker), F(name), F(show_legend), F(visible), F(zorder), F(alpha),
-                       F(edgecolor), F(edge_alpha), F(edge_linewidth), F(errorbar), F(hint_labels))
+                       F(filled), F(edgecolor), F(edge_linewidth), F(errorbar), F(hint_labels))
     SEXTANT_PY_OPTIONS(ScatterZOptions,
-                       F(cmap), F(size), F(sizes), F(marker), F(alpha), F(edgecolor), F(edge_alpha),
+                       F(cmap), F(size), F(sizes), F(marker), F(alpha), F(filled), F(edgecolor),
                        F(edge_linewidth), F(vmin), F(vmax), F(colorbar), F(name), F(show_legend), F(visible), F(zorder), F(errorbar), F(hint_labels))
     SEXTANT_PY_OPTIONS(BarOptions,
                        F(color), F(orientation), F(bottom), F(width), F(alpha), F(name), F(show_legend), F(visible), F(zorder),
@@ -255,18 +254,18 @@ namespace sextant_py {
     SEXTANT_PY_OPTIONS(Plane2DOptions, F(alpha), F(visible))
     SEXTANT_PY_OPTIONS(Bar3DOptions,
                        F(color), F(alpha), F(width), F(depth), F(bottom), F(shading), F(edges),
-                       F(edgecolor), F(edge_alpha), F(edge_linewidth), F(name), F(show_legend), F(visible),
+                       F(edgecolor), F(edge_linewidth), F(name), F(show_legend), F(visible),
                        F(hint_labels))
     SEXTANT_PY_OPTIONS(SurfaceOptions,
                        F(color), F(colormap), F(cmap), F(vmin), F(vmax), F(colorbar), F(name),
-                       F(show_legend), F(visible), F(alpha), F(shading), F(edges), F(edgecolor), F(edge_alpha),
+                       F(show_legend), F(visible), F(alpha), F(shading), F(edges), F(edgecolor),
                        F(edge_linewidth), F(hint_labels))
     SEXTANT_PY_OPTIONS(SurfaceTriOptions,
                        F(color), F(cmap), F(vmin), F(vmax), F(colorbar), F(name), F(show_legend), F(visible),
-                       F(alpha), F(shading), F(edges), F(edgecolor), F(edge_alpha), F(edge_linewidth),
+                       F(alpha), F(shading), F(edges), F(edgecolor), F(edge_linewidth),
                        F(hint_labels))
     SEXTANT_PY_OPTIONS(Scatter3DOptions,
-                       F(color), F(size), F(sizes), F(marker), F(alpha), F(edgecolor), F(edge_alpha),
+                       F(color), F(size), F(sizes), F(marker), F(alpha), F(filled), F(edgecolor),
                        F(edge_linewidth), F(depthshade), F(cmap), F(vmin), F(vmax), F(colorbar), F(name), F(show_legend), F(visible), F(errorbar),
                        F(hint_labels))
     SEXTANT_PY_OPTIONS(Line3DOptions,

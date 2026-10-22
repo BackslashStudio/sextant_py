@@ -969,8 +969,8 @@ def test_fill_between():
     assert kw["exclude"].tolist() == [False, False, True, False, False]  # the inverse of where
     assert kw["drawstyle"] == "steps-mid" and kw["interpolate"] is True and kw["alpha"] == 0.5
     assert color_of(g._entry) == (1, 0, 0, 1)
-    # color= is the outline's too, at 1 pt, faded by alpha as matplotlib fades it.
-    assert kw["edgecolor"] == (1, 0, 0, 0.5) and kw["linewidth"] == pytest.approx(_mpl.PT)
+    # color= is the outline's too, at 1 pt; sextant's alpha fades it, as matplotlib's.
+    assert kw["edgecolor"] == (1, 0, 0, 1) and kw["linewidth"] == pytest.approx(_mpl.PT)
     assert "exclude" not in ax.fill_between(x, x, where=np.ones(5, bool))._entry[2]
     e = ax.fill_between(x, x, fc="b", ec="k", lw=2, ls="--")
     kw = e._entry[2]
@@ -987,7 +987,7 @@ def test_fill_between():
     np.testing.assert_array_equal(d.y1, 2 * x)
     assert d.exclude.tolist() == [False, False, False, True, True]
     g.set_alpha(0.25)
-    assert g._entry[2]["edgecolor"] == (1, 0, 0, 0.25)
+    assert g._entry[2]["alpha"] == 0.25 and g._entry[2]["edgecolor"] == (1, 0, 0, 1)  # alpha fades both
     g.set_facecolor("g")
     d = ax.core.fill_data(1)
     np.testing.assert_array_equal(d.y1, 2 * x)
@@ -1041,7 +1041,7 @@ def test_stackplot():
     sym = ax.stackplot(x, ys[:2], colors=["r"], baseline="sym", alpha=0.5, ec="k", step="post")
     assert [color_of(h._entry) for h in sym] == [(1, 0, 0, 1)] * 2  # colors repeat
     kw = sym[0]._entry[2]
-    assert kw["alpha"] == 0.5 and kw["edgecolor"] == (0, 0, 0, 0.5) and kw["drawstyle"] == "steps-post"
+    assert kw["alpha"] == 0.5 and kw["edgecolor"] == (0, 0, 0, 1) and kw["drawstyle"] == "steps-post"
     np.testing.assert_allclose(ax.core.fill_data(0).y1, -ys[:2].sum(axis=0) / 2)
     with pytest.raises(ValueError, match="hatch"):
         ax.stackplot(x, ys, hatch="//")
