@@ -77,7 +77,7 @@ def py_name(name):
 BINDING = {k: list(v) for k, v in sextant._sextant._option_fields().items()}
 HEADER = header_structs()
 THREE_D = {"Plane2DOptions", "Bar3DOptions", "SurfaceOptions", "SurfaceTriOptions", "Scatter3DOptions",
-           "Line3DOptions", "ErrorBar3DOptions", "Box3DStyle", "Camera3D"}
+           "Line3DOptions", "Quiver3DOptions", "ErrorBar3DOptions", "Box3DStyle", "Camera3D"}
 
 
 @pytest.mark.parametrize("struct", sorted(BINDING))
@@ -95,7 +95,8 @@ ENUM_SAMPLE = {
 }
 BY_NAME = {  # values a generic one would make invalid
     "width": 64, "height": 48, "supersample": 1, "peel_layers": 2, "dpi": 96, "origin": "upper",
-    "font_path": "", "title": "t",
+    "font_path": "", "title": "t", "norm": "linear",
+    "x_edges": [0.0, 1.0, 2.0, 3.0], "y_edges": [0.0, 1.0, 2.0, 3.0], "levels": [0.2, 0.5],
 }
 
 
@@ -123,6 +124,8 @@ def sample(name, ctype):
         return [False, True, False]
     if t == "std::vector<Color>":  # a stack's colors: one per layer (2)
         return ["red", (0.0, 0.0, 1.0)]
+    if t == "std::optional<Range>":
+        return (0.0, 3.0)
     if t == "bool":
         return True
     if t in ("float", "double", "int", "std::size_t"):
@@ -141,6 +144,8 @@ def apply(struct, kwargs):
     three = struct in THREE_D
     ax = fig.add_subplot3d(1, 1, 1) if three else fig.axes()
     g = np.arange(2.0)
+    g3 = np.arange(4.0)
+    rng = np.random.default_rng(0)
     calls = {
         "Plane2DOptions": lambda: ax.plane("xy", 0.5, **kwargs).line(x, x),
         "Bar3DOptions": lambda: ax.bar3d("xy", g, g, np.ones((2, 2)), **kwargs),
@@ -148,6 +153,7 @@ def apply(struct, kwargs):
         "SurfaceTriOptions": lambda: ax.surface_tri(x, [0, 1, 0], x, [0, 1, 2], colors=x, **kwargs),
         "Scatter3DOptions": lambda: ax.scatter3d(x, x, x, colors=x, **kwargs),
         "Line3DOptions": lambda: ax.line3d(x, x, x, **kwargs),
+        "Quiver3DOptions": lambda: ax.quiver3d(x, x, x, x, x, x, c=x, **kwargs),
         "ErrorBar3DOptions": lambda: ax.scatter3d(x, x, x, err=sextant.ErrorBar3D(z_cap_lo=x), errorbar=kwargs),
         "Box3DStyle": lambda: ax.set_box_style(**kwargs),
         "Camera3D": lambda: ax.set_camera(**kwargs),
@@ -165,6 +171,11 @@ def apply(struct, kwargs):
         "StackOptions": lambda: ax.stack(x, [x, x], **kwargs),
         "QuiverOptions": lambda: ax.quiver(x, x, x, x, **kwargs),
         "HeatmapOptions": lambda: ax.heatmap(np.ones((2, 2)), (0, 1), (0, 1), **kwargs),
+        "ImageOptions": lambda: ax.imshow_rgb(np.ones((2, 2, 3)), **kwargs),
+        "HeatmapRecOptions": lambda: ax.heatmap_rec(np.arange(9.0).reshape(3, 3), g3, g3, **kwargs),
+        "HeatmapTriOptions": lambda: ax.heatmap_tri(x, [0, 1, 0], x, [0, 1, 2], **kwargs),
+        "Hist2dOptions": lambda: ax.hist2d(rng.random(20) * 3, rng.random(20) * 3, **kwargs),
+        "ContourOptions": lambda: ax.contour(x, x, np.arange(9.0).reshape(3, 3), **kwargs),
         "GridOptions": lambda: ax.grid(True, **kwargs),
         "ScaleOptions": lambda: ax.set_xscale("symlog", **kwargs).set_yscale("log", **kwargs),
         "AxesStyle": lambda: ax.set_axes_style(**kwargs),

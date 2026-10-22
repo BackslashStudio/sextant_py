@@ -39,15 +39,15 @@ def test_log_axis_refuses_limits_at_or_below_zero():
     assert ax.xlim() == (1, 10)
 
 
-def test_log_and_heatmap_exclude_each_other():
+def test_log_and_heatmap_coexist():
     _, ax = axes()
     ax.imshow(np.ones((2, 2)))
-    with pytest.raises(ValueError):
-        ax.set_yscale("log")
+    ax.set_yscale("log")
+    assert ax.yscale() == "log"
     _, ax = axes()
     ax.set_xscale("symlog")
-    with pytest.raises(ValueError):
-        ax.heatmap(np.ones((2, 2)), (0, 1), (0, 1))
+    ax.heatmap(np.ones((2, 2)), (0, 1), (0, 1))
+    assert ax.heatmap_count() == 1
 
 
 def test_log_scale_changes_the_picture():

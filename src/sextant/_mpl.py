@@ -27,6 +27,7 @@ import weakref
 import numpy as np
 
 from . import _sextant
+from .colors import resolve_norm
 
 # Sizes in points become pixels at matplotlib's default 100 dpi: a figsize in
 # inches times 100 is the figure's size in sextant's logical pixels.
@@ -197,10 +198,11 @@ def _takes_visible(method):
 
 
 # The 2D core kinds that take a zorder.
-_ZORDERED = frozenset({"line", "scatter", "scatter_z", "bar", "heatmap", "fill", "quiver",
+_ZORDERED = frozenset({"line", "scatter", "scatter_z", "bar", "heatmap", "heatmap_tri", "contour", "fill", "quiver",
                        "axline", "axspan", "shape_poly", "shape_circle", "shape_wedge"})
 # A pick event's PickKind -> the adapter's kind (the core method's name) where they differ.
-_PICK_KINDS = {"poly": "shape_poly", "circle": "shape_circle", "wedge": "shape_wedge"}
+_PICK_KINDS = {"poly": "shape_poly", "circle": "shape_circle", "wedge": "shape_wedge", "heatmap_tri": "heatmap_tri",
+               "contour": "contour", "quiver3d": "quiver3d"}
 
 
 def _zorder(default):
@@ -270,6 +272,32 @@ def _auto_limits(data, vmin, vmax):
     if lo == hi:
         lo, hi = lo - 0.5, hi + 0.5
     return lo, hi
+
+
+def _is_log(core):
+    if isinstance(core, str):
+        core = core.lower()
+    return core is not None and (core == "log" or getattr(core, "kind", None) == "log")
+
+
+def _norm_opts(values, vmin, vmax, norm):
+    """vmin, vmax and norm options for a colormapped call: matplotlib's norm= (a norm
+    object or "log") with its own vmin/vmax unless the call gives them; a log norm reads
+    its range from the positive values."""
+    core, nvmin, nvmax = resolve_norm(norm)
+    vmin = nvmin if vmin is None else vmin
+    vmax = nvmax if vmax is None else vmax
+    if _is_log(core):
+        a = np.asarray(values, dtype=float)
+        a = a[np.isfinite(a) & (a > 0)]
+        if a.size:
+            vmin = float(a.min()) if vmin is None else vmin
+            vmax = float(a.max()) if vmax is None else vmax
+    lo, hi = _auto_limits(values, vmin, vmax)
+    out = {"vmin": lo, "vmax": hi}
+    if core is not None:
+        out["norm"] = core
+    return out
 
 
 def _errorbar(err, n, name):
@@ -508,8 +536,16 @@ class AxesImage(_Artist):
         return self.axes.core.heatmap_data(self._index).data
 
     def set_data(self, a):
+        self._check()
+        if self._entry[0] == "hist2d":
+            raise NotImplementedError("set_data(): a hist2d image is counted from its points; call hist2d again")
         d = self.axes.core.heatmap_data(self._index)
-        self._set_args("set_heatmap_data", np.asarray(a, dtype=float), d.xrange, d.yrange)
+        arr = np.asarray(a)
+        # imshow's conversion: 0..255 bytes are colours only in an RGB(A) image
+        d.data = arr / 255.0 if arr.dtype == np.uint8 and arr.ndim == 3 else np.asarray(arr, dtype=float)
+        self.axes.core.set_heatmap_data(self._index, d)
+        self._entry[1][0] = arr
+        self.axes.figure._changed()
 
     def set_clim(self, vmin=None, vmax=None):
         if isinstance(vmin, (tuple, list)):
@@ -522,6 +558,63 @@ class AxesImage(_Artist):
     def get_extent(self):
         d = self.axes.core.heatmap_data(self._index)
         return (*d.xrange, *d.yrange)
+
+
+class ContourSet(_Artist):
+    """ax.contour()/contourf()'s return."""
+
+    @property
+    def levels(self):
+        return self.axes.core.contour_data(self._index).levels
+
+    @property
+    def filled(self):
+        return bool(self.axes.core.contour_data(self._index).filled)
+
+    def get_array(self):
+        return self.levels
+
+    def set_clim(self, vmin=None, vmax=None):
+        if isinstance(vmin, (tuple, list)):
+            vmin, vmax = vmin
+        self._set_options(vmin=vmin, vmax=vmax)
+
+    def set_cmap(self, cmap):
+        self._set_options(cmap=cmap)
+
+
+class TriMesh(AxesImage):
+    """ax.tripcolor()'s return."""
+
+    def get_array(self):
+        return self.axes.core.heatmap_tri_data(self._index).values
+
+    def set_array(self, a):
+        d = self.axes.core.heatmap_tri_data(self._index)
+        self._set_args("set_heatmap_tri_data", d.x, d.y, np.asarray(a, dtype=float))
+
+    set_data = set_array
+
+    def get_extent(self):
+        raise AttributeError("a tripcolor has no extent")
+
+
+class Quiver3D(_Artist):
+    """Axes3D.quiver()'s return: the arrows' anchors and vectors."""
+
+    def _data(self):
+        return self.axes.core.quiver3d_data(self._index)
+
+    def get_segments(self):
+        d = self._data()
+        amp = self._entry[2].get("amp", 1.0)
+        a = np.column_stack([d.x, d.y, d.z])
+        b = a + amp * np.column_stack([d.u, d.v, d.w])
+        return np.stack([a, b], axis=1)
+
+    def set_UVC(self, U, V, W):
+        d = self._data()
+        self._set_args("set_quiver3d_data", d.x, d.y, d.z, _vec(U), _vec(V), _vec(W))
 
 
 class BarContainer(_Artist):
@@ -1537,7 +1630,7 @@ class _AxesBase:
 class Axes(_AxesBase):
     """A 2D axes, matplotlib style, over a core sextant.Axes (``.core``)."""
 
-    _SERIES = {"line", "scatter", "scatter_z", "bar", "fill", "quiver"}
+    _SERIES = {"line", "scatter", "scatter_z", "bar", "fill", "quiver", "heatmap_tri", "contour"}
 
     def __init__(self, figure, core):
         super().__init__(figure, core)
@@ -1629,8 +1722,8 @@ class Axes(_AxesBase):
     def scatter(self, x, y, s=None, c=None, marker=None, cmap=None, vmin=None, vmax=None,
                 alpha=None, label=None, colorbar=False, **kw):
         _drop_ignored(kw)
-        for k in ("norm", "plotnonfinite"):
-            kw.pop(k, None)
+        kw.pop("plotnonfinite", None)
+        norm = kw.pop("norm", None)
         edgecolors = _pop(kw, "edgecolors", "edgecolor", "ec")
         linewidths = _pop(kw, "linewidths", "linewidth", "lw")
         facecolors = _pop(kw, "facecolors", "facecolor", "fc")
@@ -1653,8 +1746,7 @@ class Axes(_AxesBase):
             opts["name"] = str(label)
         values = _values(c, len(x))
         if values is not None:
-            lo, hi = _auto_limits(values, vmin, vmax)
-            opts.update(vmin=lo, vmax=hi, colorbar=bool(colorbar))
+            opts.update(_norm_opts(values, vmin, vmax, norm), colorbar=bool(colorbar))
             if cmap is not None:
                 opts["cmap"] = cmap
             i, entry = self._add("scatter_z", "scatter_z", x, y, values, **opts)
@@ -1981,10 +2073,8 @@ class Axes(_AxesBase):
         if label is not None:
             opts["name"] = str(label)
         if c is not None:
-            if norm is not None and clim is None:
-                clim = (getattr(norm, "vmin", None), getattr(norm, "vmax", None))
-            lo, hi = _auto_limits(c, *(clim if clim is not None else (None, None)))
-            opts.update(vmin=lo, vmax=hi, colorbar=bool(colorbar))
+            cv = clim if clim is not None else (None, None)
+            opts.update(_norm_opts(c, cv[0], cv[1], norm), colorbar=bool(colorbar))
             if cmap is not None:
                 opts["cmap"] = cmap
             i, entry = self._add("quiver", "quiver", x, y, u, v, c, **opts)
@@ -2074,38 +2164,287 @@ class Axes(_AxesBase):
     @_takes_visible
     def imshow(self, X, cmap=None, vmin=None, vmax=None, origin=None, extent=None, alpha=None,
                label=None, colorbar=False, aspect=None, **kw):
-        """matplotlib's imshow() for 2-D scalar data. Unlike matplotlib, the frame keeps
+        """matplotlib's imshow() for 2-D scalar data or (rows, cols, 3 or 4) RGB(A) (alpha= multiplies
+        the alpha channel of RGB(A) data only). Unlike matplotlib, the frame keeps
         its shape unless aspect= is given ('equal', 'auto' or a number; see set_aspect())."""
         _drop_ignored(kw)
-        kw.pop("norm", None)
-        a = np.asarray(X, dtype=float)
-        if a.ndim != 2:
-            raise ValueError("imshow(): sextant draws 2-D scalar data (rows, cols); RGB images are not supported")
-        rows, cols = a.shape
+        norm = kw.pop("norm", None)
+        a = np.asarray(X)
+        if a.dtype != np.uint8:
+            a = a.astype(float)
+        if a.ndim not in (2, 3) or (a.ndim == 3 and a.shape[2] not in (3, 4)):
+            raise ValueError("imshow(): data is (rows, cols) or (rows, cols, 3 or 4)")
+        rgb = a.ndim == 3
+        rows, cols = a.shape[:2]
         origin = origin or "upper"
-        lo, hi = _auto_limits(a, vmin, vmax)
-        opts = dict(kw, vmin=lo, vmax=hi, colorbar=bool(colorbar))
-        if cmap is not None:
-            opts["cmap"] = cmap
+        if rgb:
+            opts = dict(kw)
+            if alpha is not None:  # multiplies the alpha channel
+                f = a / 255.0 if a.dtype == np.uint8 else a
+                al = np.broadcast_to(np.asarray(alpha, dtype=float), (rows, cols))
+                f = np.concatenate([f, np.ones((rows, cols, 1))], axis=2) if f.shape[2] == 3 else f.copy()
+                f[:, :, 3] = f[:, :, 3] * al
+                a = f
+        else:
+            opts = dict(kw, colorbar=bool(colorbar), **_norm_opts(a, vmin, vmax, norm))
+            if cmap is not None:
+                opts["cmap"] = cmap
         if label is not None:
             opts["name"] = str(label)
         if extent is None:
             # matplotlib's: pixel centres on integers; 'upper' puts row 0 at the
             # top with the y axis pointing down.
             xr, yr = (-0.5, cols - 0.5), (-0.5, rows - 0.5)
-            i, entry = self._add("heatmap", "heatmap", a, xr, yr, origin="lower", **opts)
+            i, entry = self._place_image(rgb, a, xr, yr, "lower", opts)
             if origin == "upper":
                 self._call("set_ylim", rows - 0.5, -0.5)
         else:
             left, right, bottom, top = extent
-            i, entry = self._add("heatmap", "heatmap", a, (left, right), (bottom, top), origin=origin, **opts)
-        if alpha is not None:
-            warnings.warn("imshow(): alpha is not supported by sextant heatmaps; ignored", stacklevel=2)
+            i, entry = self._place_image(rgb, a, (left, right), (bottom, top), origin, opts)
+        if alpha is not None and not rgb:
+            warnings.warn("imshow(): alpha is not supported by sextant scalar heatmaps; ignored", stacklevel=2)
         if aspect is not None:
             self.set_aspect(aspect)
         handle = AxesImage(self, "heatmap", i, entry, label)
         self.figure._mappable = handle
         return handle
+
+    @_zorder(1)
+    @_takes_visible
+    def tripcolor(self, *args, triangles=None, cmap=None, norm=None, vmin=None, vmax=None, shading="gouraud",
+                  label=None, colorbar=False, **kw):
+        """tripcolor(x, y, C, [triangles]) or tripcolor(triang, C): one value per vertex,
+        interpolated across each triangle (shading='gouraud'; without triangles, the Delaunay
+        triangulation). Returns a TriMesh."""
+        _drop_ignored(kw)
+        for k in ("alpha", "edgecolors", "facecolors", "linewidth", "linewidths", "antialiased"):
+            kw.pop(k, None)
+        if shading != "gouraud":
+            raise ValueError("tripcolor(): sextant draws shading='gouraud' only")
+        if len(args) == 2 and hasattr(args[0], "triangles"):
+            tri, C = args
+            x, y, triangles = tri.x, tri.y, tri.triangles
+        elif len(args) == 3:
+            x, y, C = args
+        elif len(args) == 4:
+            x, y, triangles, C = args
+        else:
+            raise TypeError("tripcolor(x, y, C, [triangles]) or tripcolor(triangulation, C)")
+        x, y, C = _vec(x), _vec(y), _vec(C)
+        if len(C) != len(x):
+            raise ValueError("tripcolor(): one value per vertex is drawn; C must be as long as x")
+        opts = dict(kw, colorbar=bool(colorbar), **_norm_opts(C, vmin, vmax, norm))
+        if cmap is not None:
+            opts["cmap"] = cmap
+        if label is not None:
+            opts["name"] = str(label)
+        tri = None if triangles is None else np.asarray(triangles)
+        i, entry = self._add("heatmap_tri", "heatmap_tri", x, y, C, tri, **opts)
+        handle = TriMesh(self, "heatmap_tri", i, entry, label)
+        self.figure._mappable = handle
+        return handle
+
+    @_zorder(1)
+    @_takes_visible
+    def hist2d(self, x, y, bins=10, range=None, density=False, weights=None, cmin=None, cmax=None,
+               cmap=None, norm=None, vmin=None, vmax=None, label=None, colorbar=False, **kw):
+        """matplotlib's hist2d(): the counts (or density) of each bin as a heatmap. Returns
+        (counts, xedges, yedges, image) with the counts shaped (nx, ny) as matplotlib's.
+        weights= sums them per bin here and draws the sums."""
+        _drop_ignored(kw)
+        x, y = _vec(x), _vec(y)
+        ok = np.isfinite(x) & np.isfinite(y)
+        if weights is not None:  # sextant counts points: bin here and draw the sums
+            w = _vec(weights)
+            if len(w) != len(x):
+                raise ValueError("hist2d(): weights must be as long as x")
+            ok &= np.isfinite(w)
+            counts, xe, ye = np.histogram2d(x[ok], y[ok], bins=bins, range=range, weights=w[ok],
+                                            density=bool(density))
+            if cmin is not None:
+                counts = np.where(counts < cmin, np.nan, counts)
+            if cmax is not None:
+                counts = np.where(counts > cmax, np.nan, counts)
+            opts = dict(kw, colorbar=bool(colorbar), **_norm_opts(counts, vmin, vmax, norm))
+            if cmap is not None:
+                opts["cmap"] = cmap
+            if label is not None:
+                opts["name"] = str(label)
+            i, entry = self._add("heatmap", "heatmap_rec", np.ascontiguousarray(counts.T), xe, ye, **opts)
+            handle = AxesImage(self, "heatmap", i, entry, label)
+            self.figure._mappable = handle
+            return counts, xe, ye, handle
+        opts = dict(kw, density=bool(density), colorbar=bool(colorbar))
+        if range is not None:
+            (opts["xrange"], opts["yrange"]) = (tuple(float(v) for v in r) for r in range)
+        if np.ndim(bins) == 0:
+            opts["xbins"] = opts["ybins"] = int(bins)
+        elif len(bins) == 2:
+            for ax_, b in zip("xy", bins):
+                if np.ndim(b) == 0:
+                    opts[ax_ + "bins"] = int(b)
+                else:
+                    opts[ax_ + "_edges"] = _vec(b)
+        else:
+            raise ValueError("hist2d(): bins is an int, (nx, ny) or (xedges, yedges)")
+        if cmin is not None:
+            opts["cmin"] = float(cmin)
+        if cmax is not None:
+            opts["cmax"] = float(cmax)
+        if cmap is not None:
+            opts["cmap"] = cmap
+        core, nvmin, nvmax = resolve_norm(norm)
+        if core is not None:
+            opts["norm"] = core
+        for key, v in (("vmin", nvmin if vmin is None else vmin), ("vmax", nvmax if vmax is None else vmax)):
+            if v is not None:
+                opts[key] = float(v)
+        if label is not None:
+            opts["name"] = str(label)
+        i, entry = self._add("heatmap", "hist2d", x, y, **opts)
+        handle = AxesImage(self, "heatmap", i, entry, label)
+        self.figure._mappable = handle
+        hist_bins = [opts.get("x_edges", opts.get("xbins", 10)), opts.get("y_edges", opts.get("ybins", 10))]
+        counts, xe, ye = np.histogram2d(x[ok], y[ok], bins=hist_bins, range=range, density=bool(density))
+        if cmin is not None:
+            counts = np.where(counts < cmin, np.nan, counts)
+        if cmax is not None:
+            counts = np.where(counts > cmax, np.nan, counts)
+        return counts, xe, ye, handle
+
+    @staticmethod
+    def _grid_axes(X, Y, name):
+        """The 1-D x and y of a meshgrid pair (or of 1-D inputs); raises for a curvilinear grid."""
+        if X.ndim == 2 and Y.ndim == 2:
+            if not (np.array_equal(X, np.broadcast_to(X[0], X.shape))
+                    and np.array_equal(Y, np.broadcast_to(Y[:, :1], Y.shape))):
+                raise ValueError(f"{name}(): X and Y must form a rectilinear meshgrid (sextant has no curvilinear grids)")
+            return X[0], Y[:, 0]
+        if X.ndim == 1 and Y.ndim == 1:
+            return X, Y
+        raise ValueError(f"{name}(): X and Y are both 1-D or both 2-D")
+
+    @staticmethod
+    def _contour_args(args, name):
+        """contour([X, Y], Z, [levels]) as 1-D x, 1-D y, Z and the levels (or None)."""
+        args = list(args)
+        if len(args) in (2, 4):
+            levels = args.pop()
+        else:
+            levels = None
+        if len(args) == 1:
+            Z = np.asarray(args[0], dtype=float)
+            x, y = np.arange(Z.shape[1], dtype=float), np.arange(Z.shape[0], dtype=float)
+        elif len(args) == 3:
+            X, Y, Z = (np.asarray(a, dtype=float) for a in args)
+            x, y = Axes._grid_axes(X, Y, name)
+        else:
+            raise TypeError(f"{name}(Z, [levels]) or {name}(X, Y, Z, [levels])")
+        if Z.ndim != 2:
+            raise ValueError(f"{name}(): Z must be 2-D")
+        return np.asarray(x, dtype=float), np.asarray(y, dtype=float), Z, levels
+
+    def _contour(self, filled, args, levels, colors, cmap, norm, vmin, vmax, linewidths, alpha, label, colorbar,
+                 fontsize, kw):
+        _drop_ignored(kw)
+        name = "contourf" if filled else "contour"
+        origin, extent = kw.pop("origin", None), kw.pop("extent", None)
+        for k, ok_ in (("linestyles", ("solid", None)), ("negative_linestyles", ("solid", None)),
+                       ("extend", ("neither", None)), ("hatches", (None,))):
+            v = kw.pop(k, None)
+            if v not in ok_ if isinstance(v, (str, type(None))) else True:
+                raise ValueError(f"{name}(): {k}={v!r} is not supported (sextant draws solid lines, no extension or hatching)")
+        for k in ("antialiased", "locator", "corner_mask"):
+            kw.pop(k, None)
+        x, y, Z, plevels = self._contour_args(args, name)
+        if origin is not None or extent is not None:
+            if len(args) not in (1, 2):
+                raise ValueError(f"{name}(): origin/extent apply to {name}(Z, [levels]) only")
+            rows, cols = Z.shape
+            if origin not in (None, "upper", "lower", "image"):
+                raise ValueError(f"{name}(): origin is 'upper' or 'lower'")
+            if extent is None:
+                x, y = np.arange(cols, dtype=float), np.arange(rows, dtype=float)
+            else:
+                x0, x1, y0, y1 = (float(v) for v in extent)
+                if origin is None:  # corners are the positions of Z[0, 0] and Z[-1, -1]
+                    x, y = np.linspace(x0, x1, cols), np.linspace(y0, y1, rows)
+                else:  # pixel boundaries, as imshow's
+                    x = x0 + (np.arange(cols) + 0.5) * (x1 - x0) / cols
+                    y = y0 + (np.arange(rows) + 0.5) * (y1 - y0) / rows
+            if origin in ("upper", "image"):  # row 0 at the top
+                y = y[::-1]
+            if y[0] > y[-1]:  # the core wants ascending axes
+                y, Z = y[::-1], Z[::-1]
+            if x[0] > x[-1]:
+                x, Z = x[::-1], Z[:, ::-1]
+        levels = plevels if plevels is not None else levels
+        opts = dict(kw, colorbar=bool(colorbar))
+        if levels is not None:
+            if np.ndim(levels) == 0:
+                opts["nlevels"] = int(levels)
+            else:
+                opts["levels"] = _vec(levels)
+        if colors is not None:
+            if filled:
+                raise ValueError("contourf(): colors= is not supported; use cmap=")
+            cs = [colors] if isinstance(colors, str) or np.ndim(colors) == 1 and np.asarray(colors).dtype.kind in "fiu"                 else list(colors)
+            if len(cs) != 1:
+                raise ValueError(f"{name}(): one line colour is drawn; colors= is a single colour")
+            opts["line_color"] = to_rgba(cs[0])
+        if linewidths is not None and not filled:
+            opts["linewidth"] = float(np.asarray(linewidths).flat[0]) * PT
+        if cmap is not None:
+            opts["cmap"] = cmap
+        core, nvmin, nvmax = resolve_norm(norm)
+        if core is not None:
+            opts["norm"] = core
+        for key, v in (("vmin", nvmin if vmin is None else vmin), ("vmax", nvmax if vmax is None else vmax)):
+            if v is not None:
+                opts[key] = float(v)
+        if fontsize is not None:
+            opts["fontsize"] = float(fontsize) * PT
+        if alpha is not None:
+            warnings.warn("contour(): alpha is not supported by sextant contours; ignored", stacklevel=3)
+        if label is not None:
+            opts["name"] = str(label)
+        i, entry = self._add("contour", "contourf" if filled else "contour", x, y, Z, **opts)
+        handle = ContourSet(self, "contour", i, entry, label)
+        if filled or colors is None:
+            self.figure._mappable = handle
+        return handle
+
+    @_zorder(2)
+    @_takes_visible
+    def contour(self, *args, levels=None, colors=None, cmap=None, norm=None, vmin=None, vmax=None,
+                linewidths=None, alpha=None, label=None, colorbar=False, **kw):
+        """matplotlib's contour([X, Y], Z, [levels]): lines at the levels over a grid (X and
+        Y 1-D, or the meshgrid). Returns a ContourSet; ax.clabel(cs) labels the lines."""
+        return self._contour(False, args, levels, colors, cmap, norm, vmin, vmax, linewidths, alpha, label,
+                             colorbar, None, kw)
+
+    @_zorder(1)
+    @_takes_visible
+    def contourf(self, *args, levels=None, colors=None, cmap=None, norm=None, vmin=None, vmax=None, alpha=None,
+                 label=None, colorbar=False, **kw):
+        """matplotlib's contourf([X, Y], Z, [levels]): bands between the levels."""
+        return self._contour(True, args, levels, colors, cmap, norm, vmin, vmax, None, alpha, label,
+                             colorbar, None, kw)
+
+    def clabel(self, cs, levels=None, *, fontsize=None, inline=True, **kw):
+        """Label a contour's lines inline with their levels (the levels argument, inline=False
+        and formatting keywords are not offered)."""
+        if levels is not None or not inline:
+            raise ValueError("clabel(): sextant labels every line inline; levels= and inline=False are not offered")
+        _drop_ignored(kw)
+        extra = {} if fontsize is None else {"fontsize": float(fontsize) * PT}
+        cs._set_options(labels=True, **extra)
+        return []
+
+    def _place_image(self, rgb, a, xr, yr, origin, opts):
+        if rgb:
+            return self._add("heatmap", "imshow_rgb", a, xrange=xr, yrange=yr, origin=origin, **opts)
+        return self._add("heatmap", "heatmap", a, xr, yr, origin=origin, **opts)
 
     @_zorder(1)
     @_takes_visible
@@ -2117,8 +2456,7 @@ class Axes(_AxesBase):
             y = np.arange(C.shape[0] + 1, dtype=float)
         elif len(args) == 3:
             x, y, C = (np.asarray(a, dtype=float) for a in args)
-            x = x[0] if x.ndim == 2 else x
-            y = y[:, 0] if y.ndim == 2 else y
+            x, y = Axes._grid_axes(x, y, "pcolormesh")
         else:
             raise TypeError("pcolormesh(C) or pcolormesh(X, Y, C)")
         rows, cols = C.shape
@@ -2128,10 +2466,22 @@ class Axes(_AxesBase):
         if len(y) == rows:
             dy = np.diff(y)
             y = np.concatenate([[y[0] - dy[0] / 2], y[:-1] + dy / 2, [y[-1] + dy[-1] / 2]])
-        for edges, name in ((x, "X"), (y, "Y")):
-            steps = np.diff(edges)
-            if not np.allclose(steps, steps[0]):
-                raise ValueError(f"pcolormesh(): sextant draws a uniform mesh; {name} is not evenly spaced")
+        if any(not np.allclose(np.diff(e), np.diff(e)[0]) for e in (x, y)):
+            norm = kw.pop("norm", None)
+            if kw.pop("alpha", None) is not None:
+                warnings.warn("pcolormesh(): alpha is not supported by sextant heatmaps; ignored", stacklevel=2)
+            for k in ("edgecolors", "linewidth", "linewidths", "antialiased", "snap", "rasterized"):
+                kw.pop(k, None)
+            colorbar, label = kw.pop("colorbar", False), kw.pop("label", None)
+            opts = dict(kw, colorbar=bool(colorbar), **_norm_opts(C, vmin, vmax, norm))
+            if label is not None:
+                opts["name"] = str(label)
+            if cmap is not None:
+                opts["cmap"] = cmap
+            i, entry = self._add("heatmap", "heatmap_rec", C, x, y, **opts)
+            handle = AxesImage(self, "heatmap", i, entry, label)
+            self.figure._mappable = handle
+            return handle
         return self.imshow(C, cmap=cmap, vmin=vmin, vmax=vmax, origin="lower",
                            extent=(x[0], x[-1], y[0], y[-1]), **kw)
 
@@ -2571,7 +2921,7 @@ def _plot_groups(args, data):
 class Axes3D(_AxesBase):
     """A 3D axes, matplotlib's mplot3d style, over a core sextant.Axes3D (``.core``)."""
 
-    _SERIES = {"line3d", "scatter3d", "surface", "surface_tri", "bar3d"}
+    _SERIES = {"line3d", "scatter3d", "surface", "surface_tri", "bar3d", "quiver3d"}
 
     @_takes_visible
     def line(self, xs, ys, zs=0, *args, zdir="z", **kw):
@@ -2701,6 +3051,38 @@ class Axes3D(_AxesBase):
         if cmap is not None:
             self.figure._mappable = handle
         return handle
+
+    @_takes_visible
+    def quiver(self, X, Y, Z, U, V, W, *, length=1.0, arrow_length_ratio=None, pivot="tail", normalize=False,
+               color=None, colors=None, alpha=None, label=None, **kw):
+        """mplot3d's quiver(X, Y, Z, U, V, W): an arrow at (x, y, z) along (u, v, w) times
+        length (normalize=True: unit vectors first). arrow_length_ratio sizes the heads (in pixels,
+        approximated from the mean arrow's on-screen length). Returns a Quiver3D."""
+        _drop_ignored(kw)
+        x, y, z, u, v, w = (_vec(a) for a in (X, Y, Z, U, V, W))
+        if normalize:
+            n = np.sqrt(u * u + v * v + w * w)
+            n[n == 0] = 1.0
+            u, v, w = u / n, v / n, w / n
+        c = color if color is not None else colors
+        opts = dict(kw, amp=float(length), pivot=pivot,
+                    color=to_rgba(c) if c is not None else self._next_color(patches=True))
+        if alpha is not None:
+            opts["alpha"] = float(alpha)
+        if arrow_length_ratio is not None:
+            # sextant sizes heads in pixels: ratio times the mean arrow's length on screen, which
+            # is taken as the arrow's share of the longest side of the scene in ~55% of the frame.
+            mean = float(np.mean(np.sqrt(u * u + v * v + w * w))) * float(length)
+            ends = [np.concatenate([p, p + float(length) * d]) for p, d in ((x, u), (y, v), (z, w))]
+            span = max(float(np.ptp(e)) for e in ends) if len(x) else 0.0
+            if span > 0 and mean > 0:
+                W, H = self.figure._size
+                head = max(2.0, float(arrow_length_ratio) * mean / span * 0.55 * min(W, H))
+                opts["head_length"], opts["head_width"] = head, head * 0.9
+        if label is not None:
+            opts["name"] = str(label)
+        i, entry = self._add("quiver3d", "quiver3d", x, y, z, u, v, w, **opts)
+        return Quiver3D(self, "quiver3d", i, entry, label)
 
     @_takes_visible
     def bar3d(self, x, y, z, dx, dy, dz, color=None, alpha=None, shade=True, edgecolor=None, label=None, **kw):

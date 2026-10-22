@@ -174,7 +174,7 @@ namespace sextant_py {
                        F(filled), F(edgecolor), F(edge_linewidth), F(errorbar), F(hint_labels))
     SEXTANT_PY_OPTIONS(ScatterZOptions,
                        F(cmap), F(size), F(sizes), F(marker), F(alpha), F(filled), F(edgecolor),
-                       F(edge_linewidth), F(vmin), F(vmax), F(colorbar), F(name), F(show_legend), F(visible), F(zorder), F(errorbar), F(hint_labels))
+                       F(edge_linewidth), F(vmin), F(vmax), F(norm), F(colorbar), F(name), F(show_legend), F(visible), F(zorder), F(errorbar), F(hint_labels))
     SEXTANT_PY_OPTIONS(BarOptions,
                        F(color), F(orientation), F(bottom), F(width), F(alpha), F(name), F(show_legend), F(visible), F(zorder),
                        F(edgecolor), F(linewidth), F(errorbar), F(hint_labels))
@@ -200,12 +200,30 @@ namespace sextant_py {
                        F(orientation), F(baseline), F(colors), F(names), F(alpha), F(edgecolor), F(linewidth),
                        F(linestyle), F(drawstyle), F(show_legend), F(visible), F(zorder))
     SEXTANT_PY_OPTIONS(QuiverOptions,
-                       F(color), F(alpha), F(cmap), F(vmin), F(vmax), F(colorbar), F(amp), F(pivot), F(width),
+                       F(color), F(alpha), F(cmap), F(vmin), F(vmax), F(norm), F(colorbar), F(amp), F(pivot), F(width),
                        F(head_width), F(head_length), F(name), F(show_legend), F(visible), F(zorder), F(hint_labels))
+    SEXTANT_PY_OPTIONS(Quiver3DOptions,
+                       F(color), F(alpha), F(cmap), F(vmin), F(vmax), F(norm), F(colorbar), F(amp), F(pivot), F(width),
+                       F(head_width), F(head_length), F(depthshade), F(name), F(show_legend), F(visible),
+                       F(hint_labels))
     SEXTANT_PY_OPTIONS(HeatmapOptions,
-                       F(cmap), F(vmin), F(vmax), F(colorbar), F(name), F(visible), F(zorder), F(origin), F(contours),
+                       F(cmap), F(vmin), F(vmax), F(norm), F(colorbar), F(name), F(visible), F(zorder), F(origin), F(contours),
                        F(contour_color), F(contour_linewidth), F(contour_labels),
                        F(contour_fontsize), F(hint_labels))
+    SEXTANT_PY_OPTIONS(ImageOptions, F(xrange), F(yrange), F(origin), F(visible), F(zorder), F(hint_labels))
+    SEXTANT_PY_OPTIONS(HeatmapRecOptions,
+                       F(cmap), F(vmin), F(vmax), F(norm), F(colorbar), F(name), F(visible), F(zorder), F(contours),
+                       F(contour_color), F(contour_linewidth), F(contour_labels), F(contour_fontsize),
+                       F(hint_labels))
+    SEXTANT_PY_OPTIONS(HeatmapTriOptions,
+                       F(cmap), F(vmin), F(vmax), F(norm), F(colorbar), F(name), F(visible), F(zorder),
+                       F(hint_labels))
+    SEXTANT_PY_OPTIONS(Hist2dOptions,
+                       F(xbins), F(ybins), F(xrange), F(yrange), F(x_edges), F(y_edges), F(density), F(cmin),
+                       F(cmax), F(cmap), F(norm), F(vmin), F(vmax), F(colorbar), F(name), F(visible), F(zorder))
+    SEXTANT_PY_OPTIONS(ContourOptions,
+                       F(levels), F(nlevels), F(filled), F(cmap), F(norm), F(vmin), F(vmax), F(line_color),
+                       F(linewidth), F(labels), F(fontsize), F(colorbar), F(name), F(visible), F(zorder))
     SEXTANT_PY_OPTIONS(GridOptions, F(color), F(linestyle), F(linewidth), F(minor), F(minor_color))
     SEXTANT_PY_OPTIONS(ScaleOptions, F(base), F(linthresh), F(linscale))
     SEXTANT_PY_OPTIONS(AxesStyle,

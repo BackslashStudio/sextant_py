@@ -207,13 +207,24 @@ namespace sextant_py {
                      {"bar", Bar}, {"heatmap", Heatmap}, {"bar3d", Bar3D}, {"surface", Surface},
                      {"surface_tri", SurfaceTri}, {"scatter3d", Scatter3D}, {"line3d", Line3D},
                      {"quiver", Quiver}, {"fill", Fill}, {"poly", Poly}, {"circle", Circle},
-                     {"wedge", Wedge}),
+                     {"wedge", Wedge}, {"heatmap_tri", HeatmapTri}, {"contour", Contour},
+                     {"quiver3d", Quiver3D}),
                     ())
     SEXTANT_PY_ENUM(EventConsumed,
                     ({"none", None}, {"select", Select}, {"navigate", Navigate}, {"grid_drag", GridDrag}),
                     ())
 #undef SEXTANT_PY_ENUM
 #undef SEXTANT_PY_UNPAREN
+
+    // ColorNorm::Kind by hand: the macro would name the class "ColorNorm::Kind".
+    template <>
+    struct EnumNames<sextant::ColorNorm::Kind> {
+        using enum sextant::ColorNorm::Kind;
+        static constexpr const char* py_name = "NormKind";
+        static inline const NameList<sextant::ColorNorm::Kind> names{
+            {"linear", Linear}, {"log", Log}, {"two_slope", TwoSlope}, {"boundaries", Boundaries}};
+        static inline const NameList<sextant::ColorNorm::Kind> aliases{};
+    };
 
     // "#rrggbb", "#rrggbbaa", a name (sextant's), or 3/4 floats in [0, 1].
     std::optional<sextant::Color> color_from_python(nb::handle h) noexcept;
@@ -240,6 +251,11 @@ namespace sextant_py {
 
     // For _enums.py and tests: {class name: {"names": [...], "aliases": {...}}}.
     nb::dict enum_tables();
+
+    // The bound sextant.ColorNorm: a wrapper, as nanobind cannot bind a type that has a caster.
+    struct PyColorNorm {
+        sextant::ColorNorm n;
+    };
 } // namespace sextant_py
 
 namespace nanobind::detail {
@@ -340,6 +356,40 @@ namespace nanobind::detail {
     SEXTANT_PY_ENUM_CASTER(PickKind)
     SEXTANT_PY_ENUM_CASTER(EventConsumed)
 #undef SEXTANT_PY_ENUM_CASTER
+    template <>
+    struct type_caster<sextant::ColorNorm::Kind> : sextant_enum_caster<sextant::ColorNorm::Kind> {
+        static constexpr auto Name = io_name("NormKindLike", "sextant._enums.NormKind");
+    };
+
+    // A ColorNorm in: the bound sextant.ColorNorm or "linear" / "log"; out: the
+    // bound object (binding in data.cpp).
+    template <>
+    struct type_caster<sextant::ColorNorm> {
+        NB_TYPE_CASTER(sextant::ColorNorm, io_name("ColorNormLike", "sextant.ColorNorm | str"))
+
+        bool from_python(handle src, uint32_t flags, cleanup_list* cleanup) noexcept {
+            if (PyUnicode_Check(src.ptr())) {
+                Py_ssize_t n = 0;
+                const char* s = PyUnicode_AsUTF8AndSize(src.ptr(), &n);
+                if (!s) {
+                    PyErr_Clear();
+                    return false;
+                }
+                const std::string f = sextant_py::fold({s, static_cast<std::size_t>(n)});
+                if (f == "linear") value = sextant::ColorNorm::linear();
+                else if (f == "log") value = sextant::ColorNorm::log();
+                else return false;
+                return true;
+            }
+            if (!isinstance<sextant_py::PyColorNorm>(src)) return false;
+            value = inst_ptr<sextant_py::PyColorNorm>(src)->n;
+            return true;
+        }
+
+        static handle from_cpp(const sextant::ColorNorm& v, rv_policy, cleanup_list*) noexcept {
+            return nanobind::cast(sextant_py::PyColorNorm{v}).release();
+        }
+    };
 
     // Vec3 and BoxAspect: (x, y, z).
     template <class T>

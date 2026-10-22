@@ -18,11 +18,11 @@ from ._mpl import Axes, Axes3D, Figure, axes_for, interactive_session, pause_loo
 
 __all__ = [
     "Axes", "Axes3D", "Figure", "annotate", "axes", "axes_for", "axhline", "axhspan", "axis", "axline", "axvline", "axvspan",
-    "bar", "barh", "cla", "clf", "close", "colorbar", "connect", "disconnect", "draw", "errorbar", "figure",
-    "fill_between", "fill_betweenx", "gca", "gcf", "get_fignums", "grid", "hist", "imshow", "ioff", "ion",
+    "bar", "barh", "cla", "clabel", "clf", "close", "colorbar", "contour", "contourf", "connect", "disconnect", "draw", "errorbar", "figure",
+    "fill_between", "fill_betweenx", "gca", "gcf", "get_fignums", "grid", "hist", "hist2d", "imshow", "ioff", "ion",
     "isinteractive", "legend", "line", "loglog", "minorticks_off", "minorticks_on", "pause", "pcolormesh", "plot",
     "quiver", "savefig", "sca", "scatter", "semilogx", "semilogy", "show", "stackplot", "step", "subplot",
-    "subplots", "suptitle", "text", "tick_params", "title", "twinx",
+    "subplots", "suptitle", "text", "tick_params", "title", "tripcolor", "twinx",
     "twiny", "xlabel", "xlim", "xscale", "xticks", "ylabel", "ylim", "yscale", "yticks",
 ]
 
@@ -224,6 +224,26 @@ def imshow(*args, **kw):
 
 def pcolormesh(*args, **kw):
     return gca().pcolormesh(*args, **kw)
+
+
+def tripcolor(*args, **kw):
+    return gca().tripcolor(*args, **kw)
+
+
+def hist2d(*args, **kw):
+    return gca().hist2d(*args, **kw)
+
+
+def contour(*args, **kw):
+    return gca().contour(*args, **kw)
+
+
+def contourf(*args, **kw):
+    return gca().contourf(*args, **kw)
+
+
+def clabel(*args, **kw):
+    return gca().clabel(*args, **kw)
 
 
 def text(x, y, s, *args, **kw):

@@ -289,6 +289,18 @@ class PickKind(_Named):
     POLY = "poly"
     CIRCLE = "circle"
     WEDGE = "wedge"
+    HEATMAP_TRI = "heatmap_tri"
+    CONTOUR = "contour"
+    QUIVER3D = "quiver3d"
+
+
+class NormKind(_Named):
+    """ColorNorm.kind."""
+
+    LINEAR = "linear"
+    LOG = "log"
+    TWO_SLOPE = "two_slope"
+    BOUNDARIES = "boundaries"
 
 
 class EventConsumed(_Named):
@@ -316,6 +328,7 @@ __all__ = [
     "LineStyle",
     "MarkerStyle",
     "MathFontset",
+    "NormKind",
     "Orientation",
     "PanelTheme",
     "PlaneOrientation",

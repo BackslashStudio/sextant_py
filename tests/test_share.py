@@ -39,10 +39,14 @@ def test_sharing_refusals():
     other = sextant.Figure().axes()
     with pytest.raises(ValueError, match="different figures"):
         a.sharex(other)
+
+
+def test_heatmap_shares_a_log_scale():
+    _, (a, b) = grid()
     a.imshow([[1.0, 2.0]])
     b.set_xscale("log")
-    with pytest.raises(ValueError):
-        a.sharex(b)  # a heatmap would take a log scale
+    a.sharex(b)  # heatmaps draw on every scale since 1.3
+    assert a.xscale() == "log"
 
 
 def test_cla_keeps_membership():

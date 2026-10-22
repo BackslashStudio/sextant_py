@@ -41,8 +41,9 @@ MathFontsetLike: TypeAlias = sextant._enums.MathFontset | Literal["text", "stix"
 ProjectionLike: TypeAlias = sextant._enums.Projection | Literal["orthographic", "perspective", "ortho", "persp"]
 PlaneOrientationLike: TypeAlias = sextant._enums.PlaneOrientation | Literal["xy", "yz", "zx"]
 EventKindLike: TypeAlias = sextant._enums.EventKind | Literal["close", "mouse_down", "mouse_up", "mouse_move", "scroll", "key_down", "key_up", "resize", "pick", "close_event", "button_press_event", "button_release_event", "motion_notify_event", "scroll_event", "key_press_event", "key_release_event", "resize_event", "pick_event"]
-PickKindLike: TypeAlias = sextant._enums.PickKind | Literal["none", "line", "scatter", "scatter_z", "bar", "heatmap", "bar3d", "surface", "surface_tri", "scatter3d", "line3d", "quiver", "fill", "poly", "circle", "wedge"]
+PickKindLike: TypeAlias = sextant._enums.PickKind | Literal["none", "line", "scatter", "scatter_z", "bar", "heatmap", "bar3d", "surface", "surface_tri", "scatter3d", "line3d", "quiver", "fill", "poly", "circle", "wedge", "heatmap_tri", "contour", "quiver3d"]
 EventConsumedLike: TypeAlias = sextant._enums.EventConsumed | Literal["none", "select", "navigate", "grid_drag"]
+NormKindLike: TypeAlias = sextant._enums.NormKind | Literal["linear", "log", "two_slope", "boundaries"]
 
 
 class ErrorBarOptions(TypedDict, total=False):
@@ -100,6 +101,7 @@ class ScatterZOptions(TypedDict, total=False):
     edge_linewidth: float
     vmin: float
     vmax: float
+    norm: ColorNormLike
     colorbar: bool
     name: str
     show_legend: bool
@@ -219,6 +221,7 @@ class QuiverOptions(TypedDict, total=False):
     cmap: ColormapLike
     vmin: float
     vmax: float
+    norm: ColorNormLike
     colorbar: bool
     amp: float | None
     pivot: QuiverPivotLike
@@ -235,6 +238,7 @@ class HeatmapOptions(TypedDict, total=False):
     cmap: ColormapLike
     vmin: float
     vmax: float
+    norm: ColorNormLike
     colorbar: bool
     name: str
     visible: bool
@@ -245,6 +249,96 @@ class HeatmapOptions(TypedDict, total=False):
     contour_linewidth: float
     contour_labels: bool
     contour_fontsize: float
+    hint_labels: collections.abc.Sequence[str]
+
+class ImageOptions(TypedDict, total=False):
+    xrange: tuple[float, float] | None
+    yrange: tuple[float, float] | None
+    origin: str
+    visible: bool
+    zorder: float
+    hint_labels: collections.abc.Sequence[str]
+
+class HeatmapRecOptions(TypedDict, total=False):
+    cmap: ColormapLike
+    vmin: float
+    vmax: float
+    norm: ColorNormLike
+    colorbar: bool
+    name: str
+    visible: bool
+    zorder: float
+    contours: ArrayLike | float | None
+    contour_color: str | tuple[float, ...]
+    contour_linewidth: float
+    contour_labels: bool
+    contour_fontsize: float
+    hint_labels: collections.abc.Sequence[str]
+
+class HeatmapTriOptions(TypedDict, total=False):
+    cmap: ColormapLike
+    vmin: float
+    vmax: float
+    norm: ColorNormLike
+    colorbar: bool
+    name: str
+    visible: bool
+    zorder: float
+    hint_labels: collections.abc.Sequence[str]
+
+class Hist2dOptions(TypedDict, total=False):
+    xbins: int
+    ybins: int
+    xrange: tuple[float, float] | None
+    yrange: tuple[float, float] | None
+    x_edges: ArrayLike | float | None
+    y_edges: ArrayLike | float | None
+    density: bool
+    cmin: float | None
+    cmax: float | None
+    cmap: ColormapLike
+    norm: ColorNormLike
+    vmin: float | None
+    vmax: float | None
+    colorbar: bool
+    name: str
+    visible: bool
+    zorder: float
+
+class ContourOptions(TypedDict, total=False):
+    levels: ArrayLike | float | None
+    nlevels: int
+    filled: bool
+    cmap: ColormapLike
+    norm: ColorNormLike
+    vmin: float | None
+    vmax: float | None
+    line_color: str | tuple[float, ...] | None
+    linewidth: float
+    labels: bool
+    fontsize: float
+    colorbar: bool
+    name: str
+    visible: bool
+    zorder: float
+
+class Quiver3DOptions(TypedDict, total=False):
+    color: str | tuple[float, ...] | None
+    alpha: float
+    cmap: ColormapLike
+    vmin: float
+    vmax: float
+    norm: ColorNormLike
+    colorbar: bool
+    amp: float | None
+    pivot: QuiverPivotLike
+    width: float
+    head_width: float
+    head_length: float
+    depthshade: float
+    name: str
+    show_legend: bool
+    visible: bool
     hint_labels: collections.abc.Sequence[str]
 
 class GridOptions(TypedDict, total=False):
@@ -954,10 +1048,13 @@ class AxSpanData:
 class HeatmapData:
     """
     data is (rows, cols), row-major as passed; values come back rounded
-    to float32, which is how sextant stores them.
+    to float32, which is how sextant stores them. An imshow_rgb() image has
+    (rows, cols, channels) with each channel in [0, 1] (bytes come back / 255).
+    x_edges (cols + 1) and y_edges (rows + 1) are the cell edges of a
+    heatmap_rec(), None for the other kinds; xrange / yrange are then their ends.
     """
 
-    def __init__(self, data: ArrayLike, xrange: tuple[float, float], yrange: tuple[float, float]) -> None: ...
+    def __init__(self, data: ArrayLike, xrange: tuple[float, float], yrange: tuple[float, float], x_edges: ArrayLike | None = None, y_edges: ArrayLike | None = None) -> None: ...
 
     @property
     def data(self) -> numpy.typing.NDArray[numpy.float64]: ...
@@ -976,6 +1073,177 @@ class HeatmapData:
 
     @yrange.setter
     def yrange(self, arg: tuple[float, float], /) -> None: ...
+
+    @property
+    def x_edges(self) -> numpy.typing.NDArray[numpy.float64] | None: ...
+
+    @x_edges.setter
+    def x_edges(self, arg: ArrayLike | None, /) -> None: ...
+
+    @property
+    def y_edges(self) -> numpy.typing.NDArray[numpy.float64] | None: ...
+
+    @y_edges.setter
+    def y_edges(self, arg: ArrayLike | None, /) -> None: ...
+
+    def __repr__(self) -> str: ...
+
+class HeatmapTriData:
+    """
+    heatmap_tri(): the vertices, one value each (NaN kept), and tri (n, 3)
+    uint32 vertex indices: as passed, or the Delaunay triangulation made.
+    """
+
+    def __init__(self, x: ArrayLike, y: ArrayLike, values: ArrayLike, tri: ArrayLike) -> None: ...
+
+    @property
+    def x(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @x.setter
+    def x(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def y(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @y.setter
+    def y(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def values(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @values.setter
+    def values(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def tri(self) -> numpy.typing.NDArray[numpy.uint32]: ...
+
+    @tri.setter
+    def tri(self, arg: ArrayLike, /) -> None: ...
+
+    def __repr__(self) -> str: ...
+
+class ContourData:
+    """
+    contour() / contourf(): x (one per column), y (one per row), z (len(y),
+    len(x)), the levels drawn (from contour_data(): resolved; to
+    set_contour_data(): empty re-resolves from the options) and filled.
+    """
+
+    def __init__(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, levels: ArrayLike | None = None, filled: bool = False) -> None: ...
+
+    @property
+    def x(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @x.setter
+    def x(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def y(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @y.setter
+    def y(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def z(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @z.setter
+    def z(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def levels(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @levels.setter
+    def levels(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def filled(self) -> bool: ...
+
+    @filled.setter
+    def filled(self, arg: bool, /) -> None: ...
+
+    def __repr__(self) -> str: ...
+
+class Quiver3DData:
+    """
+    quiver3d(): each arrow's anchor (x, y, z) and vector (u, v, w); c is None
+    for a flat field, else one value per arrow, colormapped. As QuiverData.
+    """
+
+    def __init__(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, u: ArrayLike, v: ArrayLike, w: ArrayLike, c: ArrayLike | None = None) -> None: ...
+
+    @property
+    def x(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @x.setter
+    def x(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def y(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @y.setter
+    def y(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def z(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @z.setter
+    def z(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def u(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @u.setter
+    def u(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def v(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @v.setter
+    def v(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def w(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @w.setter
+    def w(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def c(self) -> numpy.typing.NDArray[numpy.float64] | None: ...
+
+    @c.setter
+    def c(self, arg: ArrayLike | None, /) -> None: ...
+
+    def __repr__(self) -> str: ...
+
+class ColorNorm:
+    """
+    How a value maps onto the colormap: linear() between vmin and vmax, log(), two_slope(center)
+    (center is the colormap's middle, each side spread separately), or boundaries(bounds) (steps
+    at the sorted bounds). Anywhere a norm is taken, 'linear' and 'log' are taken too.
+    """
+
+    @staticmethod
+    def linear() -> ColorNorm: ...
+
+    @staticmethod
+    def log() -> ColorNorm: ...
+
+    @staticmethod
+    def two_slope(center: float) -> ColorNorm: ...
+
+    @staticmethod
+    def boundaries(bounds: ArrayLike) -> ColorNorm: ...
+
+    @property
+    def kind(self) -> sextant._enums.NormKind: ...
+
+    @property
+    def center(self) -> float: ...
+
+    @property
+    def bounds(self) -> list[float]: ...
+
+    def __eq__(self, other: object) -> bool: ...
 
     def __repr__(self) -> str: ...
 
@@ -1303,7 +1571,7 @@ class Axes:
 
         Markers at (x, y), coloured by z through cmap/vmin/vmax.
 
-        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, filled, edgecolor, edge_linewidth, vmin, vmax, colorbar, name, show_legend, visible, zorder, errorbar, hint_labels.
+        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, filled, edgecolor, edge_linewidth, vmin, vmax, norm, colorbar, name, show_legend, visible, zorder, errorbar, hint_labels.
         """
 
     def bar(self, x: ArrayLike, height: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[BarOptions]) -> Axes:
@@ -1321,7 +1589,7 @@ class Axes:
 
         A 2-D array (rows, cols) drawn over xrange x yrange, (lo, hi) tuples of outer cell edges.
 
-        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, visible, zorder, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
+        Keyword options (HeatmapOptions): cmap, vmin, vmax, norm, colorbar, name, visible, zorder, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
         """
 
     def imshow(self, data: ArrayLike, **opts: Unpack[HeatmapOptions]) -> Axes:
@@ -1330,7 +1598,56 @@ class Axes:
 
         heatmap() over x in [0, cols], y in [0, rows].
 
-        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, visible, zorder, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
+        Keyword options (HeatmapOptions): cmap, vmin, vmax, norm, colorbar, name, visible, zorder, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
+        """
+
+    def imshow_rgb(self, data: object, **opts: Unpack[ImageOptions]) -> Axes:
+        """
+        imshow_rgb(data, **opts)
+
+        A true-color image: data is (rows, cols, 3 or 4) of RGB(A). uint8 arrays span 0..255, anything
+        else 0..1; a pixel with a NaN channel is transparent. Over x in [0, cols], y in [0, rows]
+        unless xrange / yrange are given. A heatmap for read-back and picking.
+
+        Keyword options (ImageOptions): xrange, yrange, origin, visible, zorder, hint_labels.
+        """
+
+    def heatmap_rec(self, data: ArrayLike, x_edges: ArrayLike, y_edges: ArrayLike, **opts: Unpack[HeatmapRecOptions]) -> Axes:
+        """
+        heatmap_rec(data, x_edges, y_edges, **opts)
+
+        A heatmap over uneven cells: data is (rows, cols), x_edges has cols + 1 increasing values,
+        y_edges rows + 1 (matplotlib's pcolormesh with edges). A heatmap for read-back and picking.
+
+        Keyword options (HeatmapRecOptions): cmap, vmin, vmax, norm, colorbar, name, visible, zorder, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
+        """
+
+    def heatmap_tri(self, x: ArrayLike, y: ArrayLike, values: ArrayLike, tri: object | None = None, **opts: Unpack[HeatmapTriOptions]) -> Axes:
+        """
+        heatmap_tri(x, y, values, tri=None, **opts)
+
+        A heatmap over triangles (matplotlib's tripcolor, gouraud): one value per vertex. tri is
+        (n, 3) or flat vertex indices; left out, the Delaunay triangulation of (x, y) is used.
+
+        Keyword options (HeatmapTriOptions): cmap, vmin, vmax, norm, colorbar, name, visible, zorder, hint_labels.
+        """
+
+    def contour(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, **opts: Unpack[ContourOptions]) -> Axes:
+        """
+        contour(x, y, z, **opts)
+
+        Contour lines over a grid: x one per column, y one per row, z (len(y), len(x)).
+
+        Keyword options (ContourOptions): levels, nlevels, filled, cmap, norm, vmin, vmax, line_color, linewidth, labels, fontsize, colorbar, name, visible, zorder.
+        """
+
+    def contourf(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, **opts: Unpack[ContourOptions]) -> Axes:
+        """
+        contourf(x, y, z, **opts)
+
+        Filled contours: contour() with filled set.
+
+        Keyword options (ContourOptions): levels, nlevels, filled, cmap, norm, vmin, vmax, line_color, linewidth, labels, fontsize, colorbar, name, visible, zorder.
         """
 
     def fill(self, x: ArrayLike, y1: ArrayLike, y2: float | ArrayLike = 0.0, **opts: Unpack[FillOptions]) -> Axes:
@@ -1366,7 +1683,7 @@ class Axes:
         cmap/vmin/vmax. width, head_width and head_length are pixels. ValueError for
         lengths that differ or an amp that is not finite and > 0.
 
-        Keyword options (QuiverOptions): color, alpha, cmap, vmin, vmax, colorbar, amp, pivot, width, head_width, head_length, name, show_legend, visible, zorder, hint_labels.
+        Keyword options (QuiverOptions): color, alpha, cmap, vmin, vmax, norm, colorbar, amp, pivot, width, head_width, head_length, name, show_legend, visible, zorder, hint_labels.
         """
 
     def axspan(self, lo: float, hi: float, **opts: Unpack[AxSpanOptions]) -> Axes:
@@ -1487,6 +1804,15 @@ class Axes:
     def heatmap_data(self, i: int) -> HeatmapData:
         """heatmap() and imshow() alike."""
 
+    def heatmap_tri_count(self) -> int: ...
+
+    def heatmap_tri_data(self, i: int) -> HeatmapTriData: ...
+
+    def contour_count(self) -> int: ...
+
+    def contour_data(self, i: int) -> ContourData:
+        """contour() and contourf() alike."""
+
     def fill_data(self, i: int) -> FillData: ...
 
     def quiver_data(self, i: int) -> QuiverData: ...
@@ -1536,6 +1862,22 @@ class Axes:
 
     @overload
     def set_heatmap_data(self, i: int, data: ArrayLike, xrange: tuple[float, float], yrange: tuple[float, float]) -> Axes: ...
+
+    @overload
+    def set_heatmap_tri_data(self, i: int, data: HeatmapTriData) -> Axes: ...
+
+    @overload
+    def set_heatmap_tri_data(self, i: int, x: ArrayLike, y: ArrayLike, values: ArrayLike) -> Axes:
+        """
+        Replace the vertices and values, keeping the triangles (the count must hold).
+        """
+
+    @overload
+    def set_contour_data(self, i: int, data: ContourData) -> Axes: ...
+
+    @overload
+    def set_contour_data(self, i: int, x: ArrayLike, y: ArrayLike, z: ArrayLike) -> Axes:
+        """Replace the grid, keeping the levels and filled."""
 
     @overload
     def set_fill_data(self, i: int, data: FillData) -> Axes: ...
@@ -1627,6 +1969,24 @@ class Axes:
 
     def heatmap_visible(self, i: int) -> bool: ...
 
+    def set_heatmap_tri_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def heatmap_tri_visible(self, i: int) -> bool: ...
+
+    def set_contour_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def contour_visible(self, i: int) -> bool: ...
+
     def set_fill_visible(self, i: int, visible: bool) -> Axes:
         """
         Show or hide object i of this kind (its options' visible). A hidden object is
@@ -1698,6 +2058,16 @@ class Axes:
         """
 
     def text_visible(self, i: int) -> bool: ...
+
+    def hist2d(self, x: ArrayLike, y: ArrayLike, **opts: Unpack[Hist2dOptions]) -> Axes:
+        """
+        hist2d(x, y, **opts)
+
+        A 2D histogram of the points (x[i], y[i]) drawn as a heatmap (a heatmap_rec when x_edges or
+        y_edges are given); it counts in heatmap_count().
+
+        Keyword options (Hist2dOptions): xbins, ybins, xrange, yrange, x_edges, y_edges, density, cmin, cmax, cmap, norm, vmin, vmax, colorbar, name, visible, zorder.
+        """
 
     def hist(self, data: ArrayLike, bins: int = 10, *, density: bool = False, cumulative: bool = False, **opts: Unpack[BarOptions]) -> Axes:
         """
@@ -1976,7 +2346,7 @@ class Plane2D:
 
         Markers at (x, y), coloured by z through cmap/vmin/vmax.
 
-        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, filled, edgecolor, edge_linewidth, vmin, vmax, colorbar, name, show_legend, visible, zorder, errorbar, hint_labels.
+        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, filled, edgecolor, edge_linewidth, vmin, vmax, norm, colorbar, name, show_legend, visible, zorder, errorbar, hint_labels.
         """
 
     def bar(self, x: ArrayLike, height: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[BarOptions]) -> Plane2D:
@@ -1994,7 +2364,7 @@ class Plane2D:
 
         A 2-D array (rows, cols) drawn over xrange x yrange, (lo, hi) tuples of outer cell edges.
 
-        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, visible, zorder, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
+        Keyword options (HeatmapOptions): cmap, vmin, vmax, norm, colorbar, name, visible, zorder, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
         """
 
     def imshow(self, data: ArrayLike, **opts: Unpack[HeatmapOptions]) -> Plane2D:
@@ -2003,7 +2373,56 @@ class Plane2D:
 
         heatmap() over x in [0, cols], y in [0, rows].
 
-        Keyword options (HeatmapOptions): cmap, vmin, vmax, colorbar, name, visible, zorder, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
+        Keyword options (HeatmapOptions): cmap, vmin, vmax, norm, colorbar, name, visible, zorder, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
+        """
+
+    def imshow_rgb(self, data: object, **opts: Unpack[ImageOptions]) -> Plane2D:
+        """
+        imshow_rgb(data, **opts)
+
+        A true-color image: data is (rows, cols, 3 or 4) of RGB(A). uint8 arrays span 0..255, anything
+        else 0..1; a pixel with a NaN channel is transparent. Over x in [0, cols], y in [0, rows]
+        unless xrange / yrange are given. A heatmap for read-back and picking.
+
+        Keyword options (ImageOptions): xrange, yrange, origin, visible, zorder, hint_labels.
+        """
+
+    def heatmap_rec(self, data: ArrayLike, x_edges: ArrayLike, y_edges: ArrayLike, **opts: Unpack[HeatmapRecOptions]) -> Plane2D:
+        """
+        heatmap_rec(data, x_edges, y_edges, **opts)
+
+        A heatmap over uneven cells: data is (rows, cols), x_edges has cols + 1 increasing values,
+        y_edges rows + 1 (matplotlib's pcolormesh with edges). A heatmap for read-back and picking.
+
+        Keyword options (HeatmapRecOptions): cmap, vmin, vmax, norm, colorbar, name, visible, zorder, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
+        """
+
+    def heatmap_tri(self, x: ArrayLike, y: ArrayLike, values: ArrayLike, tri: object | None = None, **opts: Unpack[HeatmapTriOptions]) -> Plane2D:
+        """
+        heatmap_tri(x, y, values, tri=None, **opts)
+
+        A heatmap over triangles (matplotlib's tripcolor, gouraud): one value per vertex. tri is
+        (n, 3) or flat vertex indices; left out, the Delaunay triangulation of (x, y) is used.
+
+        Keyword options (HeatmapTriOptions): cmap, vmin, vmax, norm, colorbar, name, visible, zorder, hint_labels.
+        """
+
+    def contour(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, **opts: Unpack[ContourOptions]) -> Plane2D:
+        """
+        contour(x, y, z, **opts)
+
+        Contour lines over a grid: x one per column, y one per row, z (len(y), len(x)).
+
+        Keyword options (ContourOptions): levels, nlevels, filled, cmap, norm, vmin, vmax, line_color, linewidth, labels, fontsize, colorbar, name, visible, zorder.
+        """
+
+    def contourf(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, **opts: Unpack[ContourOptions]) -> Plane2D:
+        """
+        contourf(x, y, z, **opts)
+
+        Filled contours: contour() with filled set.
+
+        Keyword options (ContourOptions): levels, nlevels, filled, cmap, norm, vmin, vmax, line_color, linewidth, labels, fontsize, colorbar, name, visible, zorder.
         """
 
     def fill(self, x: ArrayLike, y1: ArrayLike, y2: float | ArrayLike = 0.0, **opts: Unpack[FillOptions]) -> Plane2D:
@@ -2039,7 +2458,7 @@ class Plane2D:
         cmap/vmin/vmax. width, head_width and head_length are pixels. ValueError for
         lengths that differ or an amp that is not finite and > 0.
 
-        Keyword options (QuiverOptions): color, alpha, cmap, vmin, vmax, colorbar, amp, pivot, width, head_width, head_length, name, show_legend, visible, zorder, hint_labels.
+        Keyword options (QuiverOptions): color, alpha, cmap, vmin, vmax, norm, colorbar, amp, pivot, width, head_width, head_length, name, show_legend, visible, zorder, hint_labels.
         """
 
     def axspan(self, lo: float, hi: float, **opts: Unpack[AxSpanOptions]) -> Plane2D:
@@ -2160,6 +2579,15 @@ class Plane2D:
     def heatmap_data(self, i: int) -> HeatmapData:
         """heatmap() and imshow() alike."""
 
+    def heatmap_tri_count(self) -> int: ...
+
+    def heatmap_tri_data(self, i: int) -> HeatmapTriData: ...
+
+    def contour_count(self) -> int: ...
+
+    def contour_data(self, i: int) -> ContourData:
+        """contour() and contourf() alike."""
+
     def fill_data(self, i: int) -> FillData: ...
 
     def quiver_data(self, i: int) -> QuiverData: ...
@@ -2209,6 +2637,22 @@ class Plane2D:
 
     @overload
     def set_heatmap_data(self, i: int, data: ArrayLike, xrange: tuple[float, float], yrange: tuple[float, float]) -> Plane2D: ...
+
+    @overload
+    def set_heatmap_tri_data(self, i: int, data: HeatmapTriData) -> Plane2D: ...
+
+    @overload
+    def set_heatmap_tri_data(self, i: int, x: ArrayLike, y: ArrayLike, values: ArrayLike) -> Plane2D:
+        """
+        Replace the vertices and values, keeping the triangles (the count must hold).
+        """
+
+    @overload
+    def set_contour_data(self, i: int, data: ContourData) -> Plane2D: ...
+
+    @overload
+    def set_contour_data(self, i: int, x: ArrayLike, y: ArrayLike, z: ArrayLike) -> Plane2D:
+        """Replace the grid, keeping the levels and filled."""
 
     @overload
     def set_fill_data(self, i: int, data: FillData) -> Plane2D: ...
@@ -2299,6 +2743,24 @@ class Plane2D:
         """
 
     def heatmap_visible(self, i: int) -> bool: ...
+
+    def set_heatmap_tri_visible(self, i: int, visible: bool) -> Plane2D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def heatmap_tri_visible(self, i: int) -> bool: ...
+
+    def set_contour_visible(self, i: int, visible: bool) -> Plane2D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def contour_visible(self, i: int) -> bool: ...
 
     def set_fill_visible(self, i: int, visible: bool) -> Plane2D:
         """
@@ -2398,6 +2860,17 @@ class Axes3D:
         vertex, colormaps the mesh.
 
         Keyword options (SurfaceTriOptions): color, cmap, vmin, vmax, colorbar, name, show_legend, visible, alpha, shading, edges, edgecolor, edge_linewidth, hint_labels.
+        """
+
+    def quiver3d(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, u: ArrayLike, v: ArrayLike, w: ArrayLike, c: ArrayLike | None = None, **opts: Unpack[Quiver3DOptions]) -> Axes3D:
+        """
+        quiver3d(x, y, z, u, v, w, c=None, **opts)
+
+        An arrow field in the scene: an arrow at (x, y, z) along (u, v, w) times amp. With c, each
+        arrow is coloured by its value through cmap/vmin/vmax/norm. One value per arrow; an arrow
+        with a NaN or a zero vector is not drawn.
+
+        Keyword options (Quiver3DOptions): color, alpha, cmap, vmin, vmax, norm, colorbar, amp, pivot, width, head_width, head_length, depthshade, name, show_legend, visible, hint_labels.
         """
 
     def scatter3d(self, x: ArrayLike, y: ArrayLike, z: ArrayLike, *, colors: ArrayLike | None = None, err: ErrorBar3D | None = None, **opts: Unpack[Scatter3DOptions]) -> Axes3D:
@@ -2628,6 +3101,10 @@ class Axes3D:
 
     def surface_tri_count(self) -> int: ...
 
+    def quiver3d_count(self) -> int: ...
+
+    def quiver3d_data(self, i: int) -> Quiver3DData: ...
+
     def scatter3d_count(self) -> int: ...
 
     def line3d_count(self) -> int: ...
@@ -2664,6 +3141,13 @@ class Axes3D:
 
     @overload
     def set_surface_tri_data(self, i: int, x: ArrayLike, y: ArrayLike, z: ArrayLike, triangles: ArrayLike, colors: ArrayLike | None = None) -> Axes3D: ...
+
+    @overload
+    def set_quiver3d_data(self, i: int, data: Quiver3DData) -> Axes3D: ...
+
+    @overload
+    def set_quiver3d_data(self, i: int, x: ArrayLike, y: ArrayLike, z: ArrayLike, u: ArrayLike, v: ArrayLike, w: ArrayLike) -> Axes3D:
+        """Replace the arrows, keeping c (the count must hold)."""
 
     @overload
     def set_scatter3d_data(self, i: int, data: Scatter3DData) -> Axes3D: ...
@@ -2708,6 +3192,15 @@ class Axes3D:
         """
 
     def surface_visible(self, i: int) -> bool: ...
+
+    def set_quiver3d_visible(self, i: int, visible: bool) -> Axes3D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def quiver3d_visible(self, i: int) -> bool: ...
 
     def set_surface_tri_visible(self, i: int, visible: bool) -> Axes3D:
         """

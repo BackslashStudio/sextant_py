@@ -54,6 +54,14 @@ namespace sextant_py {
             return out;
         }
 
+        // z is (len(y), len(x)): the C++ check only sees the product.
+        void check_grid(const Vec& x, const Vec& y, const Mat& z, const char* what) {
+            if (z.shape(0) != y.shape(0) || z.shape(1) != x.shape(0))
+                throw nb::value_error((std::string(what) + ": z must be (len(y), len(x)) = (" +
+                                       std::to_string(y.shape(0)) + ", " + std::to_string(x.shape(0)) + "), got (" +
+                                       std::to_string(z.shape(0)) + ", " + std::to_string(z.shape(1)) + ")").c_str());
+        }
+
         sextant::ErrorBar spans(const PyErrorBar* err) { return err ? err->spans() : sextant::ErrorBar{}; }
 
         using sextant::Coords;
@@ -109,6 +117,24 @@ namespace sextant_py {
                 "Stacked areas (matplotlib's stackplot): ys is a 2-D array, one row per layer (or a\n"
                 "sequence of 1-D arrays), each one value per x. Each layer is added as an ordinary\n"
                 "fill(), read back and edited as one. colors/names: empty, or one per layer.");
+            static const std::string imshow_rgb_doc = opts_doc<sextant::ImageOptions>(
+                "imshow_rgb(data, **opts)",
+                "A true-color image: data is (rows, cols, 3 or 4) of RGB(A). uint8 arrays span 0..255, anything\n"
+                "else 0..1; a pixel with a NaN channel is transparent. Over x in [0, cols], y in [0, rows]\n"
+                "unless xrange / yrange are given. A heatmap for read-back and picking.");
+            static const std::string heatmap_rec_doc = opts_doc<sextant::HeatmapRecOptions>(
+                "heatmap_rec(data, x_edges, y_edges, **opts)",
+                "A heatmap over uneven cells: data is (rows, cols), x_edges has cols + 1 increasing values,\n"
+                "y_edges rows + 1 (matplotlib's pcolormesh with edges). A heatmap for read-back and picking.");
+            static const std::string heatmap_tri_doc = opts_doc<sextant::HeatmapTriOptions>(
+                "heatmap_tri(x, y, values, tri=None, **opts)",
+                "A heatmap over triangles (matplotlib's tripcolor, gouraud): one value per vertex. tri is\n"
+                "(n, 3) or flat vertex indices; left out, the Delaunay triangulation of (x, y) is used.");
+            static const std::string contour_doc = opts_doc<sextant::ContourOptions>(
+                "contour(x, y, z, **opts)",
+                "Contour lines over a grid: x one per column, y one per row, z (len(y), len(x)).");
+            static const std::string contourf_doc = opts_doc<sextant::ContourOptions>(
+                "contourf(x, y, z, **opts)", "Filled contours: contour() with filled set.");
             static const std::string quiver_doc = opts_doc<sextant::QuiverOptions>(
                 "quiver(x, y, u, v, c=None, **opts)",
                 "An arrow per point from (x, y) along amp * (u, v) in data units (matplotlib's quiver\n"
@@ -208,6 +234,65 @@ namespace sextant_py {
                          });
                      },
                      "data"_a, "opts"_a, imshow_doc.c_str())
+                .def("imshow_rgb",
+                     [](Self self, nb::object data, const nb::kwargs& kw) {
+                         auto o = options<sextant::ImageOptions>("imshow_rgb()", kw);
+                         nb::module_ np = nb::module_::import_("numpy");
+                         nb::object a = np.attr("asarray")(data);
+                         if (nb::cast<int>(a.attr("ndim")) != 3)
+                             throw nb::value_error("imshow_rgb(): data must be (rows, cols, channels)");
+                         const auto shape = nb::cast<nb::tuple>(a.attr("shape"));
+                         const int rows = nb::cast<int>(shape[0]), cols = nb::cast<int>(shape[1]),
+                                   ch = nb::cast<int>(shape[2]);
+                         if (nb::cast<std::string>(a.attr("dtype").attr("name")) == "uint8") {
+                             a = np.attr("ascontiguousarray")(a, "dtype"_a = np.attr("uint8"));
+                             const auto nd = nb::cast<
+                                 nb::ndarray<const std::uint8_t, nb::c_contig, nb::device::cpu>>(a);
+                             return chain(self, [&](T& t) {
+                                 t.imshow_rgb(std::span<const std::uint8_t>(nd.data(), nd.size()), rows, cols, ch,
+                                              std::move(o));
+                             });
+                         }
+                         const auto g = nb::cast<Grid>(a);
+                         return chain(self, [&](T& t) { t.imshow_rgb(g.span(), rows, cols, ch, std::move(o)); });
+                     },
+                     "data"_a, "opts"_a, imshow_rgb_doc.c_str())
+                .def("heatmap_rec",
+                     [](Self self, const Mat& data, const Vec& x_edges, const Vec& y_edges, const nb::kwargs& kw) {
+                         auto o = options<sextant::HeatmapRecOptions>("heatmap_rec()", kw);
+                         return chain(self, [&](T& t) {
+                             t.heatmap_rec(data.span(), static_cast<int>(data.shape(0)),
+                                           static_cast<int>(data.shape(1)), x_edges.span(), y_edges.span(),
+                                           std::move(o));
+                         });
+                     },
+                     "data"_a, "x_edges"_a, "y_edges"_a, "opts"_a, heatmap_rec_doc.c_str())
+                .def("heatmap_tri",
+                     [](Self self, const Vec& x, const Vec& y, const Vec& values, nb::object tri,
+                        const nb::kwargs& kw) {
+                         auto o = options<sextant::HeatmapTriOptions>("heatmap_tri()", kw);
+                         std::optional<Triangles> tr;
+                         if (!tri.is_none()) tr = triangles(tri, "heatmap_tri()");
+                         return chain(self, [&](T& t) {
+                             if (tr) t.heatmap_tri(x.span(), y.span(), values.span(), tr->s, std::move(o));
+                             else t.heatmap_tri(x.span(), y.span(), values.span(), std::move(o));
+                         });
+                     },
+                     "x"_a, "y"_a, "values"_a, "tri"_a.none() = nb::none(), "opts"_a, heatmap_tri_doc.c_str())
+                .def("contour",
+                     [](Self self, const Vec& x, const Vec& y, const Mat& z, const nb::kwargs& kw) {
+                         auto o = options<sextant::ContourOptions>("contour()", kw);
+                         check_grid(x, y, z, "contour()");
+                         return chain(self, [&](T& t) { t.contour(x.span(), y.span(), z.span(), std::move(o)); });
+                     },
+                     "x"_a, "y"_a, "z"_a, "opts"_a, contour_doc.c_str())
+                .def("contourf",
+                     [](Self self, const Vec& x, const Vec& y, const Mat& z, const nb::kwargs& kw) {
+                         auto o = options<sextant::ContourOptions>("contourf()", kw);
+                         check_grid(x, y, z, "contourf()");
+                         return chain(self, [&](T& t) { t.contourf(x.span(), y.span(), z.span(), std::move(o)); });
+                     },
+                     "x"_a, "y"_a, "z"_a, "opts"_a, contourf_doc.c_str())
                 .def("fill",
                      [](Self self, const Vec& x, const Vec& y1, NumberOrArray y2, const nb::kwargs& kw) {
                          auto o = options<sextant::FillOptions>("fill()", kw);
@@ -227,7 +312,7 @@ namespace sextant_py {
                      },
                      "x"_a, "ys"_a, "opts"_a, stack_doc.c_str())
                 .def("quiver",
-                     [](Self self, const Vec& x, const Vec& y, const Vec& u, const Vec& v, const std::optional<Vec>& c,
+                     [](Self self, const Vec& x, const Vec& y, const Grid& u, const Grid& v, const std::optional<Grid>& c,
                         const nb::kwargs& kw) {
                          auto o = options<sextant::QuiverOptions>("quiver()", kw);
                          return chain(self, [&](T& t) {
@@ -351,6 +436,19 @@ namespace sextant_py {
                          return to_python(read(w, [&](T& t) { return t.heatmap_data(index(i, t.heatmap_count())); }));
                      },
                      "i"_a, "heatmap() and imshow() alike.")
+                .def("heatmap_tri_count", [](W& w) { return read(w, [](T& t) { return t.heatmap_tri_count(); }); })
+                .def("heatmap_tri_data",
+                     [](W& w, std::int64_t i) {
+                         return to_python(
+                             read(w, [&](T& t) { return t.heatmap_tri_data(index(i, t.heatmap_tri_count())); }));
+                     },
+                     "i"_a)
+                .def("contour_count", [](W& w) { return read(w, [](T& t) { return t.contour_count(); }); })
+                .def("contour_data",
+                     [](W& w, std::int64_t i) {
+                         return to_python(read(w, [&](T& t) { return t.contour_data(index(i, t.contour_count())); }));
+                     },
+                     "i"_a, "contour() and contourf() alike.")
                 .def("fill_data",
                      [](W& w, std::int64_t i) {
                          return to_python(read(w, [&](T& t) { return t.fill_data(index(i, t.fill_count())); }));
@@ -442,12 +540,8 @@ namespace sextant_py {
                      "i"_a, "x"_a, "height"_a)
                 .def("set_heatmap_data",
                      [](Self self, std::int64_t i, const PyHeatmapData& d) {
-                         const auto data = as_array<2>(d.data, "HeatmapData.data");
-                         return chain(self, [&](T& t) {
-                             t.set_heatmap_data(index(i, t.heatmap_count()), data.span(),
-                                                static_cast<int>(data.shape(0)), static_cast<int>(data.shape(1)),
-                                                d.xrange, d.yrange);
-                         });
+                         const sextant::HeatmapData hd = d.to_cpp();
+                         return chain(self, [&](T& t) { t.set_heatmap_data(index(i, t.heatmap_count()), hd); });
                      },
                      "i"_a, "data"_a)
                 .def("set_heatmap_data",
@@ -459,6 +553,40 @@ namespace sextant_py {
                          });
                      },
                      "i"_a, "data"_a, "xrange"_a, "yrange"_a)
+                .def("set_heatmap_tri_data",
+                     [](Self self, std::int64_t i, const PyHeatmapTriData& d) {
+                         const auto x = as_array<1>(d.x, "HeatmapTriData.x"), y = as_array<1>(d.y, "HeatmapTriData.y"),
+                                    v = as_array<1>(d.values, "HeatmapTriData.values");
+                         const auto tr = triangles(d.tri, "HeatmapTriData.tri");
+                         return chain(self, [&](T& t) {
+                             t.set_heatmap_tri_data(index(i, t.heatmap_tri_count()), x.span(), y.span(), v.span(),
+                                                    tr.s);
+                         });
+                     },
+                     "i"_a, "data"_a)
+                .def("set_heatmap_tri_data",
+                     [](Self self, std::int64_t i, const Vec& x, const Vec& y, const Vec& values) {
+                         return chain(self, [&](T& t) {
+                             t.set_heatmap_tri_data(index(i, t.heatmap_tri_count()), x.span(), y.span(),
+                                                    values.span());
+                         });
+                     },
+                     "i"_a, "x"_a, "y"_a, "values"_a,
+                     "Replace the vertices and values, keeping the triangles (the count must hold).")
+                .def("set_contour_data",
+                     [](Self self, std::int64_t i, const PyContourData& d) {
+                         const sextant::ContourData cd = d.to_cpp();
+                         return chain(self, [&](T& t) { t.set_contour_data(index(i, t.contour_count()), cd); });
+                     },
+                     "i"_a, "data"_a)
+                .def("set_contour_data",
+                     [](Self self, std::int64_t i, const Vec& x, const Vec& y, const Mat& z) {
+                         check_grid(x, y, z, "set_contour_data()");
+                         return chain(self, [&](T& t) {
+                             t.set_contour_data(index(i, t.contour_count()), x.span(), y.span(), z.span());
+                         });
+                     },
+                     "i"_a, "x"_a, "y"_a, "z"_a, "Replace the grid, keeping the levels and filled.")
                 .def("set_fill_data",
                      [](Self self, std::int64_t i, const PyFillData& d) {
                          const sextant::FillData cd = d.to_cpp();
@@ -569,6 +697,10 @@ namespace sextant_py {
                          &T::bar_visible);
             bind_visible(cls, "set_heatmap_visible", "heatmap_visible", &T::heatmap_count,
                          &T::set_heatmap_visible, &T::heatmap_visible);
+            bind_visible(cls, "set_heatmap_tri_visible", "heatmap_tri_visible", &T::heatmap_tri_count,
+                         &T::set_heatmap_tri_visible, &T::heatmap_tri_visible);
+            bind_visible(cls, "set_contour_visible", "contour_visible", &T::contour_count,
+                         &T::set_contour_visible, &T::contour_visible);
             bind_visible(cls, "set_fill_visible", "fill_visible", &T::fill_count, &T::set_fill_visible,
                          &T::fill_visible);
             bind_visible(cls, "set_quiver_visible", "quiver_visible", &T::quiver_count,
@@ -591,6 +723,10 @@ namespace sextant_py {
         static const std::string hist_doc = opts_doc<BarOptions>(
             "hist(data, bins=10, *, density=False, cumulative=False, **opts)",
             "Histogram as bars. width defaults to 1.0 here (bins touch), not bar()'s 0.8.");
+        static const std::string hist2d_doc = opts_doc<sextant::Hist2dOptions>(
+            "hist2d(x, y, **opts)",
+            "A 2D histogram of the points (x[i], y[i]) drawn as a heatmap (a heatmap_rec when x_edges or\n"
+            "y_edges are given); it counts in heatmap_count().");
         static const std::string axline_doc = opts_doc<sextant::AxLineOptions>(
             "axline(value, **opts)",
             "A line across the frame at y = value (matplotlib's axhline), or at x = value with\n"
@@ -644,6 +780,12 @@ namespace sextant_py {
                      &Axes::axline_visible);
         bind_visible(cls, "set_text_visible", "text_visible", &Axes::text_count, &Axes::set_text_visible,
                      &Axes::text_visible);
+        cls.def("hist2d",
+                [](Self self, const Vec& x, const Vec& y, const nb::kwargs& kw) {
+                    auto o = options<sextant::Hist2dOptions>("hist2d()", kw);
+                    return chain(self, [&](Axes& ax) { ax.hist2d(x.span(), y.span(), std::move(o)); });
+                },
+                "x"_a, "y"_a, "opts"_a, hist2d_doc.c_str());
         cls.def("hist",
                 [](Self self, const Vec& data, int bins, bool density, bool cumulative, const nb::kwargs& kw) {
                     BarOptions init;

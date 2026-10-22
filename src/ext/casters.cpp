@@ -209,6 +209,7 @@ namespace sextant_py {
         add_enum<sextant::EventKind>(d);
         add_enum<sextant::PickKind>(d);
         add_enum<sextant::EventConsumed>(d);
+        add_enum<sextant::ColorNorm::Kind>(d);
         return d;
     }
 
@@ -238,6 +239,12 @@ namespace sextant_py {
         add_fields<sextant::StackOptions>(d);
         add_fields<sextant::QuiverOptions>(d);
         add_fields<sextant::HeatmapOptions>(d);
+        add_fields<sextant::ImageOptions>(d);
+        add_fields<sextant::HeatmapRecOptions>(d);
+        add_fields<sextant::HeatmapTriOptions>(d);
+        add_fields<sextant::Hist2dOptions>(d);
+        add_fields<sextant::ContourOptions>(d);
+        add_fields<sextant::Quiver3DOptions>(d);
         add_fields<sextant::GridOptions>(d);
         add_fields<sextant::ScaleOptions>(d);
         add_fields<sextant::AxesStyle>(d);

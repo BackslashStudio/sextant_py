@@ -153,9 +153,33 @@ namespace sextant_py {
         F64OrNone c;
         sextant::QuiverData to_cpp() const;
     };
+    // data (rows, cols), or (rows, cols, channels) for an imshow_rgb() image;
+    // x_edges / y_edges (cols + 1, rows + 1) for a heatmap_rec(), else None.
     struct PyHeatmapData {
-        F64 data; // (rows, cols)
+        F64 data;
         sextant::Range xrange, yrange;
+        F64OrNone x_edges, y_edges;
+        sextant::HeatmapData to_cpp() const;
+    };
+    struct PyHeatmapTriData;
+    struct PyContourData;
+    struct PyHeatmapTriData { F64 x, y, values; U32 tri; }; // tri (n, 3)
+    struct PyContourData {
+        F64 x, y, z, levels; // z (len(y), len(x))
+        bool filled = false;
+        sextant::ContourData to_cpp() const;
+    };
+
+    // Triangle indices of any integer dtype, (n, 3) or flat, as uint32.
+    struct Triangles {
+        nb::object keep; // owns the uint32 array the span points into
+        std::span<const std::uint32_t> s;
+    };
+    Triangles triangles(nb::handle obj, const std::string& ctx);
+    struct PyQuiver3DData {
+        F64 x, y, z, u, v, w;
+        F64OrNone c;
+        sextant::Quiver3DData to_cpp() const;
     };
     struct PyBar3DData {
         sextant::PlaneOrientation orient;
@@ -215,6 +239,9 @@ namespace sextant_py {
     PyFillData to_python(sextant::FillData&& d);
     PyQuiverData to_python(sextant::QuiverData&& d);
     PyHeatmapData to_python(sextant::HeatmapData&& d);
+    PyHeatmapTriData to_python(sextant::HeatmapTriData&& d);
+    PyContourData to_python(sextant::ContourData&& d);
+    PyQuiver3DData to_python(sextant::Quiver3DData&& d);
     PyBar3DData to_python(sextant::Bar3DData&& d);
     PySurfaceData to_python(sextant::SurfaceData&& d);
     PySurfaceTriData to_python(sextant::SurfaceTriData&& d);

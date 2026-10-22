@@ -51,31 +51,6 @@ namespace sextant_py {
             }
         }
 
-        // Triangle indices of any integer dtype, (n, 3) or flat, as uint32.
-        struct Triangles {
-            nb::object keep; // owns the uint32 array the span points into
-            std::span<const std::uint32_t> s;
-        };
-
-        Triangles triangles(nb::handle obj, const std::string& ctx) {
-            nb::module_ np = nb::module_::import_("numpy");
-            nb::object arr = np.attr("asarray")(obj);
-            const nb::object dtype = arr.attr("dtype");
-            const std::string kind = nb::cast<std::string>(dtype.attr("kind"));
-            if (kind != "i" && kind != "u")
-                throw nb::type_error((ctx + ": triangles must be integers, got dtype " +
-                                      nb::cast<std::string>(nb::str(dtype))).c_str());
-            if (nb::cast<std::size_t>(arr.attr("size")) > 0) {
-                const double lo = nb::cast<double>(nb::int_(arr.attr("min")()));
-                const double hi = nb::cast<double>(nb::int_(arr.attr("max")()));
-                if (lo < 0 || hi > std::numeric_limits<std::uint32_t>::max())
-                    throw nb::value_error((ctx + ": a triangle index is negative or does not fit uint32").c_str());
-            }
-            arr = np.attr("ascontiguousarray")(arr.attr("reshape")(-1), "dtype"_a = np.attr("uint32"));
-            auto nd = nb::cast<nb::ndarray<const std::uint32_t, nb::ndim<1>, nb::c_contig, nb::device::cpu>>(arr);
-            return {arr, {nd.data(), nd.size()}};
-        }
-
         nb::dict camera_dict(const sextant::Camera3D& c) {
             nb::dict d;
             d["azimuth"] = c.azimuth;
@@ -96,6 +71,11 @@ namespace sextant_py {
         static const std::string surface_doc = opts_doc<sextant::SurfaceOptions>(
             "surface(orient, u, v, heights, **opts)",
             "A surface over the grid u x v (at least 2 x 2), rising along orient's normal; heights as bar3d.");
+        static const std::string quiver3d_doc = opts_doc<sextant::Quiver3DOptions>(
+            "quiver3d(x, y, z, u, v, w, c=None, **opts)",
+            "An arrow field in the scene: an arrow at (x, y, z) along (u, v, w) times amp. With c, each\n"
+            "arrow is coloured by its value through cmap/vmin/vmax/norm. One value per arrow; an arrow\n"
+            "with a NaN or a zero vector is not drawn.");
         static const std::string surface_tri_doc = opts_doc<sextant::SurfaceTriOptions>(
             "surface_tri(x, y, z, triangles=None, *, orient=None, colors=None, **opts)",
             "A sheet on a triangulated mesh. Give exactly one of triangles ((n, 3) or flat, any integer dtype)\n"
@@ -182,6 +162,18 @@ namespace sextant_py {
                  },
                  "x"_a, "y"_a, "z"_a, "triangles"_a.none() = nb::none(), nb::kw_only(),
                  "orient"_a = nb::none(), "colors"_a = nb::none(), "opts"_a, surface_tri_doc.c_str())
+            .def("quiver3d",
+                 [](Self self, const Vec& x, const Vec& y, const Vec& z, const Vec& u, const Vec& v, const Vec& w,
+                    const std::optional<Vec>& c, const nb::kwargs& kw) {
+                     auto o = options<sextant::Quiver3DOptions>("quiver3d()", kw);
+                     return chain(self, [&](Axes3D& ax) {
+                         if (c) ax.quiver3d(x.span(), y.span(), z.span(), u.span(), v.span(), w.span(), c->span(),
+                                            std::move(o));
+                         else ax.quiver3d(x.span(), y.span(), z.span(), u.span(), v.span(), w.span(), std::move(o));
+                     });
+                 },
+                 "x"_a, "y"_a, "z"_a, "u"_a, "v"_a, "w"_a, "c"_a.none() = nb::none(), "opts"_a,
+                 quiver3d_doc.c_str())
             .def("scatter3d",
                  [](Self self, const Vec& x, const Vec& y, const Vec& z, const std::optional<Vec>& colors,
                     const PyErrorBar3D* err, const nb::kwargs& kw) {
@@ -414,6 +406,14 @@ namespace sextant_py {
             .def("surface_count", [](PyAxes3D& a) { return read(a, [](Axes3D& ax) { return ax.surface_count(); }); })
             .def("surface_tri_count",
                  [](PyAxes3D& a) { return read(a, [](Axes3D& ax) { return ax.surface_tri_count(); }); })
+            .def("quiver3d_count",
+                 [](PyAxes3D& a) { return read(a, [](Axes3D& ax) { return ax.quiver3d_count(); }); })
+            .def("quiver3d_data",
+                 [](PyAxes3D& a, std::int64_t i) {
+                     return to_python(
+                         read(a, [&](Axes3D& ax) { return ax.quiver3d_data(index(i, ax.quiver3d_count())); }));
+                 },
+                 "i"_a)
             .def("scatter3d_count",
                  [](PyAxes3D& a) { return read(a, [](Axes3D& ax) { return ax.scatter3d_count(); }); })
             .def("line3d_count", [](PyAxes3D& a) { return read(a, [](Axes3D& ax) { return ax.line3d_count(); }); })
@@ -526,6 +526,21 @@ namespace sextant_py {
                      });
                  },
                  "i"_a, "x"_a, "y"_a, "z"_a, "triangles"_a, "colors"_a = nb::none())
+            .def("set_quiver3d_data",
+                 [](Self self, std::int64_t i, const PyQuiver3DData& d) {
+                     const sextant::Quiver3DData cd = d.to_cpp();
+                     return chain(self, [&](Axes3D& ax) { ax.set_quiver3d_data(index(i, ax.quiver3d_count()), cd); });
+                 },
+                 "i"_a, "data"_a)
+            .def("set_quiver3d_data",
+                 [](Self self, std::int64_t i, const Vec& x, const Vec& y, const Vec& z, const Vec& u, const Vec& v,
+                    const Vec& w) {
+                     return chain(self, [&](Axes3D& ax) {
+                         ax.set_quiver3d_data(index(i, ax.quiver3d_count()), x.span(), y.span(), z.span(), u.span(),
+                                              v.span(), w.span());
+                     });
+                 },
+                 "i"_a, "x"_a, "y"_a, "z"_a, "u"_a, "v"_a, "w"_a, "Replace the arrows, keeping c (the count must hold).")
             .def("set_scatter3d_data",
                  [](Self self, std::int64_t i, const PyScatter3DData& d) {
                      const sextant::Scatter3DData cd = d.to_cpp();
@@ -583,6 +598,8 @@ namespace sextant_py {
                      &Axes3D::bar3d_visible);
         bind_visible(cls, "set_surface_visible", "surface_visible", &Axes3D::surface_count,
                      &Axes3D::set_surface_visible, &Axes3D::surface_visible);
+        bind_visible(cls, "set_quiver3d_visible", "quiver3d_visible", &Axes3D::quiver3d_count,
+                     &Axes3D::set_quiver3d_visible, &Axes3D::quiver3d_visible);
         bind_visible(cls, "set_surface_tri_visible", "surface_tri_visible", &Axes3D::surface_tri_count,
                      &Axes3D::set_surface_tri_visible, &Axes3D::surface_tri_visible);
         bind_visible(cls, "set_scatter3d_visible", "scatter3d_visible", &Axes3D::scatter3d_count,

@@ -229,8 +229,18 @@ def test_imshow_like_matplotlib():
     assert (kw["vmin"], kw["vmax"]) == (0.0, 11.0)
     im.set_data(np.zeros((3, 4)))
     assert ax.core.heatmap_data(0).data.sum() == 0
-    with pytest.raises(ValueError, match="RGB"):
-        ax.imshow(np.zeros((2, 2, 3)))
+    with pytest.raises(ValueError, match="rows, cols"):
+        ax.imshow(np.zeros((2, 2, 5)))
+
+
+def test_imshow_rgb():
+    ax = plt.gca()
+    im = ax.imshow(np.full((3, 4, 3), 255, dtype=np.uint8))
+    assert ax.core.heatmap_data(0).data.shape == (3, 4, 3)
+    assert ax.core.heatmap_data(0).data.max() == 1.0
+    im.set_data(np.zeros((3, 4, 3)))
+    assert ax.core.heatmap_data(0).data.sum() == 0
+    ax.imshow(np.random.rand(2, 2, 4))  # RGBA
 
 
 def test_imshow_extent_and_lower_origin():
@@ -255,8 +265,48 @@ def test_pcolormesh():
     assert ax.core.heatmap_data(0).xrange == (0.0, 3.0)
     ax.pcolormesh([0, 1, 2], [0, 10], np.ones((2, 3)))  # centres
     assert ax.core.heatmap_data(1).xrange == (-0.5, 2.5)
-    with pytest.raises(ValueError, match="evenly spaced"):
-        ax.pcolormesh([0, 1, 5, 6], [0, 1], np.ones((1, 3)))
+    ax.pcolormesh([0, 1, 5, 6], [0, 1], np.ones((1, 3)))  # uneven: a rectilinear mesh
+    d = ax.core.heatmap_data(2)
+    assert list(d.x_edges) == [0, 1, 5, 6]
+
+
+def test_norm_on_colormapped_calls():
+    from sextant import colors
+    ax = plt.gca()
+    z = np.linspace(1, 100, 20).reshape(4, 5)
+    ax.imshow(z, norm=colors.LogNorm())
+    assert ax.core.heatmap_data(0) is not None
+    ax.scatter([1, 2, 3], [1, 2, 3], c=[1, 10, 100], norm=colors.LogNorm(1, 100))
+    ax.quiver([0, 1], [0, 1], [1, 1], [1, 1], [1, 5], norm="log")
+    ax.imshow(z, norm=colors.TwoSlopeNorm(50, 1, 100))
+    ax.imshow(z, norm=colors.BoundaryNorm([1, 10, 50, 100], 3))
+    assert colors.resolve_norm("log")[0] is not None
+
+
+def test_tripcolor_hist2d_contour():
+    rng = np.random.default_rng(1)
+    ax = plt.gca()
+    x, y = rng.random(30), rng.random(30)
+    tc = ax.tripcolor(x, y, x + y)
+    assert len(tc.get_array()) == 30
+    counts, xe, ye, im = ax.hist2d(rng.normal(size=300), rng.normal(size=300), bins=6)
+    assert counts.shape == (6, 6) and len(xe) == 7 and counts.sum() == 300
+    g = np.linspace(-1, 1, 15)
+    X, Y = np.meshgrid(g, g)
+    cs = ax.contour(X, Y, X * X + Y * Y, 4)
+    ax.clabel(cs)
+    assert len(cs.levels) >= 3
+    cf = ax.contourf(X * X + Y * Y, levels=[0, 0.5, 1, 2])
+    assert cf.filled and not cs.filled
+    cf.remove()
+    assert ax.core.contour_count() == 1
+    plt.close("all")
+    plt.tripcolor(x, y, x)
+    plt.hist2d(x, y)
+    plt.contour(np.eye(4))
+    ax = plt.figure().add_subplot(projection="3d")
+    q = ax.quiver(*rng.random((6, 5)), length=0.5)
+    assert q.get_segments().shape == (5, 2, 3)
 
 
 def test_colorbar_replays_the_axes():
@@ -1593,3 +1643,73 @@ def test_patch_limits_and_errors():
     ax.add_patch(Circle((10, 20), 5))
     lo, hi = ax.core.xlim()
     assert lo <= 5 and hi >= 15  # autoscale takes the shape
+
+
+# --- review fixes: dropped keywords, replay, weights, alpha, arrows --------------------
+
+def test_contour_origin_extent_and_rejected_keywords():
+    ax = plt.gca()
+    Z = np.arange(12.0).reshape(3, 4)
+    ax.contour(Z, origin="lower", extent=(0, 8, 0, 6))
+    d = ax.core.contour_data(0)
+    np.testing.assert_allclose(d.x, [1, 3, 5, 7])  # pixel centres of the extent
+    np.testing.assert_allclose(d.y, [1, 3, 5])
+    ax.contour(Z, origin="upper")
+    d = ax.core.contour_data(1)
+    np.testing.assert_allclose(d.y, [0, 1, 2])
+    np.testing.assert_array_equal(d.z, Z[::-1])  # row 0 is at the top, so y ascends over the flipped rows
+    for bad in (lambda: ax.contour(Z, linestyles="dashed"), lambda: ax.contourf(Z, extend="both"),
+                lambda: ax.contour(Z, colors=["r", "g"]), lambda: ax.contour(*np.meshgrid(range(4), range(3)), Z, origin="lower")):
+        with pytest.raises(ValueError):
+            bad()
+    X, Y = np.meshgrid(range(4), range(3))
+    with pytest.raises(ValueError, match="rectilinear"):
+        ax.contour(X + 0.3 * Y, Y, Z)
+    with pytest.raises(ValueError, match="rectilinear"):
+        ax.pcolormesh(X + 0.3 * Y, Y, Z)
+
+
+def test_hist2d_weights_and_set_data_guard():
+    ax = plt.gca()
+    x = np.array([0.1, 0.2, 0.8, 0.9])
+    y = np.array([0.1, 0.2, 0.8, 0.9])
+    w = np.array([1.0, 2.0, 3.0, 4.0])
+    counts, xe, ye, im = ax.hist2d(x, y, bins=2, range=[[0, 1], [0, 1]], weights=w)
+    np.testing.assert_allclose(counts, [[3, 0], [0, 7]])
+    d = ax.core.heatmap_data(0)
+    np.testing.assert_allclose(d.data, counts.T)
+    im2 = ax.hist2d(x, y, bins=2)[3]
+    with pytest.raises(NotImplementedError):
+        im2.set_data(np.zeros((2, 2)))
+    assert im2._entry[0] == "hist2d" and len(im2._entry[1]) == 2  # replay log untouched
+    with pytest.raises(ValueError):
+        ax.hist2d(x, y, weights=w[:2])
+
+
+def test_imshow_rgb_alpha_and_uint8_set_data():
+    ax = plt.gca()
+    im = ax.imshow(np.full((2, 2, 3), 255, dtype=np.uint8), alpha=0.5)
+    d = ax.core.heatmap_data(0)
+    assert d.data.shape == (2, 2, 4) and d.data[..., 3].max() == pytest.approx(0.5)
+    sc = ax.imshow(np.full((2, 2), 200, dtype=np.uint8))
+    sc.set_data(np.full((2, 2), 200, dtype=np.uint8))
+    assert ax.core.heatmap_data(1).data.max() == 200.0  # not rescaled as colours
+    with pytest.warns(UserWarning, match="alpha"):
+        ax.imshow(np.eye(2), alpha=0.5)
+
+
+def test_log_norm_string_is_case_insensitive_and_uneven_pcolormesh_kwargs():
+    ax = plt.gca()
+    ax.imshow(np.array([[1.0, 10.0], [100.0, 1000.0]]), norm="LOG")
+    with pytest.warns(UserWarning, match="alpha"):
+        ax.pcolormesh([0, 1, 3], [0, 2, 3], np.ones((2, 2)), alpha=0.5)
+    assert ax.core.heatmap_count() == 2
+
+
+def test_quiver3d_arrow_length_ratio():
+    ax = plt.figure().add_subplot(projection="3d")
+    pts = np.zeros(3), np.zeros(3), np.zeros(3), np.ones(3), np.zeros(3), np.zeros(3)
+    short = ax.quiver(*pts, arrow_length_ratio=0.1)._entry[2]["head_length"]
+    long = ax.quiver(*pts, arrow_length_ratio=0.5)._entry[2]["head_length"]
+    assert long == pytest.approx(5 * short) or long > short
+    assert "head_length" not in ax.quiver(*pts)._entry[2]
