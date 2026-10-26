@@ -49,7 +49,8 @@ nanobind_add_module(_sextant STABLE_ABI NB_STATIC
     src/ext/events.cpp
     src/ext/figure.cpp
     src/ext/lifecycle.cpp
-    src/ext/messages.cpp)
+    src/ext/messages.cpp
+    src/ext/polar.cpp)
 target_link_libraries(_sextant PRIVATE sextant::sextant_static)
 
 # Export PyInit__sextant alone (see the map file). Not on macOS: arm64 already

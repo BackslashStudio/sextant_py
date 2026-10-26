@@ -212,6 +212,30 @@ namespace sextant_py {
                      return wrap<PyAxes3D>(self.st, call(self, [&](Figure& f) { return f.add_subplot3d(span); }));
                  },
                  "index"_a)
+            .def("add_subplot_polar",
+                 [](PyFigure& self, int rows, int cols, int index) {
+                     return wrap<PyPolar>(self.st,
+                                          call(self, [&](Figure& f) { return f.add_subplot_polar(rows, cols, index); }));
+                 },
+                 "rows"_a, "cols"_a, "index"_a,
+                 "A polar subplot (PolarAxes) on the same grid as add_subplot(), same rules; a cell\n"
+                 "holding another kind of axes throws.")
+            .def("add_subplot_polar",
+                 [](PyFigure& self, int rows, int cols, SubplotSpan span) {
+                     return wrap<PyPolar>(self.st,
+                                          call(self, [&](Figure& f) { return f.add_subplot_polar(rows, cols, span); }));
+                 },
+                 "rows"_a, "cols"_a, "index"_a)
+            .def("add_subplot_polar",
+                 [](PyFigure& self, int index) {
+                     return wrap<PyPolar>(self.st, call(self, [&](Figure& f) { return f.add_subplot_polar(index); }));
+                 },
+                 "index"_a)
+            .def("add_subplot_polar",
+                 [](PyFigure& self, SubplotSpan span) {
+                     return wrap<PyPolar>(self.st, call(self, [&](Figure& f) { return f.add_subplot_polar(span); }));
+                 },
+                 "index"_a)
 
             // --- layout --------------------------------------------------------
             .def("suptitle",

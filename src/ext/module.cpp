@@ -32,6 +32,7 @@ NB_MODULE(_sextant, m) {
     sextant_py::bind_axes(m);
     sextant_py::bind_plane(m);
     sextant_py::bind_axes3d(m);
+    sextant_py::bind_polar(m);
     sextant_py::bind_figure(m);
     sextant_py::bind_messages(m);
     sextant_py::bind_lifecycle(m);

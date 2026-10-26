@@ -765,6 +765,16 @@ namespace sextant_py {
         static const std::string colorbar_doc = opts_doc<sextant::ColorbarOptions>(
             "set_colorbar_style(**opts)", "Style shared by this axes' colorbars; a colorbar itself is asked for "
                                           "with colorbar=True on heatmap/scatter_z.");
+        static const std::string pie_doc = opts_doc<sextant::PieOptions>(
+            "pie(values, **opts)",
+            "A pie chart (matplotlib's pie()): slice k is values[k]'s share of the circle (of the\n"
+            "sum, or of 1 with normalize=False), from startangle degrees, centred at (cx, cy) in\n"
+            "data units. labels and explode: one per slice or empty; explode is a fraction of the\n"
+            "radius. autopct is a printf conversion of the percent ('%1.1f%%'). One legend entry\n"
+            "per labelled slice; a press on slice k picks the pie with pick_index k. Turns the\n"
+            "axis off and sets aspect 1, as matplotlib's does. ValueError for a negative or\n"
+            "non-finite value, a sum of 0 (over 1 without normalize), labels or explode of another\n"
+            "length, a negative explode, radius <= 0, inner outside [0, radius), or a bad autopct.");
 
         static const std::string xscale_doc = opts_doc<sextant::ScaleOptions>(
             "set_xscale(scale, **opts)",
@@ -780,6 +790,42 @@ namespace sextant_py {
                      &Axes::axline_visible);
         bind_visible(cls, "set_text_visible", "text_visible", &Axes::text_count, &Axes::set_text_visible,
                      &Axes::text_visible);
+        bind_visible(cls, "set_pie_visible", "pie_visible", &Axes::pie_count, &Axes::set_pie_visible,
+                     &Axes::pie_visible);
+        cls.def("pie",
+                [](Self self, const Vec& values, const nb::kwargs& kw) {
+                    auto o = options<sextant::PieOptions>("pie()", kw);
+                    return chain(self, [&](Axes& ax) { ax.pie(values.span(), std::move(o)); });
+                },
+                "values"_a, "opts"_a, pie_doc.c_str())
+            .def("pie_count", [](PyAxes& a) { return read(a, [](Axes& ax) { return ax.pie_count(); }); })
+            .def("pie_data",
+                 [](PyAxes& a, std::int64_t i) {
+                     return to_python(read(a, [&](Axes& ax) { return ax.pie_data(index(i, ax.pie_count())); }));
+                 },
+                 "i"_a)
+            .def("set_pie_data",
+                 [](Self self, std::int64_t i, const PyPieData& d) {
+                     const sextant::PieData cd = d.to_cpp();
+                     return chain(self, [&](Axes& ax) { ax.set_pie_data(index(i, ax.pie_count()), cd); });
+                 },
+                 "i"_a, "data"_a,
+                 "Replace pie i's values, labels and explode (checked as pie()); the slices' angles\n"
+                 "follow, the options stay.")
+            .def("set_pie_data",
+                 [](Self self, std::int64_t i, const Vec& values, std::optional<std::vector<std::string>> labels,
+                    const std::optional<Vec>& explode) {
+                     return chain(self, [&](Axes& ax) {
+                         const std::size_t k = index(i, ax.pie_count());
+                         sextant::PieData cur = ax.pie_data(k);
+                         cur.values.assign(values.span().begin(), values.span().end());
+                         if (labels) cur.labels = std::move(*labels);
+                         if (explode) cur.explode.assign(explode->span().begin(), explode->span().end());
+                         ax.set_pie_data(k, cur);
+                     });
+                 },
+                 "i"_a, "values"_a, "labels"_a = nb::none(), "explode"_a = nb::none(),
+                 "New values; labels and explode keep theirs unless given (the count must then hold).");
         cls.def("hist2d",
                 [](Self self, const Vec& x, const Vec& y, const nb::kwargs& kw) {
                     auto o = options<sextant::Hist2dOptions>("hist2d()", kw);
@@ -1028,6 +1074,15 @@ namespace sextant_py {
                  "frame), in the scales' units. adjustable='box' shrinks the frame, 'datalim'\n"
                  "widens one axis' limits as drawn. ValueError for a negative or non-finite ratio,\n"
                  "on a twin, and for 'datalim' when both axes are shared. cla() resets it.")
+            .def("set_axis_visible",
+                 [](Self self, bool on) { return chain(self, [&](Axes& ax) { ax.set_axis_visible(on); }); },
+                 "on"_a = true,
+                 "Draw the axis or not, as matplotlib's axis('off'): off hides the spines, tick marks\n"
+                 "and labels, the x/y titles, the grid and the background fill, and the layout gives\n"
+                 "their room to the frame. The data, title, legend, colorbars and texts stay, as do\n"
+                 "pan, zoom and hover; the style setters keep their values. On a twin, its own layer\n"
+                 "only. pie() turns it off; cla() turns it back on.")
+            .def("axis_visible", [](PyAxes& a) { return read(a, [](Axes& ax) { return ax.axis_visible(); }); })
 
             // --- read-back -------------------------------------------------
             .def("title", [](PyAxes& a) { return read(a, [](Axes& ax) { return ax.title(); }); })

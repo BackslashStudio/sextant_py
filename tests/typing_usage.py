@@ -59,7 +59,7 @@ def plots() -> None:
     fig.savefig("out.png", peel_layers=8)
 
     def on_event(ev: sextant.Event) -> None:
-        where: sextant.Axes | sextant.Axes3D | None = ev.inaxes
+        where: sextant.Axes | sextant.Axes3D | sextant.PolarAxes | None = ev.inaxes
         twin_y: float = ev.y2data
         whose: int = ev.pick_twin
 

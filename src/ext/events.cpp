@@ -91,10 +91,11 @@ namespace sextant_py {
             if (keep && keep.use_count() == 1) defer_release(std::move(keep));
         }
 
-        // The Axes/Axes3D whose frame is under the event, as the same Python
-        // object the program holds. The event names the subplot by its first
-        // cell; add_subplot() returns the one there, and throws if it is 3D.
-        nb::typed<nb::object, std::variant<PyAxes, PyAxes3D, nb::none>> inaxes(const PyEvent& ev) {
+        // The Axes/Axes3D/PolarAxes whose frame is under the event, as the same
+        // Python object the program holds. The event names the subplot by its
+        // first cell; add_subplot() returns the one there, and throws if it is
+        // another kind.
+        nb::typed<nb::object, std::variant<PyAxes, PyAxes3D, PyPolar, nb::none>> inaxes(const PyEvent& ev) {
             if (ev.e.axes < 0) return nb::none();
             auto st = ev.st.lock();
             if (!st) return nb::none();
@@ -107,6 +108,11 @@ namespace sextant_py {
             try {
                 auto ax = locked(*st, [&] { return st->fig->add_subplot3d(cell); });
                 return wrap<PyAxes3D>(st, std::move(ax));
+            } catch (const std::exception&) {
+            }
+            try {
+                auto ax = locked(*st, [&] { return st->fig->add_subplot_polar(cell); });
+                return wrap<PyPolar>(st, std::move(ax));
             } catch (const std::exception&) {
             }
             return nb::none();
@@ -182,7 +188,9 @@ namespace sextant_py {
             .def_prop_ro("axes", [](const PyEvent& ev) { return ev.e.axes; },
                          "The subplot under (x, y), as the index add_subplot() takes (a span: its first\n"
                          "cell), or -1. inaxes is the object itself.")
-            .def_prop_ro("inaxes", &inaxes, "The Axes or Axes3D under (x, y), or None.")
+            .def_prop_ro("inaxes", &inaxes,
+                         "The Axes, Axes3D or PolarAxes under (x, y), or None. Over a PolarAxes, xdata\n"
+                         "is theta (radians) and ydata r.")
             .def_prop_ro("has_data", [](const PyEvent& ev) { return ev.e.has_data; },
                          "Whether xdata/ydata(/zdata) are set: over a 2D axes, or where a 3D cursor ray\n"
                          "meets a Plane2D.")

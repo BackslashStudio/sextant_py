@@ -97,6 +97,7 @@ BY_NAME = {  # values a generic one would make invalid
     "width": 64, "height": 48, "supersample": 1, "peel_layers": 2, "dpi": 96, "origin": "upper",
     "font_path": "", "title": "t", "norm": "linear",
     "x_edges": [0.0, 1.0, 2.0, 3.0], "y_edges": [0.0, 1.0, 2.0, 3.0], "levels": [0.2, 0.5],
+    "autopct": "%.1f%%", "explode": [0.1, 0.0],  # a pie of two slices (labels has two)
 }
 
 
@@ -168,6 +169,7 @@ def apply(struct, kwargs):
         "PolyOptions": lambda: ax.shape_poly([0.1, 0.9, 0.5], [0.1, 0.1, 0.9], **kwargs),
         "CircleOptions": lambda: ax.shape_circle(1, 1, 1, **kwargs),
         "WedgeOptions": lambda: ax.shape_wedge(1, 1, 3, 0, 90, **kwargs),  # inner (2) < r
+        "PieOptions": lambda: ax.pie([1.0, 2.0], **{**kwargs, "radius": 3}),  # inner (2) < radius
         "StackOptions": lambda: ax.stack(x, [x, x], **kwargs),
         "QuiverOptions": lambda: ax.quiver(x, x, x, x, **kwargs),
         "HeatmapOptions": lambda: ax.heatmap(np.ones((2, 2)), (0, 1), (0, 1), **kwargs),

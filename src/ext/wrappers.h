@@ -38,7 +38,7 @@ namespace sextant_py {
     int figure_traverse(PyObject* self, visitproc visit, void* arg);
     int figure_clear(PyObject* self);
 
-    // An object of a figure's graph: Axes, Axes3D or Plane2D.
+    // An object of a figure's graph: Axes, Axes3D, Plane2D or PolarAxes.
     template <class T>
     struct Wrapped {
         std::shared_ptr<FigureState> st;
@@ -47,6 +47,7 @@ namespace sextant_py {
     using PyAxes = Wrapped<sextant::Axes>;
     using PyAxes3D = Wrapped<sextant::Axes3D>;
     using PyPlane = Wrapped<sextant::Plane2D>;
+    using PyPolar = Wrapped<sextant::PolarAxes>;
 
     template <class T>
     using SelfOf = nb::pointer_and_handle<Wrapped<T>>;
@@ -231,6 +232,13 @@ namespace sextant_py {
         sextant::AxLineData to_cpp() const;
     };
     using PyAxSpanData = sextant::AxSpanData;
+    // explode: one per slice, None for none (as labels, empty).
+    struct PyPieData {
+        F64 values;
+        std::vector<std::string> labels;
+        F64OrNone explode;
+        sextant::PieData to_cpp() const;
+    };
 
     PyLineData to_python(sextant::LineData&& d);
     PyScatterData to_python(sextant::ScatterData&& d);
@@ -252,9 +260,11 @@ namespace sextant_py {
     PyCircleData to_python(sextant::CircleData&& d);
     PyWedgeData to_python(sextant::WedgeData&& d);
     PyAxLineData to_python(sextant::AxLineData&& d);
+    PyPieData to_python(sextant::PieData&& d);
 
     void bind_data(nb::module_& m);
     void bind_events(nb::module_& m, nb::class_<PyFigure>& fig);
     void bind_axes3d(nb::module_& m);
     void bind_plane(nb::module_& m);
+    void bind_polar(nb::module_& m);
 } // namespace sextant_py

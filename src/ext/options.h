@@ -196,6 +196,11 @@ namespace sextant_py {
     SEXTANT_PY_OPTIONS(WedgeOptions,
                        F(color), F(alpha), F(edgecolor), F(linewidth), F(linestyle), F(inner), F(name),
                        F(show_legend), F(visible), F(zorder))
+    SEXTANT_PY_OPTIONS(PieOptions,
+                       F(labels), F(explode), F(colors), F(autopct), F(pctdistance), F(labeldistance),
+                       F(startangle), F(counterclock), F(radius), F(cx), F(cy), F(normalize), F(inner),
+                       F(edgecolor), F(linewidth), F(alpha), F(fontsize), F(textcolor), F(name),
+                       F(show_legend), F(visible), F(zorder))
     SEXTANT_PY_OPTIONS(StackOptions,
                        F(orientation), F(baseline), F(colors), F(names), F(alpha), F(edgecolor), F(linewidth),
                        F(linestyle), F(drawstyle), F(show_legend), F(visible), F(zorder))

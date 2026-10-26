@@ -208,7 +208,10 @@ namespace sextant_py {
                      {"surface_tri", SurfaceTri}, {"scatter3d", Scatter3D}, {"line3d", Line3D},
                      {"quiver", Quiver}, {"fill", Fill}, {"poly", Poly}, {"circle", Circle},
                      {"wedge", Wedge}, {"heatmap_tri", HeatmapTri}, {"contour", Contour},
-                     {"quiver3d", Quiver3D}),
+                     {"quiver3d", Quiver3D}, {"pie", Pie}),
+                    ())
+    SEXTANT_PY_ENUM(ThetaZero,
+                    ({"e", E}, {"n", N}, {"w", W}, {"s", S}, {"ne", NE}, {"nw", NW}, {"sw", SW}, {"se", SE}),
                     ())
     SEXTANT_PY_ENUM(EventConsumed,
                     ({"none", None}, {"select", Select}, {"navigate", Navigate}, {"grid_drag", GridDrag}),
@@ -355,6 +358,7 @@ namespace nanobind::detail {
     SEXTANT_PY_ENUM_CASTER(EventKind)
     SEXTANT_PY_ENUM_CASTER(PickKind)
     SEXTANT_PY_ENUM_CASTER(EventConsumed)
+    SEXTANT_PY_ENUM_CASTER(ThetaZero)
 #undef SEXTANT_PY_ENUM_CASTER
     template <>
     struct type_caster<sextant::ColorNorm::Kind> : sextant_enum_caster<sextant::ColorNorm::Kind> {

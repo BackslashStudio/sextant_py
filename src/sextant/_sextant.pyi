@@ -41,8 +41,9 @@ MathFontsetLike: TypeAlias = sextant._enums.MathFontset | Literal["text", "stix"
 ProjectionLike: TypeAlias = sextant._enums.Projection | Literal["orthographic", "perspective", "ortho", "persp"]
 PlaneOrientationLike: TypeAlias = sextant._enums.PlaneOrientation | Literal["xy", "yz", "zx"]
 EventKindLike: TypeAlias = sextant._enums.EventKind | Literal["close", "mouse_down", "mouse_up", "mouse_move", "scroll", "key_down", "key_up", "resize", "pick", "close_event", "button_press_event", "button_release_event", "motion_notify_event", "scroll_event", "key_press_event", "key_release_event", "resize_event", "pick_event"]
-PickKindLike: TypeAlias = sextant._enums.PickKind | Literal["none", "line", "scatter", "scatter_z", "bar", "heatmap", "bar3d", "surface", "surface_tri", "scatter3d", "line3d", "quiver", "fill", "poly", "circle", "wedge", "heatmap_tri", "contour", "quiver3d"]
+PickKindLike: TypeAlias = sextant._enums.PickKind | Literal["none", "line", "scatter", "scatter_z", "bar", "heatmap", "bar3d", "surface", "surface_tri", "scatter3d", "line3d", "quiver", "fill", "poly", "circle", "wedge", "heatmap_tri", "contour", "quiver3d", "pie"]
 EventConsumedLike: TypeAlias = sextant._enums.EventConsumed | Literal["none", "select", "navigate", "grid_drag"]
+ThetaZeroLike: TypeAlias = sextant._enums.ThetaZero | Literal["e", "n", "w", "s", "ne", "nw", "sw", "se"]
 NormKindLike: TypeAlias = sextant._enums.NormKind | Literal["linear", "log", "two_slope", "boundaries"]
 
 
@@ -196,6 +197,30 @@ class WedgeOptions(TypedDict, total=False):
     linewidth: float
     linestyle: LineStyleLike
     inner: float
+    name: str
+    show_legend: bool
+    visible: bool
+    zorder: float
+
+class PieOptions(TypedDict, total=False):
+    labels: collections.abc.Sequence[str]
+    explode: ArrayLike | float | None
+    colors: collections.abc.Sequence[str | tuple[float, ...]]
+    autopct: str
+    pctdistance: float
+    labeldistance: float | None
+    startangle: float
+    counterclock: bool
+    radius: float
+    cx: float
+    cy: float
+    normalize: bool
+    inner: float
+    edgecolor: str | tuple[float, ...] | None
+    linewidth: float
+    alpha: float
+    fontsize: float | None
+    textcolor: str | tuple[float, ...]
     name: str
     show_legend: bool
     visible: bool
@@ -1023,6 +1048,35 @@ class WedgeData:
 
     @rcoords.setter
     def rcoords(self, arg: CoordsLike, /) -> None: ...
+
+    def __repr__(self) -> str: ...
+
+class PieData:
+    """
+    Axes.pie(): the values as given (normalized at draw time), one label per
+    slice or none, and explode, None when no slice is offset, else one fraction
+    of the radius per slice.
+    """
+
+    def __init__(self, values: ArrayLike, labels: Sequence[str] = [], explode: ArrayLike | None = None) -> None: ...
+
+    @property
+    def values(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @values.setter
+    def values(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def labels(self) -> list[str]: ...
+
+    @labels.setter
+    def labels(self, arg: Sequence[str], /) -> None: ...
+
+    @property
+    def explode(self) -> numpy.typing.NDArray[numpy.float64] | None: ...
+
+    @explode.setter
+    def explode(self, arg: ArrayLike | None, /) -> None: ...
 
     def __repr__(self) -> str: ...
 
@@ -2059,6 +2113,48 @@ class Axes:
 
     def text_visible(self, i: int) -> bool: ...
 
+    def set_pie_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def pie_visible(self, i: int) -> bool: ...
+
+    def pie(self, values: ArrayLike, **opts: Unpack[PieOptions]) -> Axes:
+        """
+        pie(values, **opts)
+
+        A pie chart (matplotlib's pie()): slice k is values[k]'s share of the circle (of the
+        sum, or of 1 with normalize=False), from startangle degrees, centred at (cx, cy) in
+        data units. labels and explode: one per slice or empty; explode is a fraction of the
+        radius. autopct is a printf conversion of the percent ('%1.1f%%'). One legend entry
+        per labelled slice; a press on slice k picks the pie with pick_index k. Turns the
+        axis off and sets aspect 1, as matplotlib's does. ValueError for a negative or
+        non-finite value, a sum of 0 (over 1 without normalize), labels or explode of another
+        length, a negative explode, radius <= 0, inner outside [0, radius), or a bad autopct.
+
+        Keyword options (PieOptions): labels, explode, colors, autopct, pctdistance, labeldistance, startangle, counterclock, radius, cx, cy, normalize, inner, edgecolor, linewidth, alpha, fontsize, textcolor, name, show_legend, visible, zorder.
+        """
+
+    def pie_count(self) -> int: ...
+
+    def pie_data(self, i: int) -> PieData: ...
+
+    @overload
+    def set_pie_data(self, i: int, data: PieData) -> Axes:
+        """
+        Replace pie i's values, labels and explode (checked as pie()); the slices' angles
+        follow, the options stay.
+        """
+
+    @overload
+    def set_pie_data(self, i: int, values: ArrayLike, labels: Sequence[str] | None = None, explode: ArrayLike | None = None) -> Axes:
+        """
+        New values; labels and explode keep theirs unless given (the count must then hold).
+        """
+
     def hist2d(self, x: ArrayLike, y: ArrayLike, **opts: Unpack[Hist2dOptions]) -> Axes:
         """
         hist2d(x, y, **opts)
@@ -2294,6 +2390,17 @@ class Axes:
         widens one axis' limits as drawn. ValueError for a negative or non-finite ratio,
         on a twin, and for 'datalim' when both axes are shared. cla() resets it.
         """
+
+    def set_axis_visible(self, on: bool = True) -> Axes:
+        """
+        Draw the axis or not, as matplotlib's axis('off'): off hides the spines, tick marks
+        and labels, the x/y titles, the grid and the background fill, and the layout gives
+        their room to the frame. The data, title, legend, colorbars and texts stay, as do
+        pan, zoom and hover; the style setters keep their values. On a twin, its own layer
+        only. pie() turns it off; cla() turns it back on.
+        """
+
+    def axis_visible(self) -> bool: ...
 
     def title(self) -> str: ...
 
@@ -3238,6 +3345,392 @@ class Axes3D:
 
     def text_visible(self, i: int) -> bool: ...
 
+class PolarAxes:
+    """
+    A polar subplot (Figure.add_subplot_polar()). theta is in radians in data
+    (plot(), line_data(), events), in degrees in every setter that places the frame
+    or its grid, as matplotlib's. r runs outward from rmin at the centre to rmax at
+    the frame.
+    """
+
+    def plot(self, theta: ArrayLike, r: ArrayLike | None = None, **opts: Unpack[LineOptions]) -> PolarAxes:
+        """
+        plot(theta, r=None, **opts)
+
+        A line through (theta[i], r[i]), theta in radians, straight in (theta, r): drawn as
+        an arc where theta changes; NaN breaks it. plot(r) plots r against theta = 0, 1, 2,
+        ... radians. drawstyle steps in theta; loop closes back to the first point.
+
+        Keyword options (LineOptions): color, linewidth, linestyle, name, show_legend, visible, zorder, alpha, loop, drawstyle, errorbar, hint_labels.
+        """
+
+    def scatter(self, theta: ArrayLike, r: ArrayLike, **opts: Unpack[ScatterOptions]) -> PolarAxes:
+        """
+        scatter(theta, r, **opts)
+
+        Markers at (theta[i], r[i]); a point outside the r limits or the theta span is not drawn.
+
+        Keyword options (ScatterOptions): color, size, sizes, marker, name, show_legend, visible, zorder, alpha, filled, edgecolor, edge_linewidth, errorbar, hint_labels.
+        """
+
+    def scatter_z(self, theta: ArrayLike, r: ArrayLike, z: ArrayLike, **opts: Unpack[ScatterZOptions]) -> PolarAxes:
+        """
+        scatter_z(theta, r, z, **opts)
+
+        Markers colored by z through cmap/vmin/vmax (its colorbar beside the frame).
+
+        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, filled, edgecolor, edge_linewidth, vmin, vmax, norm, colorbar, name, show_legend, visible, zorder, errorbar, hint_labels.
+        """
+
+    def bar(self, theta: ArrayLike, height: ArrayLike, **opts: Unpack[BarOptions]) -> PolarAxes:
+        """
+        bar(theta, height, **opts)
+
+        Ring sectors: bar i spans theta[i] +- width/2 (width a fraction of the theta spacing,
+        as Axes.bar()) and r from bottom[i] to bottom[i] + height[i], cut to the r limits and
+        the theta span. ValueError for horizontal bars.
+
+        Keyword options (BarOptions): color, orientation, bottom, width, alpha, name, show_legend, visible, zorder, edgecolor, linewidth, errorbar, hint_labels.
+        """
+
+    def fill(self, theta: ArrayLike, r1: ArrayLike, r2: float | ArrayLike = 0.0, **opts: Unpack[FillOptions]) -> PolarAxes:
+        """
+        fill(theta, r1, r2=0, **opts)
+
+        The area between r1(theta) and r2(theta), r2 a number or one value per point; the
+        default 0 fills inside a curve (a radar chart's). Its curves are straight in
+        (theta, r), cut to the r limits and the theta span. With orientation='vertical',
+        between theta1(r) and theta2(r): the arrays then read r, theta1, theta2.
+
+        Keyword options (FillOptions): orientation, color, alpha, edgecolor, linewidth, linestyle, drawstyle, exclude, interpolate, name, show_legend, visible, zorder.
+        """
+
+    def shape_poly(self, theta: ArrayLike, r: ArrayLike, **opts: Unpack[PolyOptions]) -> PolarAxes:
+        """
+        shape_poly(theta, r, **opts)
+
+        A filled polygon through (theta[i], r[i]), closed implicitly, its edges straight in
+        (theta, r). Only space='data': another space raises ValueError.
+
+        Keyword options (PolyOptions): color, alpha, edgecolor, linewidth, linestyle, space, name, show_legend, visible, zorder.
+        """
+
+    def text(self, s: str, theta: float, r: float, *, coords: CoordsLike = sextant._enums.Coords.DATA, **opts: Unpack[TextOptions]) -> PolarAxes:
+        """
+        text(s, theta, r, *, coords='data', **opts)
+
+        Text at (theta, r): data values (radians, r), or with coords='fraction' / 'pixels' a
+        point of the frame's box (pixels from its bottom left). Hidden while a data point is
+        outside the r limits or the theta span.
+
+        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame, parse_math, visible.
+        """
+
+    def annotate(self, theta: float, r: float, s: str, ttheta: float, tr: float, *, coords: CoordsLike = sextant._enums.Coords.DATA, arrow: ArrowOptions | None = None, **opts: Unpack[TextOptions]) -> PolarAxes:
+        """
+        annotate(theta, r, s, ttheta, tr, *, coords='data', arrow=None, **opts)
+
+        Text at (ttheta, tr), placed as text() places it, with an arrow to the data point
+        (theta, r). arrow is a dict of ArrowOptions fields. Hidden while the point is not
+        shown.
+
+        Keyword options (TextOptions): fontsize, color, alpha, font_path, ha, va, rotation, dx, dy, linespacing, background, edgecolor, edge_linewidth, pad, clip_to_frame, parse_math, visible.
+        """
+
+    def last_object(self) -> int:
+        """The id (an int, 0 = none) of the object the latest plotting call made."""
+
+    def remove(self, id: int) -> bool:
+        """
+        Take the object with this id out for good: True. An id that is not here changes
+        nothing, returns False and sends a message to the message handler. Later objects
+        of its kind move down one index; ids stay.
+        """
+
+    def find_object(self, id: int) -> tuple[sextant._enums.PickKind, int] | None:
+        """
+        (PickKind, index) of the object with this id; None if it is not here, was
+        removed, or is a text.
+        """
+
+    def set_zorder(self, id: int, zorder: float) -> bool:
+        """
+        Set the paint order of the object with this id, as Axes.set_zorder(): True; False
+        and a message for an id that is not here or a text.
+        """
+
+    def zorder(self, id: int) -> float | None:
+        """
+        The zorder of the object with this id; None (and a message) for an id that is
+        not here or a text.
+        """
+
+    def line_count(self) -> int: ...
+
+    def scatter_count(self) -> int: ...
+
+    def scatter_z_count(self) -> int: ...
+
+    def bar_count(self) -> int: ...
+
+    def fill_count(self) -> int: ...
+
+    def shape_poly_count(self) -> int: ...
+
+    def text_count(self) -> int: ...
+
+    def line_data(self, i: int) -> LineData:
+        """x is theta (radians), y is r."""
+
+    def scatter_data(self, i: int) -> ScatterData:
+        """x is theta (radians), y is r."""
+
+    def scatter_z_data(self, i: int) -> ScatterZData:
+        """x is theta (radians), y is r."""
+
+    def bar_data(self, i: int) -> BarData:
+        """Centres are theta (radians), heights and bottoms r."""
+
+    def fill_data(self, i: int) -> FillData:
+        """x is theta (radians), y1/y2 are r; vertical: x is r, y1/y2 theta."""
+
+    def shape_poly_data(self, i: int) -> PolyData:
+        """x is theta (radians), y is r."""
+
+    def text_data(self, i: int) -> TextData:
+        """
+        text() and annotate() alike: x is theta, y is r (or both frame fractions or
+        pixels); px/py the arrow's point (theta, r).
+        """
+
+    @overload
+    def set_line_data(self, i: int, data: LineData) -> PolarAxes: ...
+
+    @overload
+    def set_line_data(self, i: int, theta: ArrayLike, r: ArrayLike) -> PolarAxes: ...
+
+    @overload
+    def set_scatter_data(self, i: int, data: ScatterData) -> PolarAxes: ...
+
+    @overload
+    def set_scatter_data(self, i: int, theta: ArrayLike, r: ArrayLike) -> PolarAxes: ...
+
+    @overload
+    def set_scatter_z_data(self, i: int, data: ScatterZData) -> PolarAxes: ...
+
+    @overload
+    def set_scatter_z_data(self, i: int, theta: ArrayLike, r: ArrayLike, z: ArrayLike) -> PolarAxes: ...
+
+    @overload
+    def set_bar_data(self, i: int, data: BarData) -> PolarAxes: ...
+
+    @overload
+    def set_bar_data(self, i: int, theta: ArrayLike, height: ArrayLike) -> PolarAxes:
+        """New centres re-derive the width, as Axes.set_bar_data()."""
+
+    @overload
+    def set_fill_data(self, i: int, data: FillData) -> PolarAxes: ...
+
+    @overload
+    def set_fill_data(self, i: int, theta: ArrayLike, r1: ArrayLike, r2: ArrayLike) -> PolarAxes: ...
+
+    @overload
+    def set_shape_poly_data(self, i: int, data: PolyData) -> PolarAxes: ...
+
+    @overload
+    def set_shape_poly_data(self, i: int, theta: ArrayLike, r: ArrayLike) -> PolarAxes: ...
+
+    @overload
+    def set_text_data(self, i: int, data: TextData) -> PolarAxes:
+        """Replace text i's string, position and arrow (both coords alike)."""
+
+    @overload
+    def set_text_data(self, i: int, s: str, theta: float, r: float, *, coords: CoordsLike | None = None) -> PolarAxes:
+        """
+        The string and position only; an annotation keeps its arrow and point. The
+        coords stay unless given.
+        """
+
+    def set_title(self, text: str, fontsize: float = 18.0) -> PolarAxes: ...
+
+    def title(self) -> str: ...
+
+    def legend(self, **opts: Unpack[LegendOptions]) -> PolarAxes:
+        """
+        legend(**opts)
+
+        Show the legend (series with a name).
+
+        Keyword options (LegendOptions): anchor, margin, offset_x, offset_y, fontsize, frameon, text_color, frame_color, border_color, border_linewidth, font_path.
+        """
+
+    def set_color_cycle(self, colors: Sequence[str | tuple[float, ...]]) -> PolarAxes:
+        """As Axes.set_color_cycle(); [] restores the default."""
+
+    def grid(self, enable: bool = True, **opts: Unpack[GridOptions]) -> PolarAxes:
+        """
+        grid(enable=True, **opts)
+
+        Rings at the r ticks, spokes at the theta grid lines; on by default.
+
+        Keyword options (GridOptions): color, linestyle, linewidth, minor, minor_color.
+        """
+
+    def set_axes_style(self, **opts: Unpack[AxesStyle]) -> PolarAxes:
+        """
+        set_axes_style(**opts)
+
+        background fills the frame, spine_color/spine_linewidth stroke its outline,
+        tick_color and the label sizes style the labels; show_xticks hides the theta labels
+        and show_yticks the r labels. Axis positions, origins, tick lengths and minor ticks
+        do not apply. Unnamed fields reset to their defaults.
+
+        Keyword options (AxesStyle): background, spine_color, spine_linewidth, spine_bottom, spine_left, spine_top, spine_right, xaxis_color, yaxis_color, xaxis_y, xaxis_z, yaxis_x, yaxis_z, zaxis_x, zaxis_y, origin_x, origin_y, origin_z, frame_margin, show_xticks, show_yticks, show_zticks, show_xtick_labels, show_ytick_labels, tick_color, tick_length, tick_linewidth, minor_xticks, minor_yticks, minor_tick_length, label_color, label_fontsize, xtick_color, ytick_color, ztick_color, xtick_length, ytick_length, ztick_length, xtick_linewidth, ytick_linewidth, ztick_linewidth, minor_xtick_length, minor_ytick_length, xlabel_color, ylabel_color, zlabel_color, xlabel_fontsize, ylabel_fontsize, zlabel_fontsize, title_color, title_fontsize, xtitle_color, xtitle_fontsize, ytitle_color, ytitle_fontsize, ztitle_color, ztitle_fontsize, font_path.
+        """
+
+    def set_colorbar_style(self, **opts: Unpack[ColorbarOptions]) -> PolarAxes:
+        """
+        set_colorbar_style(**opts)
+
+        Style shared by this axes' colorbars; a colorbar itself is asked for with
+        colorbar=True on scatter_z.
+
+        Keyword options (ColorbarOptions): anchor, width, margin, offset_x, offset_y, fontsize, text_color, border_color, border_linewidth, font_path.
+        """
+
+    def cla(self) -> PolarAxes:
+        """Everything back to a new polar axes' defaults, the plot objects too."""
+
+    def set_rlim(self, lo: float, hi: float) -> PolarAxes:
+        """
+        ValueError unless both are finite and lo != hi (lo > hi turns r inward).
+        """
+
+    def set_rmin(self, lo: float) -> PolarAxes:
+        """One end, the other kept at its current value (rlim())."""
+
+    def set_rmax(self, hi: float) -> PolarAxes: ...
+
+    def rlim(self) -> tuple[float, float]:
+        """
+        The r limits as drawn: set ones, or automatic (rmin 0 when no shown r is negative,
+        rmax the largest rounded up to a tick; (0, 1) with no data).
+        """
+
+    def set_rticks(self, positions: ArrayLike, labels: Sequence[str] = []) -> PolarAxes:
+        """
+        Rings at `positions` labelled `labels` ([] = formatted); [] positions goes back
+        to automatic ones.
+        """
+
+    def set_rtick_format(self, fmt: str) -> PolarAxes:
+        """As Axes.set_ytick_format()."""
+
+    def set_rlabel_position(self, degrees: float) -> PolarAxes:
+        """The angle (degrees, in theta) the r labels sit along."""
+
+    def rlabel_position(self) -> float: ...
+
+    def set_thetagrids(self, degrees: ArrayLike, labels: Sequence[str] = []) -> PolarAxes:
+        """
+        Spokes at `degrees` labelled `labels` ([] = '45°' ...); [] degrees goes back to
+        every 45°.
+        """
+
+    def set_theta_zero_location(self, loc: ThetaZeroLike, offset: float = 0.0) -> PolarAxes:
+        """
+        theta = 0 at `loc` ('e', 'n', 'w', 's', 'ne', 'nw', 'sw', 'se'), turned a further
+        `offset` degrees counterclockwise.
+        """
+
+    def set_theta_offset(self, degrees: float) -> PolarAxes:
+        """The screen angle of theta = 0, degrees counterclockwise from east."""
+
+    def theta_offset(self) -> float: ...
+
+    def set_theta_direction(self, direction: int) -> PolarAxes:
+        """
+        1 counterclockwise (the default), -1 clockwise; anything else raises ValueError.
+        """
+
+    def theta_direction(self) -> int: ...
+
+    def set_thetamin(self, degrees: float) -> PolarAxes: ...
+
+    def set_thetamax(self, degrees: float) -> PolarAxes: ...
+
+    def set_thetalim(self, min_degrees: float, max_degrees: float) -> PolarAxes:
+        """
+        The theta span drawn: a sector between the two (degrees, finite, min < max, at
+        most 360 apart; else ValueError).
+        """
+
+    def thetalim(self) -> tuple[float, float]:
+        """The theta span in degrees."""
+
+    def set_line_visible(self, i: int, visible: bool) -> PolarAxes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def line_visible(self, i: int) -> bool: ...
+
+    def set_scatter_visible(self, i: int, visible: bool) -> PolarAxes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def scatter_visible(self, i: int) -> bool: ...
+
+    def set_scatter_z_visible(self, i: int, visible: bool) -> PolarAxes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def scatter_z_visible(self, i: int) -> bool: ...
+
+    def set_bar_visible(self, i: int, visible: bool) -> PolarAxes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def bar_visible(self, i: int) -> bool: ...
+
+    def set_fill_visible(self, i: int, visible: bool) -> PolarAxes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def fill_visible(self, i: int) -> bool: ...
+
+    def set_shape_poly_visible(self, i: int, visible: bool) -> PolarAxes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def shape_poly_visible(self, i: int) -> bool: ...
+
+    def set_text_visible(self, i: int, visible: bool) -> PolarAxes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def text_visible(self, i: int) -> bool: ...
+
 class SvgSaveReport:
     """
     scene_order_exact False: part of a 3D scene was left in plain depth
@@ -3343,6 +3836,22 @@ class Figure:
 
     @overload
     def add_subplot3d(self, index: tuple[int, int]) -> Axes3D: ...
+
+    @overload
+    def add_subplot_polar(self, rows: int, cols: int, index: int) -> PolarAxes:
+        """
+        A polar subplot (PolarAxes) on the same grid as add_subplot(), same rules; a cell
+        holding another kind of axes throws.
+        """
+
+    @overload
+    def add_subplot_polar(self, rows: int, cols: int, index: tuple[int, int]) -> PolarAxes: ...
+
+    @overload
+    def add_subplot_polar(self, index: int) -> PolarAxes: ...
+
+    @overload
+    def add_subplot_polar(self, index: tuple[int, int]) -> PolarAxes: ...
 
     def suptitle(self, text: str, fontsize: float = 21.0) -> None: ...
 
@@ -3502,8 +4011,11 @@ class Event:
         """
 
     @property
-    def inaxes(self) -> Axes | Axes3D | None:
-        """The Axes or Axes3D under (x, y), or None."""
+    def inaxes(self) -> Axes | Axes3D | PolarAxes | None:
+        """
+        The Axes, Axes3D or PolarAxes under (x, y), or None. Over a PolarAxes, xdata
+        is theta (radians) and ydata r.
+        """
 
     @property
     def has_data(self) -> bool:

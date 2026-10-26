@@ -14,15 +14,15 @@ then closed, as matplotlib-inline does.
 import numpy as np
 
 from . import _interactive, _sextant
-from ._mpl import Axes, Axes3D, Figure, axes_for, interactive_session, pause_loop
+from ._mpl import Axes, Axes3D, Figure, PolarAxes, axes_for, interactive_session, pause_loop
 
 __all__ = [
-    "Axes", "Axes3D", "Figure", "annotate", "axes", "axes_for", "axhline", "axhspan", "axis", "axline", "axvline", "axvspan",
+    "Axes", "Axes3D", "Figure", "PolarAxes", "annotate", "axes", "axes_for", "axhline", "axhspan", "axis", "axline", "axvline", "axvspan",
     "bar", "barh", "cla", "clabel", "clf", "close", "colorbar", "contour", "contourf", "connect", "disconnect", "draw", "errorbar", "figure",
     "fill_between", "fill_betweenx", "gca", "gcf", "get_fignums", "grid", "hist", "hist2d", "imshow", "ioff", "ion",
-    "isinteractive", "legend", "line", "loglog", "minorticks_off", "minorticks_on", "pause", "pcolormesh", "plot",
-    "quiver", "savefig", "sca", "scatter", "semilogx", "semilogy", "show", "stackplot", "step", "subplot",
-    "subplots", "suptitle", "text", "tick_params", "title", "tripcolor", "twinx",
+    "isinteractive", "legend", "line", "loglog", "minorticks_off", "minorticks_on", "pause", "pcolormesh", "pie", "plot", "polar",
+    "quiver", "rgrids", "savefig", "sca", "scatter", "semilogx", "semilogy", "show", "stackplot", "step", "subplot",
+    "subplots", "suptitle", "text", "thetagrids", "tick_params", "title", "tripcolor", "twinx",
     "twiny", "xlabel", "xlim", "xscale", "xticks", "ylabel", "ylim", "yscale", "yticks",
 ]
 
@@ -107,8 +107,8 @@ def subplot(*args, **kw):
     return ax
 
 
-def axes(projection=None):
-    return subplot(1, 1, 1, projection=projection)
+def axes(projection=None, polar=False):
+    return subplot(1, 1, 1, projection=projection, polar=polar)
 
 
 def subplots(nrows=1, ncols=1, *, figsize=None, dpi=None, num=None, **kw):
@@ -164,6 +164,38 @@ def scatter(*args, **kw):
 
 def bar(*args, **kw):
     return gca().bar(*args, **kw)
+
+
+def pie(*args, **kw):
+    return gca().pie(*args, **kw)
+
+
+def polar(*args, **kw):
+    """plot() on the current axes, a polar one made first if the figure has none."""
+    fig = gcf()
+    if not fig.axes:
+        axes(projection="polar")
+    ax = gca()
+    if not isinstance(ax, PolarAxes):
+        raise ValueError("polar(): the current axes is not polar")
+    return ax.plot(*args, **kw)
+
+
+def _polar_gca(name):
+    ax = gca()
+    if not isinstance(ax, PolarAxes):
+        raise RuntimeError(f"{name}() is only defined for polar axes")
+    return ax
+
+
+def thetagrids(angles, labels=None, fmt=None, **kw):
+    """The current polar axes' spokes at `angles` (degrees)."""
+    _polar_gca("thetagrids").set_thetagrids(angles, labels, fmt, **kw)
+
+
+def rgrids(radii, labels=None, angle=None, fmt=None, **kw):
+    """The current polar axes' rings at `radii`, the labels along `angle` (degrees)."""
+    _polar_gca("rgrids").set_rgrids(radii, labels, angle, fmt, **kw)
 
 
 def barh(*args, **kw):

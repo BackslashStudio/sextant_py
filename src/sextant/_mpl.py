@@ -199,7 +199,7 @@ def _takes_visible(method):
 
 # The 2D core kinds that take a zorder.
 _ZORDERED = frozenset({"line", "scatter", "scatter_z", "bar", "heatmap", "heatmap_tri", "contour", "fill", "quiver",
-                       "axline", "axspan", "shape_poly", "shape_circle", "shape_wedge"})
+                       "axline", "axspan", "shape_poly", "shape_circle", "shape_wedge", "pie"})
 # A pick event's PickKind -> the adapter's kind (the core method's name) where they differ.
 _PICK_KINDS = {"poly": "shape_poly", "circle": "shape_circle", "wedge": "shape_wedge", "heatmap_tri": "heatmap_tri",
                "contour": "contour", "quiver3d": "quiver3d"}
@@ -1096,6 +1096,139 @@ class Text(_Artist):
         self._set_options(alpha=1.0 if a is None else float(a))
 
 
+class _Pie(_Artist):
+    """One core pie: the artist that log replays and picks track. pie() hands out views
+    on it, a PieWedge per slice and a PieText per label or percent."""
+
+    def __init__(self, axes, index, entry):
+        super().__init__(axes, "pie", index, entry)
+        self.wedges = []
+
+    def _fractions(self):
+        v = np.asarray(self._entry[1][0], dtype=float)
+        return v / v.sum() if self._entry[2].get("normalize", True) else v
+
+
+class _PiePart:
+    """What a PieWedge and a PieText share: they belong to one sextant pie, so zorder,
+    visibility and remove() act on the whole pie."""
+
+    def __init__(self, pie, k):
+        self._pie, self._k = pie, k
+
+    @property
+    def axes(self):
+        return self._pie.axes
+
+    @property
+    def figure(self):
+        return self._pie.figure
+
+    def _opts(self):
+        return self._pie._entry[2]
+
+    def get_zorder(self):
+        return self._pie.get_zorder()
+
+    def set_zorder(self, z):
+        self._pie.set_zorder(z)
+
+    def get_visible(self):
+        return self._pie.get_visible()
+
+    def set_visible(self, b):
+        self._pie.set_visible(b)
+
+    def remove(self):
+        self._pie.remove()
+
+
+class PieWedge(_PiePart):
+    """A slice of a pie() (matplotlib's Wedge): its face colour and label are its own;
+    the outline and alpha are the whole pie's."""
+
+    def _angles(self):
+        o = self._opts()
+        sign = 1.0 if o.get("counterclock", True) else -1.0
+        edges = o.get("startangle", 0.0) + sign * 360.0 * np.concatenate([[0.0], np.cumsum(self._pie._fractions())])
+        a, b = float(edges[self._k]), float(edges[self._k + 1])
+        return min(a, b), max(a, b)
+
+    @property
+    def theta1(self):
+        return self._angles()[0]
+
+    @property
+    def theta2(self):
+        return self._angles()[1]
+
+    @property
+    def r(self):
+        return self._opts().get("radius", 1.0)
+
+    @property
+    def center(self):
+        """The slice's centre: the pie's, moved out along its middle by explode."""
+        o = self._opts()
+        explode = o.get("explode")
+        out = float(explode[self._k]) * self.r if explode is not None and len(explode) else 0.0
+        mid = math.radians(sum(self._angles()) / 2)
+        return o.get("cx", 0.0) + out * math.cos(mid), o.get("cy", 0.0) + out * math.sin(mid)
+
+    def get_label(self):
+        labels = self._opts().get("labels")
+        return labels[self._k] if labels else ""
+
+    def set_label(self, label):
+        n = len(self._pie.wedges)
+        labels = list(self._opts().get("labels") or [""] * n)
+        labels[self._k] = "" if label is None else str(label)
+        self._pie._set_options(labels=labels)
+
+    def get_facecolor(self):
+        return self._opts()["colors"][self._k]
+
+    def set_facecolor(self, c):
+        colors = list(self._opts()["colors"])
+        colors[self._k] = to_rgba(c)
+        self._pie._set_options(colors=colors)
+
+    set_color = set_facecolor
+
+    def set_edgecolor(self, c):
+        opts = {"edgecolor": to_rgba(c)}
+        if not self._opts().get("linewidth"):
+            opts["linewidth"] = PT
+        self._pie._set_options(**opts)
+
+    def set_linewidth(self, lw):
+        self._pie._set_options(linewidth=float(lw) * PT)
+
+    def set_alpha(self, a):
+        self._pie._set_options(alpha=1.0 if a is None else float(a))
+
+
+class PieText(_PiePart):
+    """A pie()'s label or percent (matplotlib's Text): the colour and size are every
+    text's of the pie."""
+
+    def __init__(self, pie, k, percent):
+        super().__init__(pie, k)
+        self._percent = percent
+
+    def get_text(self):
+        if self._percent:
+            return self._opts()["autopct"] % (100.0 * self._pie._fractions()[self._k])
+        labels = self._opts().get("labels")
+        return labels[self._k] if labels else ""
+
+    def set_color(self, c):
+        self._pie._set_options(textcolor=to_rgba(c))
+
+    def set_fontsize(self, size):
+        self._pie._set_options(fontsize=_fontsize(size))
+
+
 class _Transform:
     """ax.transData / ax.transAxes: only which coordinates a text is in."""
 
@@ -1282,6 +1415,9 @@ def _host_style(field, shared):
 
 
 class _AxesBase:
+    _GRID_ON = False  # a new axes' grid
+    _LINE = "line"  # the core's line call
+
     def __init__(self, figure, core):
         self.figure = figure
         self.core = core
@@ -1290,7 +1426,7 @@ class _AxesBase:
         self._line_cycle = 0
         self._patch_cycle = 0
         self._cycle = None  # set_prop_cycle()'s colours; None is tab10
-        self._grid_on = isinstance(self, Axes3D)
+        self._grid_on = self._GRID_ON
         self._grid_minor = {}  # grid(which='minor'): minor / minor_color, kept across grid() calls
         self._xticks = self._yticks = self._zticks = None
         self._style = {}  # AxesStyle fields set through this adapter (set_axes_style takes the whole struct)
@@ -1432,7 +1568,7 @@ class _AxesBase:
         self._artists.clear()
         self._line_cycle = self._patch_cycle = 0
         self._cycle = None
-        self._grid_on = isinstance(self, Axes3D)
+        self._grid_on = self._GRID_ON
         self._grid_minor = {}
         self._style.clear()
         self.figure._changed()
@@ -1697,7 +1833,7 @@ class Axes(_AxesBase):
             opts = dict(kw, color=color, linestyle=ls, linewidth=(lw if lw is not None else 1.5) * PT, **common)
             if label is not None:
                 opts["name"] = str(label)
-            i, entry = self._add("line", "line", x, y, **opts)
+            i, entry = self._add("line", self._LINE, x, y, **opts)
             handle = Line2D(self, "line", i, entry, label)
         marker = _marker(mk)
         if marker not in (None, "none"):
@@ -1812,7 +1948,9 @@ class Axes(_AxesBase):
         if label is not None:
             opts["name"] = str(label)
         err = self._err(len(x), xerr, yerr, ecolor, capsize, error_kw, opts)
-        i, entry = self._add("bar", "bar", x, h, err=err, **opts)
+        if err is not None:  # (a polar bar takes none)
+            opts["err"] = err
+        i, entry = self._add("bar", "bar", x, h, **opts)
         if tick_label is not None:
             labels = [tick_label] * len(x) if isinstance(tick_label, str) else list(tick_label)
             (self.set_xticks if orientation == "vertical" else self.set_yticks)(x, labels)
@@ -1944,6 +2082,81 @@ class Axes(_AxesBase):
             raise ValueError("Can not reset the Axes. You are probably trying to re-use an artist in more "
                              "than one Axes which is not supported")
         return p._add_to(self)
+
+    @_zorder(1)
+    def pie(self, x, explode=None, labels=None, colors=None, autopct=None, pctdistance=0.6, shadow=False,
+            labeldistance=1.1, startangle=0, radius=1, counterclock=True, wedgeprops=None, textprops=None,
+            center=(0, 0), frame=False, rotatelabels=False, *, normalize=True, hatch=None, data=None):
+        """matplotlib's pie(): (wedges, texts), and autotexts with autopct -- a PieWedge
+        per slice, a PieText per label and per percent. One sextant pie draws them all.
+        Turns the axis off unless frame=True; the aspect becomes 1. wedgeprops takes
+        width, edgecolor, linewidth and alpha; textprops color and fontsize."""
+        if data is not None and isinstance(x, str):
+            x = data[x]
+        if callable(autopct):
+            raise TypeError("pie(): sextant formats the percents itself; give autopct as a format string "
+                            "such as '%1.1f%%'")
+        if autopct is not None and not isinstance(autopct, str):
+            raise TypeError("pie(): autopct must be a format string")
+        if shadow:
+            raise ValueError("pie(): sextant draws no shadow")
+        if hatch is not None:
+            raise ValueError("pie(): sextant draws no hatching")
+        if rotatelabels:
+            raise ValueError("pie(): sextant draws the labels horizontal (rotatelabels=False)")
+        values = _vec(x)
+        n = len(values)
+        radius = float(radius)
+        opts = {"radius": radius, "pctdistance": float(pctdistance), "startangle": float(startangle),
+                "counterclock": bool(counterclock), "normalize": bool(normalize),
+                "labeldistance": None if labeldistance is None else float(labeldistance),
+                "cx": float(center[0]), "cy": float(center[1])}
+        if labels is not None:
+            opts["labels"] = [str(s) for s in labels]
+        if explode is not None:
+            # matplotlib's explode is in data units, sextant's a fraction of the radius.
+            opts["explode"] = _vec(explode) / radius if radius > 0 else _vec(explode)
+        if autopct is not None:
+            opts["autopct"] = autopct
+        # The slices take the patch cycle in turn, as matplotlib's; colors= repeats.
+        if colors is None:
+            opts["colors"] = [self._next_color(patches=True) for _ in range(n)]
+        else:
+            colors = list(colors)
+            opts["colors"] = [to_rgba(colors[k % len(colors)]) for k in range(n)] if colors else []
+        w = dict(wedgeprops or {})
+        _drop_ignored(w)
+        width = w.pop("width", None)
+        if width is not None:
+            opts["inner"] = radius - float(width)
+        edge = _pop(w, "edgecolor", "ec")
+        lw = _pop(w, "linewidth", "lw")
+        if edge is not None and not (isinstance(edge, str) and edge.lower() in ("none", "face")):
+            opts.update(edgecolor=to_rgba(edge), linewidth=(1.0 if lw is None else float(lw)) * PT)
+        alpha = w.pop("alpha", None)
+        if alpha is not None:
+            opts["alpha"] = float(alpha)
+        if w:
+            raise TypeError(f"pie(): unsupported wedgeprops key(s) {sorted(w)} (width, edgecolor, linewidth, alpha)")
+        t = dict(textprops or {})
+        _drop_ignored(t)
+        color = _pop(t, "color", "c")
+        if color is not None:
+            opts["textcolor"] = to_rgba(color)
+        size = _pop(t, "fontsize", "size")
+        if size is not None:
+            opts["fontsize"] = _fontsize(size)
+        if t:
+            raise TypeError(f"pie(): unsupported textprops key(s) {sorted(t)} (color, fontsize)")
+        i, entry = self._add("pie", "pie", values, **opts)
+        if frame:
+            self._call("set_axis_visible", True)
+        pie = _Pie(self, i, entry)
+        pie.wedges = [PieWedge(pie, k) for k in range(n)]
+        texts = [PieText(pie, k, False) for k in range(n)] if labeldistance is not None else []
+        if autopct is None:
+            return pie.wedges, texts
+        return pie.wedges, texts, [PieText(pie, k, True) for k in range(n)]
 
     # --- filled areas --------------------------------------------------------------
 
@@ -2728,13 +2941,7 @@ class Axes(_AxesBase):
             elif arg == "auto":
                 self.set_aspect("auto")
             elif arg in ("on", "off"):
-                on = arg == "on"
-                if self._host is not None:  # a twin: its own axis only (the frame is the host's)
-                    own = "y" if self._shared == "x" else "x"
-                    self._set_style(**{f"show_{own}ticks": on})
-                else:
-                    self._set_style(show_xticks=on, show_yticks=on, spine_bottom=on, spine_left=on,
-                                    spine_top=on, spine_right=on)
+                self._call("set_axis_visible", arg == "on")  # on a twin, its own axis only
             else:
                 raise ValueError(f"axis(): {arg!r} is not one sextant has ('equal', 'scaled', 'square', "
                                  "'image', 'auto', 'on', 'off')")
@@ -2749,6 +2956,18 @@ class Axes(_AxesBase):
         if "ymin" in lims or "ymax" in lims:
             self.set_ylim(lims.get("ymin"), lims.get("ymax"))
         return (*self.core.xlim(), *self.core.ylim())
+
+    def set_axis_off(self):
+        """Hide the axis -- spines, ticks, tick labels, axis titles, grid and background;
+        the data, title and legend stay."""
+        self._call("set_axis_visible", False)
+
+    def set_axis_on(self):
+        self._call("set_axis_visible", True)
+
+    @property
+    def axison(self):
+        return self.core.axis_visible()
 
 
 def _printf_format(fmt):
@@ -2922,6 +3141,7 @@ class Axes3D(_AxesBase):
     """A 3D axes, matplotlib's mplot3d style, over a core sextant.Axes3D (``.core``)."""
 
     _SERIES = {"line3d", "scatter3d", "surface", "surface_tri", "bar3d", "quiver3d"}
+    _GRID_ON = True
 
     @_takes_visible
     def line(self, xs, ys, zs=0, *args, zdir="z", **kw):
@@ -3192,6 +3412,225 @@ def _rectilinear(X, Y, Z):
     return None
 
 
+_THETA_DIRECTION = {"counterclockwise": 1, "anticlockwise": 1, "clockwise": -1}
+
+
+class PolarAxes(_AxesBase):
+    """A polar axes, matplotlib's projection='polar', over a core sextant.PolarAxes
+    (``.core``). theta is in radians where matplotlib's is (the data, set_xlim(),
+    set_xticks(), set_theta_offset()) and in degrees where its is (set_thetagrids(),
+    set_thetamin(), set_rlabel_position(), the zero location's offset)."""
+
+    _SERIES = {"line", "scatter", "scatter_z", "bar", "fill"}
+    _GRID_ON = True
+    _LINE = "plot"
+
+    # The 2D plotting calls, as Axes's: the core's take (theta, r) where Axes's take (x, y).
+    line = plot = Axes.line
+    step = Axes.step
+    _line = Axes._line
+    scatter = Axes.scatter
+    _marker_size = staticmethod(Axes._marker_size)
+    _bar_series = Axes._bar_series
+    _err = staticmethod(Axes._err)
+    fill_between = Axes.fill_between
+    _fill_between = Axes._fill_between
+    text = Axes.text
+    annotate = Axes.annotate
+    _c0 = Axes._c0
+
+    @_zorder(1)
+    @_takes_visible
+    def bar(self, x, height, width=0.8, bottom=None, *, align="center", **kw):
+        """Ring sectors at the angles x (radians), `width` radians wide, from `bottom`
+        out by `height`. No error bars."""
+        if kw.get("yerr") is not None or kw.get("xerr") is not None:
+            raise ValueError("bar(): sextant draws no error bars on polar bars")
+        return self._bar_series("bar", x, height, width, bottom, align, "vertical", **kw)
+
+    @_zorder(1)
+    @_takes_visible
+    def fill(self, *args, data=None, **kw):
+        """matplotlib's fill(theta, r, [color], ...): a filled polygon per group, its edges
+        straight in (theta, r). Returns a list of Polygon."""
+        out = []
+        for t, r, fmt in _plot_groups(args, data):
+            if t is None:
+                raise ValueError("fill(): give both theta and r")
+            pkw = dict(kw)
+            if fmt:
+                pkw.setdefault("color", fmt)
+            if not any(k in pkw for k in ("color", "c", "facecolor", "fc")):
+                pkw["facecolor"] = self._next_color(patches=True)
+            out.append(Polygon(np.column_stack([_vec(t), _vec(r)]), **pkw)._add_to(self))
+        return out
+
+    def errorbar(self, *args, **kw):
+        raise ValueError("errorbar(): sextant draws no error bars on a polar axes")
+
+    # --- titles ---
+
+    def set_xlabel(self, *args, **kw):
+        raise ValueError("set_xlabel(): sextant's polar axes have no axis titles")
+
+    set_ylabel = set_xlabel
+
+    # --- r ---
+
+    def set_rlim(self, bottom=None, top=None, **kw):
+        """The r limits (bottom at the centre); rmin=/rmax= too, as matplotlib's."""
+        bottom = _pop(kw, "rmin", default=bottom)
+        top = _pop(kw, "rmax", default=top)
+        return self._lim("r", bottom, top, kw)
+
+    set_ylim = set_rlim
+
+    def get_ylim(self):
+        return self.core.rlim()
+
+    def set_rmin(self, rmin):
+        self._call("set_rmin", float(rmin))
+
+    def set_rmax(self, rmax):
+        self._call("set_rmax", float(rmax))
+
+    def get_rmin(self):
+        return self.core.rlim()[0]
+
+    def get_rmax(self):
+        return self.core.rlim()[1]
+
+    def invert_yaxis(self):
+        lo, hi = self.core.rlim()
+        self._call("set_rlim", hi, lo)
+
+    def set_rorigin(self, rorigin):
+        raise ValueError("set_rorigin(): sextant draws r from the centre")
+
+    def set_rscale(self, value, **kw):
+        if value != "linear":
+            raise ValueError(f"set_rscale(): sextant's polar r axis is linear, not {value!r}")
+
+    set_yscale = set_rscale
+
+    def get_rscale(self):
+        return "linear"
+
+    get_yscale = get_rscale
+
+    @property
+    def yaxis(self):
+        return _Axis(self, "r")
+
+    def set_rlabel_position(self, value):
+        """The angle (degrees) the r labels sit along."""
+        self._call("set_rlabel_position", float(value))
+
+    def get_rlabel_position(self):
+        return self.core.rlabel_position()
+
+    def _ticks(self, axis, ticks, labels, kw):
+        kw.pop("minor", None)
+        if kw:
+            raise TypeError(f"set_{axis}ticks(): unsupported keyword(s) {sorted(kw)}")
+        ticks = _vec(ticks)
+        setattr(self, f"_{axis}ticks", ticks)
+        labels = [str(s) for s in labels] if labels is not None else []
+        if axis == "x":  # theta: radians here, degrees in the core
+            self._call("set_thetagrids", np.degrees(ticks), labels)
+        else:
+            self._call("set_rticks", ticks, labels)
+        # An empty list hides the labels, as matplotlib's (sextant's [] means automatic).
+        show = bool(len(ticks))
+        if self._style.get(f"show_{axis}ticks", True) != show:
+            self._set_style(**{f"show_{axis}ticks": show})
+
+    set_rticks = _AxesBase.set_yticks
+
+    def set_rgrids(self, radii, labels=None, angle=None, fmt=None, **kw):
+        """Rings at `radii` labelled `labels`, the labels along `angle` (degrees), `fmt`
+        formatting them."""
+        self.set_yticks(radii, labels, **kw)
+        if angle is not None:
+            self.set_rlabel_position(angle)
+        if fmt is not None:
+            self.yaxis.set_major_formatter(fmt)
+
+    def set_thetagrids(self, angles, labels=None, fmt=None, **kw):
+        """Spokes at `angles` (degrees) labelled `labels`, or each angle through `fmt`
+        ('%d°')."""
+        angles = _vec(angles)
+        if labels is None and fmt is not None:
+            labels = [fmt % a for a in angles]
+        self.set_xticks(np.radians(angles), labels, **kw)
+
+    # --- theta ---
+
+    def set_thetalim(self, *args, **kw):
+        """set_thetalim(min, max) in radians, or thetamin=/thetamax= in degrees, as
+        matplotlib's. Returns the span in radians."""
+        lo, hi = self.core.thetalim()
+        if len(args) == 1:
+            args = tuple(args[0])
+        if len(args) == 2:
+            lo = lo if args[0] is None else math.degrees(float(args[0]))
+            hi = hi if args[1] is None else math.degrees(float(args[1]))
+        elif args:
+            raise TypeError("set_thetalim(): (min, max) in radians")
+        lo = float(kw.pop("thetamin", lo))
+        hi = float(kw.pop("thetamax", hi))
+        if kw:
+            raise TypeError(f"set_thetalim(): unsupported keyword(s) {sorted(kw)}")
+        self._call("set_thetalim", lo, hi)
+        return math.radians(lo), math.radians(hi)
+
+    def set_xlim(self, left=None, right=None, **kw):
+        left = _pop(kw, "left", "xmin", default=left)
+        right = _pop(kw, "right", "xmax", default=right)
+        kw.pop("emit", None), kw.pop("auto", None)
+        if left is not None and right is None and np.ndim(left) == 1:
+            left, right = left
+        return self.set_thetalim(left, right, **kw)
+
+    def get_xlim(self):
+        return tuple(math.radians(v) for v in self.core.thetalim())
+
+    def set_thetamin(self, thetamin):
+        self._call("set_thetamin", float(thetamin))
+
+    def set_thetamax(self, thetamax):
+        self._call("set_thetamax", float(thetamax))
+
+    def get_thetamin(self):
+        return self.core.thetalim()[0]
+
+    def get_thetamax(self):
+        return self.core.thetalim()[1]
+
+    def set_theta_zero_location(self, loc, offset=0.0):
+        """theta = 0 at 'N', 'NW', 'W', 'SW', 'S', 'SE', 'E' or 'NE', turned a further
+        `offset` degrees counterclockwise."""
+        self._call("set_theta_zero_location", str(loc), float(offset))
+
+    def set_theta_offset(self, offset):
+        """The screen angle of theta = 0, radians counterclockwise from east."""
+        self._call("set_theta_offset", math.degrees(float(offset)))
+
+    def get_theta_offset(self):
+        return math.radians(self.core.theta_offset())
+
+    def set_theta_direction(self, direction):
+        """1 or 'counterclockwise', -1 or 'clockwise'."""
+        if isinstance(direction, str):
+            if direction.lower() not in _THETA_DIRECTION:
+                raise ValueError(f"set_theta_direction(): {direction!r} is not 'clockwise' or 'counterclockwise'")
+            direction = _THETA_DIRECTION[direction.lower()]
+        self._call("set_theta_direction", int(direction))
+
+    def get_theta_direction(self):
+        return self.core.theta_direction()
+
+
 # --- figure ---------------------------------------------------------------------------
 
 class MplEvent:
@@ -3234,6 +3673,8 @@ class MplEvent:
             ax = host._twins.get({1: "x", 2: "y"}[e.pick_twin]) if twins and e.pick_twin else host
             loc = ax.core.find_object(e.pick_object) if ax and e.pick_plane == 0 else None
             self.artist = ax._artists.get((_PICK_KINDS.get(str(loc[0]), str(loc[0])), loc[1])) if loc else None
+            if isinstance(self.artist, _Pie):  # a press picks one slice
+                self.artist = self.artist.wedges[e.pick_index]
             self.ind = np.array([e.pick_index])
             self.mouseevent = self
 
@@ -3291,14 +3732,18 @@ class Figure:
 
     # --- subplots ---
 
-    def add_subplot(self, *args, projection=None, **kw):
+    def add_subplot(self, *args, projection=None, polar=False, **kw):
         _drop_ignored(kw)
         kw.pop("label", None)
         facecolor = kw.pop("facecolor", None)
         sharex, sharey = kw.pop("sharex", None), kw.pop("sharey", None)
         if kw:
             raise TypeError(f"add_subplot(): unsupported keyword(s) {sorted(kw)}")
-        if projection == "3d" and (sharex is not None or sharey is not None):
+        if polar:
+            if projection not in (None, "polar"):
+                raise ValueError(f"add_subplot(): polar=True and projection={projection!r}")
+            projection = "polar"
+        if projection in ("3d", "polar") and (sharex is not None or sharey is not None):
             raise ValueError("add_subplot(): sextant shares 2D axes only")
         if not args:
             args = (1, 1, 1)
@@ -3316,8 +3761,11 @@ class Figure:
         elif projection == "3d":
             core = self.core.add_subplot3d(*self._grid, slot)
             cls = Axes3D
+        elif projection == "polar":
+            core = self.core.add_subplot_polar(*self._grid, slot)
+            cls = PolarAxes
         else:
-            raise ValueError(f"add_subplot(): projection={projection!r} is not supported (None or '3d')")
+            raise ValueError(f"add_subplot(): projection={projection!r} is not supported (None, '3d' or 'polar')")
         ax = axes_for(core)
         if ax is None:
             ax = cls(self, core)
@@ -3329,7 +3777,7 @@ class Figure:
             ax.sharex(sharex)
         if sharey is not None:
             ax.sharey(sharey)
-        if facecolor is not None and cls is Axes:
+        if facecolor is not None and cls is not Axes3D:
             ax.set_facecolor(facecolor)
         return ax
 
@@ -3355,6 +3803,9 @@ class Figure:
     def subplots(self, nrows=1, ncols=1, *, sharex=False, sharey=False, squeeze=True, subplot_kw=None,
                  width_ratios=None, height_ratios=None):
         kw = dict(subplot_kw or {})
+        if (kw.get("projection") in ("3d", "polar") or kw.get("polar")) and any(
+                how not in (False, None, "none") for how in (sharex, sharey)):
+            raise ValueError("subplots(): sextant shares 2D axes only")
         axs = np.empty((nrows, ncols), dtype=object)
         for r in range(nrows):
             for c in range(ncols):

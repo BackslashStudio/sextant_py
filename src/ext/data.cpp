@@ -4,6 +4,7 @@
 
 #include <nanobind/stl/optional.h>
 #include <nanobind/stl/string.h>
+#include <nanobind/stl/vector.h>
 
 #include <string>
 
@@ -99,6 +100,14 @@ namespace sextant_py {
             throw nb::type_error(("FillData.exclude: expected a 1-D array of booleans or None, got " +
                                   nb::cast<std::string>(nb::repr(exclude))).c_str());
         return d;
+    }
+
+    PyPieData to_python(sextant::PieData&& d) {
+        return {vec(std::move(d.values)), std::move(d.labels), vec_or_none(std::move(d.explode))};
+    }
+
+    sextant::PieData PyPieData::to_cpp() const {
+        return {owned(values, "PieData.values"), labels, owned(explode, "PieData.explode")};
     }
 
     sextant::QuiverData PyQuiverData::to_cpp() const {
@@ -455,6 +464,20 @@ namespace sextant_py {
                                                  {"theta1", nb::cast(d.theta1)}, {"theta2", nb::cast(d.theta2)},
                                                  {"inner", nb::cast(d.inner)}, {"cxcoords", nb::cast(d.cxcoords)},
                                                  {"cycoords", nb::cast(d.cycoords)}, {"rcoords", nb::cast(d.rcoords)}});
+            });
+
+        nb::class_<PyPieData>(m, "PieData",
+                              "Axes.pie(): the values as given (normalized at draw time), one label per\n"
+                              "slice or none, and explode, None when no slice is offset, else one fraction\n"
+                              "of the radius per slice.")
+            .def(nb::init<F64, std::vector<std::string>, F64OrNone>(), "values"_a,
+                 "labels"_a = std::vector<std::string>{}, "explode"_a.none() = nb::none())
+            .def_rw("values", &PyPieData::values)
+            .def_rw("labels", &PyPieData::labels)
+            .def_rw("explode", &PyPieData::explode, nb::arg().none())
+            .def("__repr__", [](const PyPieData& d) {
+                return repr_fields("PieData", {{"values", d.values}, {"labels", nb::cast(d.labels)},
+                                               {"explode", d.explode}});
             });
 
         nb::class_<PyAxSpanData>(m, "AxSpanData", "Axes.axspan(): the band's ends, lo <= hi as stored.")

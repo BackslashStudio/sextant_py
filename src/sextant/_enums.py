@@ -292,6 +292,7 @@ class PickKind(_Named):
     HEATMAP_TRI = "heatmap_tri"
     CONTOUR = "contour"
     QUIVER3D = "quiver3d"
+    PIE = "pie"
 
 
 class NormKind(_Named):
@@ -301,6 +302,19 @@ class NormKind(_Named):
     LOG = "log"
     TWO_SLOPE = "two_slope"
     BOUNDARIES = "boundaries"
+
+
+class ThetaZero(_Named):
+    """PolarAxes.set_theta_zero_location(): where θ = 0 points; matplotlib's "N", "NW", ... in any case."""
+
+    E = "e"
+    N = "n"
+    W = "w"
+    S = "s"
+    NE = "ne"
+    NW = "nw"
+    SW = "sw"
+    SE = "se"
 
 
 class EventConsumed(_Named):

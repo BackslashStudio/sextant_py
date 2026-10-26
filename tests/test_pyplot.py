@@ -756,7 +756,7 @@ def test_twin_calls_reach_the_host():
     assert svg.count(">XT<") == 1 and ">XL<" not in svg and ">Q<" in svg and ">MID<" not in svg
     # axis('off') on the twin hides its own axis only.
     tw.axis("off")
-    assert tw._style.get("show_yticks") is False and "show_xticks" not in ax._style
+    assert not tw.axison and ax.axison and "show_xticks" not in ax._style
     # cla() on the twin keeps the host's.
     tw.cla()
     assert tw._style == {}
@@ -815,9 +815,13 @@ def test_axis_modes():
     assert plt.axis([0, 2, -1, 1]) == (0, 2, -1, 1)
     assert ax.axis(xmax=3) == (0, 3, -1, 1)
     plt.axis("off")
-    assert ax._style["show_xticks"] is False and ax._style["spine_left"] is False
+    assert not ax.axison and "show_xticks" not in ax._style  # the axis switch, not the style
     plt.axis(True)
-    assert ax._style["show_yticks"] is True
+    assert ax.axison
+    ax.set_axis_off()
+    assert not ax.core.axis_visible()
+    ax.set_axis_on()
+    assert ax.axison
     with pytest.raises(ValueError):
         plt.axis("tight")
 

@@ -209,6 +209,7 @@ namespace sextant_py {
         add_enum<sextant::EventKind>(d);
         add_enum<sextant::PickKind>(d);
         add_enum<sextant::EventConsumed>(d);
+        add_enum<sextant::ThetaZero>(d);
         add_enum<sextant::ColorNorm::Kind>(d);
         return d;
     }
@@ -236,6 +237,7 @@ namespace sextant_py {
         add_fields<sextant::PolyOptions>(d);
         add_fields<sextant::CircleOptions>(d);
         add_fields<sextant::WedgeOptions>(d);
+        add_fields<sextant::PieOptions>(d);
         add_fields<sextant::StackOptions>(d);
         add_fields<sextant::QuiverOptions>(d);
         add_fields<sextant::HeatmapOptions>(d);
