@@ -111,9 +111,15 @@ def axes(projection=None, polar=False):
     return subplot(1, 1, 1, projection=projection, polar=polar)
 
 
+_SUBPLOTS_KW = ("sharex", "sharey", "squeeze", "subplot_kw", "width_ratios", "height_ratios")
+
+
 def subplots(nrows=1, ncols=1, *, figsize=None, dpi=None, num=None, **kw):
-    fig = figure(num=num, figsize=figsize, dpi=dpi)
-    return fig, fig.subplots(nrows, ncols, **kw)
+    """As matplotlib: what `subplots` does not own (facecolor=, ...) goes to `figure()`,
+    and is ignored when `num` names a figure that exists."""
+    own = {k: kw.pop(k) for k in _SUBPLOTS_KW if k in kw}
+    fig = figure(num=num, figsize=figsize, dpi=dpi, **kw)
+    return fig, fig.subplots(nrows, ncols, **own)
 
 
 def close(fig=None):

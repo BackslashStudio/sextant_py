@@ -89,6 +89,10 @@ namespace sextant_py {
     // Set by the exit sweep (_shutdown), after which Python may be finalizing.
     bool shutting_down();
 
+    // Drop the user's message handler (the exit sweep does, with the interpreter
+    // whole: a lambda holds its module's globals, and so every Figure in them). GIL held.
+    void release_message_handler();
+
     // Wait for st's window to close, `timeout` seconds at most (negative:
     // forever), with the GIL released in short slices and Ctrl+C checked
     // between them. Lock-free. GIL held on entry.

@@ -1717,3 +1717,125 @@ def test_quiver3d_arrow_length_ratio():
     long = ax.quiver(*pts, arrow_length_ratio=0.5)._entry[2]["head_length"]
     assert long == pytest.approx(5 * short) or long > short
     assert "head_length" not in ax.quiver(*pts)._entry[2]
+
+
+# --- C7: subplots figure keywords, spines, axis colours ---------------------------------
+
+def _frame(fig):
+    """The frame's strokes in the SVG: {stroke colour: its path data}."""
+    svg = fig.core.render_svg()[0]
+    return {m.group(2): m.group(1).strip() for m in
+            re.finditer(r'<path d="([^"]*)" fill="none" stroke="(rgb\([^)]*\))"', svg)}
+
+
+def _segments(d):
+    return sorted(s for s in re.split(r"(?=M)", d) if s)
+
+
+RED, GREEN, BLUE, GREY = "rgb(255,0,0)", "rgb(0,255,0)", "rgb(0,0,255)", "rgb(76,76,76)"
+
+
+def test_subplots_takes_figure_keywords():
+    fig, ax = plt.subplots(facecolor="#102030", sharex=True)
+    assert fig.get_facecolor() == pytest.approx((16 / 255, 32 / 255, 48 / 255, 1.0))
+    assert '<rect width="640" height="480" fill="#102030"' in fig.core.render_svg()[0]
+    # As in matplotlib, a figure that exists keeps its own.
+    fig2, _ = plt.subplots(num=fig.number, facecolor="#ff0000")
+    assert fig2 is fig and '"#102030"' in fig.core.render_svg()[0]
+    with pytest.raises(TypeError):
+        plt.subplots(num="other", bogus=1)
+
+
+def test_spines_visibility_and_width():
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    assert list(ax.spines) == ["left", "right", "bottom", "top"] and ax.spines.keys() == list(ax.spines)
+    assert len(_segments(_frame(fig)[GREY])) == 4
+    ax.spines["top"].set_visible(False)
+    ax.spines.right.set_visible(False)
+    assert not ax.spines["top"].get_visible() and ax.spines["left"].get_visible()
+    assert len(_segments(_frame(fig)[GREY])) == 2
+    ax.spines[["top", "right"]].set_visible(True)
+    ax.spines[:].set_linewidth(3)
+    assert ax.spines["left"].get_linewidth() == pytest.approx(3)
+    assert 'stroke-width="4.16667"' in fig.core.render_svg()[0]
+    with pytest.raises(KeyError):
+        ax.spines["middle"]
+
+
+def test_spine_colour_without_a_twin_recolours_the_frame():
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    ax.spines["top"].set_color("#ff0000")
+    frame = _frame(fig)
+    assert list(frame) == [RED] and len(_segments(frame[RED])) == 4
+    assert ax.spines["left"].get_edgecolor() == (1.0, 0.0, 0.0, 1.0)
+    ax.spines["bottom"].set_edgecolor("#0000ff")
+    assert list(_frame(fig)) == [BLUE]
+    ax.spines[:].set_color("#00ff00")
+    assert list(_frame(fig)) == [GREEN]
+    ax.cla()
+    ax.plot([0, 1], [0, 1])
+    assert list(_frame(fig)) == [GREY]
+
+
+def test_spine_colour_follows_the_twin_axes():
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    tw = ax.twinx()
+    tw.plot([0, 1], [3, 2])
+    ax.spines["left"].set_color("#00ff00")
+    tw.spines["right"].set_color("#0000ff")
+    frame = _frame(fig)
+    assert _segments(frame[GREEN]) == [f"M34 15.5V450"] and len(_segments(frame[BLUE])) == 1
+    assert len(_segments(frame[GREY])) == 2  # top and bottom keep the cell's colour
+    # Same edge through either object; the edge with no axis of its own is the cell's.
+    assert ax.spines["right"].get_edgecolor() == tw.spines["right"].get_edgecolor() == (0.0, 0.0, 1.0, 1.0)
+    ax.spines["top"].set_color("#ff0000")
+    frame = _frame(fig)
+    assert len(_segments(frame[RED])) == 2 and GREY not in frame
+    assert GREEN in frame and BLUE in frame
+    # twiny: bottom is the host's x axis, top the twin's.
+    fig, ax = plt.subplots()
+    (line,) = ax.plot([0, 1], [0, 1])
+    ty = ax.twiny()
+    ty.plot([0, 1], [3, 2])
+    ax.spines["bottom"].set_color("#00ff00")
+    ty.spines["top"].set_color("#0000ff")
+    frame = _frame(fig)
+    assert len(_segments(frame[GREEN])) == 1 and len(_segments(frame[BLUE])) == 1
+    assert "H" in frame[GREEN] and "H" in frame[BLUE] and len(_segments(frame[GREY])) == 2
+    # Visibility is the cell's, whichever object it is asked on.
+    ty.spines["left"].set_visible(False)
+    assert not ax.spines["left"].get_visible()
+    # A rebuild (here: a removed artist) keeps them.
+    line.remove()
+    assert GREEN in _frame(fig) and BLUE in _frame(fig)
+
+
+def test_axis_label_and_tick_params():
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    ax.set_xlabel("XL")
+    ax.xaxis.label.set_color("#ff0000")
+    ax.yaxis.label.set_fontsize(20)
+    assert ax.xaxis.label.get_color() == (1.0, 0.0, 0.0, 1.0)
+    assert ax.yaxis.label.get_fontsize() == pytest.approx(20)
+    assert ax.xaxis.label.get_text() == "XL"
+    assert re.search(r'fill="rgb\(255,0,0\)"[^>]*>XL<', fig.core.render_svg()[0])
+    ax.set_ylabel("YL", color="#00ff00", fontsize=12)
+    ax.set_title("TT", color="#0000ff")
+    svg = fig.core.render_svg()[0]
+    assert re.search(r'fill="rgb\(0,255,0\)"[^>]*>YL<', svg) and re.search(r'fill="rgb\(0,0,255\)"[^>]*>TT<', svg)
+    assert ax.yaxis.label.get_color() == (0.0, 1.0, 0.0, 1.0)
+    ax.xaxis.set_tick_params(labelcolor="#ff00ff", length=9)
+    assert ax._style["xlabel_color"] == (1.0, 0.0, 1.0, 1.0) and "ylabel_color" not in ax._style
+    assert ax._style["xtick_length"] == pytest.approx(9 * _mpl.PT)
+    # A twin's own label is its own; the shared axis' is the host's.
+    tw = ax.twinx()
+    tw.plot([0, 1], [3, 2])
+    tw.yaxis.label.set_color("#0000ff")
+    tw.xaxis.label.set_color("#ffff00")
+    assert "ytitle_color" in tw._style and tw._style["ytitle_color"] == (0.0, 0.0, 1.0, 1.0)
+    assert ax._style["xtitle_color"] == (1.0, 1.0, 0.0, 1.0) and "xtitle_color" not in tw._style
+    assert ax._style["ytitle_color"] == (0.0, 1.0, 0.0, 1.0)

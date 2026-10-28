@@ -16,7 +16,8 @@ namespace sextant_py {
         using OptionalHandler = nb::typed<nb::object, std::optional<HandlerFn>>;
 
         // The user's handler; None = warnings.warn. Heap-allocated and never
-        // freed, so no Python object is released after the interpreter is gone.
+        // freed, so no Python object is released after the interpreter is gone;
+        // _shutdown (atexit, interpreter whole) releases it.
         // GIL-protected.
         nb::object& user_handler() {
             static auto* h = new nb::object(nb::none());
@@ -44,6 +45,8 @@ namespace sextant_py {
             }
         }
     } // namespace
+
+    void release_message_handler() { user_handler() = nb::none(); }
 
     void bind_messages(nb::module_& m) {
         sextant::Figure::set_message_handler(deliver);

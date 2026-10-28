@@ -261,6 +261,7 @@ namespace sextant_py {
             }
             g_shutdown = true;
             sextant::Figure::set_message_handler({});
+            release_message_handler();
             std::vector<Shown> gone;
             gone.swap(g_shown);
             gone.clear();

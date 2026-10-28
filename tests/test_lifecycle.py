@@ -271,3 +271,16 @@ def test_exit_with_open_windows_is_clean():
     assert rc == 0, err
     assert out.strip() == "exiting"
     assert err == ""
+
+
+def test_exit_with_handler_lambda_and_live_figure_leaks_nothing():
+    # A lambda holds its module's globals, and so the Figure in them: the handler
+    # must be released by the exit sweep or nanobind reports "leaked N instances".
+    rc, out, err, secs = run_script("""
+        import sextant
+        sextant.set_message_handler(lambda *a: None)
+        fig = sextant.Figure(width=200, height=150)
+        fig.axes().line([1.0, 2.0, 3.0])
+    """)
+    assert rc == 0, err
+    assert err == ""

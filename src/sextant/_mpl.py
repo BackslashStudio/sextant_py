@@ -1586,6 +1586,7 @@ class _AxesBase:
         for k in ("fontdict", "loc", "pad", "labelpad", "fontweight", "weight", "y"):
             kw.pop(k, None)
         size = _pop(kw, "fontsize", "size", default=fontsize)
+        color = _pop(kw, "color", "c")
         if kw:
             raise TypeError(f"{method}(): unsupported keyword(s) {sorted(kw)}")
         args = (label,) if size is None else (label, float(size) * PT)
@@ -1598,6 +1599,8 @@ class _AxesBase:
         else:
             owner._style[_TITLE_SIZE[method]] = float(size) * PT
         owner._call(method, *args)
+        if color is not None:  # the colour is a style field, which the title call leaves alone
+            self._set_style(**{_TITLE_SIZE[method].replace("fontsize", "color"): to_rgba(color)})
 
     def set_title(self, label, fontsize=None, **kw):
         self._title("set_title", label, fontsize, kw)
@@ -2790,6 +2793,10 @@ class Axes(_AxesBase):
     def yaxis(self):
         return _Axis(self, "y")
 
+    @property
+    def spines(self):
+        return _Spines(self)
+
     def minorticks_on(self):
         self._set_style(minor_xticks=True, minor_yticks=True)
 
@@ -2995,12 +3002,175 @@ def _printf_format(fmt):
     return "".join(out)
 
 
+_SPINE_DEFAULT = (0.3, 0.3, 0.3, 1.0)  # AxesStyle::spine_color
+_EDGES = ("left", "right", "bottom", "top")
+
+
+class _Spine:
+    """ax.spines[edge]. sextant's frame is the cell's: visibility (and the shared line
+    width) belong to the cell, so a twin's spines are its host's. A colour goes to the
+    edge's own axis when that edge is one of a twinned cell's axes (left/bottom: the
+    host's, right/top: the twin's), else to the one `spine_color` of all four edges."""
+
+    def __init__(self, axes, edge):
+        self.axes = axes
+        self.edge = edge
+
+    def _cell(self):
+        return self.axes._host or self.axes
+
+    def _colour_target(self):
+        """(adapter, field) the colour of this edge lives in."""
+        host = self._cell()
+        e = self.edge
+        axis = "y" if e in ("left", "right") else "x"
+        twin = host._twins.get("x" if axis == "y" else "y")
+        if twin is None:
+            return host, "spine_color"
+        return (host if e in ("left", "bottom") else twin), f"{axis}axis_color"
+
+    def set_visible(self, b):
+        self._cell()._set_style(**{f"spine_{self.edge}": bool(b)})
+
+    def get_visible(self):
+        return self._cell()._style.get(f"spine_{self.edge}", True)
+
+    def set_linewidth(self, w):
+        self._cell()._set_style(spine_linewidth=float(w) * PT)
+
+    def get_linewidth(self):
+        return self._cell()._style.get("spine_linewidth", 1.0) / PT
+
+    def set_color(self, color):
+        ax, field = self._colour_target()
+        ax._set_style(**{field: to_rgba(color)})
+
+    set_edgecolor = set_color
+
+    def get_edgecolor(self):
+        ax, field = self._colour_target()
+        host = self._cell()
+        return ax._style.get(field) or host._style.get("spine_color", _SPINE_DEFAULT)
+
+    get_color = get_edgecolor
+
+    def set_alpha(self, alpha):
+        r, g, b, _ = self.get_edgecolor()
+        self.set_color((r, g, b, float(alpha)))
+
+
+class _SpineGroup:
+    """ax.spines[:] / ax.spines[[...]]: a call goes to every spine in it."""
+
+    def __init__(self, spines):
+        self._spines = spines
+
+    def __getattr__(self, name):
+        if not name.startswith(("set_", "get_")):
+            raise AttributeError(name)
+        if name.startswith("get_"):
+            return getattr(self._spines[0], name)
+
+        def call(*args, **kw):
+            for s in self._spines:
+                getattr(s, name)(*args, **kw)
+        return call
+
+    def __iter__(self):
+        return iter(self._spines)
+
+    def __len__(self):
+        return len(self._spines)
+
+
+class _Spines:
+    """ax.spines: a mapping 'left' | 'right' | 'bottom' | 'top' -> _Spine."""
+
+    def __init__(self, axes):
+        self._axes = axes
+
+    def __getitem__(self, key):
+        if isinstance(key, slice):
+            if key != slice(None):
+                raise ValueError("spines: only the full slice [:] is a selection")
+            return _SpineGroup([self[e] for e in _EDGES])
+        if isinstance(key, (list, tuple)):
+            return _SpineGroup([self[e] for e in key])
+        if key not in _EDGES:
+            raise KeyError(f"{key!r}: a spine is one of {_EDGES}")
+        return _Spine(self._axes, key)
+
+    def __getattr__(self, name):
+        if name in _EDGES:
+            return self[name]
+        raise AttributeError(name)
+
+    def __iter__(self):
+        return iter(_EDGES)
+
+    def __len__(self):
+        return 4
+
+    def __contains__(self, key):
+        return key in _EDGES
+
+    def keys(self):
+        return list(_EDGES)
+
+    def values(self):
+        return [self[e] for e in _EDGES]
+
+    def items(self):
+        return [(e, self[e]) for e in _EDGES]
+
+
+class _AxisLabel:
+    """ax.xaxis.label: the axis title's colour and size (its text is set_xlabel's)."""
+
+    def __init__(self, axis):
+        self._axis = axis
+
+    def _field(self, what):
+        return f"{self._axis._axis}title_{what}"
+
+    def set_color(self, color):
+        self._axis.axes._set_style(**{self._field("color"): to_rgba(color)})
+
+    def get_color(self):
+        ax = self._axis.axes
+        return ax._owner(self._axis._axis)._style.get(self._field("color"), (0.15, 0.15, 0.15, 1.0))
+
+    def set_fontsize(self, size):
+        self._axis.axes._set_style(**{self._field("fontsize"): _fontsize(size)})
+
+    set_size = set_fontsize
+
+    def get_fontsize(self):
+        ax = self._axis.axes
+        return ax._owner(self._axis._axis)._style.get(self._field("fontsize"), 16.5) / PT
+
+    get_size = get_fontsize
+
+    def get_text(self):
+        return getattr(self._axis.axes.core, self._field("")[:-1])()
+
+
 class _Axis:
-    """ax.xaxis / ax.yaxis: the tick-label formatter and the scale."""
+    """ax.xaxis / ax.yaxis: the tick-label formatter, the scale, the title's colour
+    and size (`.label`) and the tick parameters."""
 
     def __init__(self, axes, axis):
         self.axes = axes
         self._axis = axis
+
+    @property
+    def label(self):
+        if self._axis not in ("x", "y"):
+            raise AttributeError("label: sextant has the x and y axis titles only")
+        return _AxisLabel(self)
+
+    def set_tick_params(self, which="major", reset=False, **kw):
+        self.axes.tick_params(axis=self._axis, which=which, reset=reset, **kw)
 
     def set_major_formatter(self, formatter):
         """A format string ('{x:.1f}', '%.1f'), a FormatStrFormatter or a
