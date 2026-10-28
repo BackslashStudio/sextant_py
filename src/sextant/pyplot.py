@@ -18,7 +18,7 @@ from ._mpl import Axes, Axes3D, Figure, PolarAxes, axes_for, interactive_session
 
 __all__ = [
     "Axes", "Axes3D", "Figure", "PolarAxes", "annotate", "axes", "axes_for", "axhline", "axhspan", "axis", "axline", "axvline", "axvspan",
-    "bar", "barh", "cla", "clabel", "clf", "close", "colorbar", "contour", "contourf", "connect", "disconnect", "draw", "errorbar", "figure",
+    "bar", "barh", "cla", "clabel", "clf", "close", "colorbar", "contour", "contourf", "connect", "disconnect", "draw", "errorbar", "figure", "fignum_exists", "figaspect", "get_figlabels", "subplots_adjust", "tight_layout",
     "fill_between", "fill_betweenx", "gca", "gcf", "get_fignums", "grid", "hist", "hist2d", "imshow", "ioff", "ion",
     "isinteractive", "legend", "line", "loglog", "minorticks_off", "minorticks_on", "pause", "pcolormesh", "pie", "plot", "polar",
     "quiver", "rgrids", "savefig", "sca", "scatter", "semilogx", "semilogy", "show", "stackplot", "step", "subplot",
@@ -97,8 +97,7 @@ def sca(ax):
     """Make `ax` (and its figure) current."""
     global _current
     _current = ax.figure
-    ax.figure.axes.remove(ax)
-    ax.figure.axes.append(ax)
+    ax.figure.sca(ax)
 
 
 def subplot(*args, **kw):
@@ -474,3 +473,40 @@ def _install_inline():
 
 
 _install_inline()
+
+
+# --- figure registry and layout calls ---------------------------------------------------
+
+def fignum_exists(num):
+    """Whether a figure with this number or label is open."""
+    _prune()
+    return num in _figs
+
+
+def get_figlabels():
+    """The labels of the open figures (the string ones), in creation order."""
+    _prune()
+    return [k for k in _figs if isinstance(k, str)]
+
+
+def tight_layout(*args, **kw):
+    """Accepted, no effect: sextant sizes decorations itself."""
+    gcf().tight_layout(*args, **kw)
+
+
+def subplots_adjust(*args, **kw):
+    """Accepted, no effect: sextant sizes decorations itself."""
+    gcf().subplots_adjust(*args, **kw)
+
+
+def figaspect(arg):
+    """matplotlib's: (width, height) in inches for a height/width ratio or an array's shape,
+    within 4x2 and 16x16 inches, on its default 4.8 inch height."""
+    ratio = arg.shape[0] / arg.shape[1] if hasattr(arg, "shape") and not np.isscalar(arg) else arg
+    if ratio <= 0:
+        raise ValueError("figaspect(): the aspect ratio must be positive")
+    lo, hi = np.array((4.0, 2.0)), np.array((16.0, 16.0))
+    size = np.array((4.8 / ratio, 4.8))
+    size /= min(1.0, *(size / lo))
+    size /= max(1.0, *(size / hi))
+    return np.clip(size, lo, hi)

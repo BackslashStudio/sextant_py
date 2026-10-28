@@ -4252,11 +4252,35 @@ class Figure:
     def dpi(self):
         return self._dpi
 
+    # sextant lays the decorations out itself, so matplotlib's layout calls are accepted and change nothing.
     def tight_layout(self, *args, **kw):
-        """No-op: sextant sizes decorations itself."""
+        """Accepted, no effect: sextant sizes decorations itself."""
 
-    def subplots_adjust(self, *args, **kw):
-        """No-op: sextant sizes decorations itself (see core set_margins())."""
+    def subplots_adjust(self, left=None, bottom=None, right=None, top=None, wspace=None, hspace=None):
+        """Accepted, no effect: sextant sizes decorations itself (see core set_margins())."""
+
+    def align_labels(self, axs=None):
+        """Accepted, no effect."""
+
+    align_xlabels = align_ylabels = align_titles = align_labels
+
+    def set_tight_layout(self, tight):
+        """Accepted, no effect."""
+
+    set_constrained_layout = set_tight_layout
+
+    def get_tight_layout(self):
+        return False
+
+    get_constrained_layout = get_tight_layout
+
+    def sca(self, ax):
+        """Make `ax` this figure's current axes (what gca() returns)."""
+        if ax not in self.axes:
+            raise ValueError("sca(): the axes is not in this figure")
+        self.axes.remove(ax)
+        self.axes.append(ax)
+        return ax
 
     def clear(self):
         for ax in self.axes:
