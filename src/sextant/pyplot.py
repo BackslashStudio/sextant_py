@@ -13,12 +13,12 @@ then closed, as matplotlib-inline does.
 
 import numpy as np
 
-from . import _interactive, _sextant
+from . import _cmaps, _interactive, _rc, _sextant
 from ._mpl import Axes, Axes3D, Figure, PolarAxes, axes_for, interactive_session, pause_loop
 
 __all__ = [
     "Axes", "Axes3D", "Figure", "PolarAxes", "annotate", "axes", "axes_for", "axhline", "axhspan", "axis", "axline", "axvline", "axvspan",
-    "bar", "barh", "cla", "clabel", "clf", "close", "colorbar", "contour", "contourf", "connect", "disconnect", "draw", "errorbar", "figure", "fignum_exists", "figaspect", "get_figlabels", "subplots_adjust", "tight_layout",
+    "bar", "barh", "cla", "clabel", "clf", "close", "colorbar", "contour", "contourf", "connect", "disconnect", "draw", "errorbar", "figure", "gci", "sci", "set_cmap", "clim", "get_cmap", "colormaps", "cm", "rcParams", "rcParamsDefault", "rc", "rcdefaults", "rc_context", "setp", "getp", "findobj", "fignum_exists", "figaspect", "get_figlabels", "subplots_adjust", "tight_layout",
     "fill_between", "fill_betweenx", "gca", "gcf", "get_fignums", "grid", "hist", "hist2d", "imshow", "ioff", "ion",
     "isinteractive", "legend", "line", "loglog", "minorticks_off", "minorticks_on", "pause", "pcolormesh", "pie", "plot", "polar",
     "quiver", "rgrids", "savefig", "sca", "scatter", "semilogx", "semilogy", "show", "stackplot", "step", "subplot",
@@ -510,3 +510,127 @@ def figaspect(arg):
     size /= min(1.0, *(size / lo))
     size /= max(1.0, *(size / hi))
     return np.clip(size, lo, hi)
+
+
+# --- colormaps and the current image -------------------------------------------------------
+
+colormaps = _cmaps.colormaps
+cm = _cmaps.colormaps
+get_cmap = _cmaps.get_cmap
+
+
+def gci():
+    """The current colormapped artist (the last imshow, scatter(c=), contourf, ... of the current figure)."""
+    return gcf()._mappable
+
+
+def sci(im):
+    """Make `im` the current colormapped artist."""
+    im.figure._mappable = im
+
+
+def set_cmap(cmap):
+    """Use `cmap` (a name sextant has) for the current image and for colormapped calls from now on."""
+    name = _cmaps.resolve(cmap)
+    rcParams["image.cmap"] = str(name)
+    im = gci()
+    if im is not None and hasattr(im, "set_cmap"):
+        im.set_cmap(name)
+
+
+def clim(vmin=None, vmax=None):
+    """Set the colour limits of the current image."""
+    im = gci()
+    if im is None or not hasattr(im, "set_clim"):
+        raise RuntimeError("You must first define an image, e.g., with imshow")
+    im.set_clim(vmin, vmax)
+
+
+def __getattr__(name):
+    # plt.viridis(), plt.plasma(), ...: set_cmap by the colormap's name
+    if not name.startswith("_") and name in _cmaps.colormaps and not name.endswith("_r"):
+        return lambda: set_cmap(name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+# --- rcParams --------------------------------------------------------------------------------
+
+rcParams = _rc.rcParams
+rcParamsDefault = _rc.rcParamsDefault
+rc = _rc.rc
+rcdefaults = _rc.rcdefaults
+rc_context = _rc.rc_context
+
+
+# --- setp, getp, findobj -----------------------------------------------------------------
+
+def _objs(obj):
+    return list(obj) if isinstance(obj, (list, tuple, np.ndarray)) else [obj]
+
+
+def setp(obj, *args, **kw):
+    """setp(obj, color='r'), setp(obj, 'color', 'r') or setp(obj, {'color': 'r'}): set_<name> on `obj`
+    (an artist or a list of them). Returns what the setters returned."""
+    if len(args) == 1 and isinstance(args[0], dict):
+        kw = {**args[0], **kw}
+    elif args:
+        if len(args) % 2:
+            raise TypeError("setp(): name/value pairs")
+        kw = {**dict(zip(args[::2], args[1::2])), **kw}
+    if not kw:
+        raise TypeError("setp(): nothing to set (sextant does not list the properties)")
+    out = []
+    for o in _objs(obj):
+        for name, value in kw.items():
+            setter = getattr(o, f"set_{name}", None)
+            if setter is None:
+                raise AttributeError(f"setp(): {type(o).__name__} has no set_{name}")
+            out.append(setter(value))
+    return out
+
+
+def getp(obj, property=None):
+    """getp(obj, 'color') is obj.get_color(); without a name, a dict of every get_* that takes no argument."""
+    if property is not None:
+        getter = getattr(obj, f"get_{property}", None)
+        if getter is None:
+            raise AttributeError(f"getp(): {type(obj).__name__} has no get_{property}")
+        return getter()
+    out = {}
+    for name in dir(obj):
+        if name.startswith("get_") and callable(getattr(obj, name)):
+            try:
+                out[name[4:]] = getattr(obj, name)()
+            except (TypeError, RuntimeError, NotImplementedError):
+                pass
+    return out
+
+
+def findobj(o=None, match=None, include_self=True):
+    """The artists under `o` (default the current figure), `o` first: all of them, those that are an
+    instance of the class `match`, or those for which the callable `match(artist)` is true."""
+    if o is None:
+        o = gcf()
+    if match is None:
+        def test(a):
+            return True
+    elif isinstance(match, type):
+        def test(a):
+            return isinstance(a, match)
+    elif callable(match):
+        test = match
+    else:
+        raise TypeError("findobj(): match is a class or a callable")
+    out, seen = [], set()
+
+    def walk(a, top):
+        if id(a) in seen:
+            return
+        seen.add(id(a))
+        if (include_self or not top) and test(a):
+            out.append(a)
+        for child in a.get_children() if hasattr(a, "get_children") else ():
+            walk(child, False)
+
+    walk(o, True)
+    return out

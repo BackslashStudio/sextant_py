@@ -27,6 +27,7 @@ import weakref
 import numpy as np
 
 from . import _sextant
+from . import _rc
 from .colors import resolve_norm
 
 # Sizes in points become pixels at matplotlib's default 100 dpi: a figsize in
@@ -278,6 +279,14 @@ def _is_log(core):
     if isinstance(core, str):
         core = core.lower()
     return core is not None and (core == "log" or getattr(core, "kind", None) == "log")
+
+
+def _rc_cmap(cmap):
+    """The colormap a colormapped call uses: its own, else rcParams['image.cmap'] when a script changed it."""
+    if cmap is None and _rc.rcParams.changed("image.cmap"):
+        from ._cmaps import resolve
+        return resolve(_rc.rcParams["image.cmap"])
+    return cmap
 
 
 def _norm_opts(values, vmin, vmax, norm):
@@ -1603,6 +1612,16 @@ class _AxesBase:
         self._cycle = colors
         self._line_cycle = self._patch_cycle = 0
 
+    def _apply_rc(self):
+        """What a new (or cleared) axes takes from rcParams, for the keys a script changed."""
+        rc = _rc.rcParams
+        if rc.changed("axes.prop_cycle"):
+            self._cycle = [to_rgba(c) for c in rc["axes.prop_cycle"].colors]
+        if rc.changed("axes.facecolor"):
+            self._set_style(background=to_rgba(rc["axes.facecolor"]))
+        if rc.changed("axes.grid") and rc["axes.grid"] and type(self) is Axes:
+            self.grid(True)
+
     def cla(self):
         self.core.cla()
         self._log.clear()
@@ -1614,6 +1633,7 @@ class _AxesBase:
         self._xticklabels = self._yticklabels = None
         self._grid_minor = {}
         self._style.clear()
+        self._apply_rc()
         self.figure._changed()
 
     clear = cla
@@ -1923,6 +1943,7 @@ class Axes(_AxesBase):
         self._twins = {}  # "x"/"y" -> the twinx()/twiny() adapter, in the order made
         self._host = None  # on a twin: the axes it twins
         self._shared = None  # on a twin: the axis it shares with its host, "x" or "y"
+        self._apply_rc()
 
     # --- plot --------------------------------------------------------------------
 
@@ -2032,6 +2053,7 @@ class Axes(_AxesBase):
         values = _values(c, len(x))
         if values is not None:
             opts.update(_norm_opts(values, vmin, vmax, norm), colorbar=bool(colorbar))
+            cmap = _rc_cmap(cmap)
             if cmap is not None:
                 opts["cmap"] = cmap
             i, entry = self._add("scatter_z", "scatter_z", x, y, values, **opts)
@@ -2437,6 +2459,7 @@ class Axes(_AxesBase):
         if c is not None:
             cv = clim if clim is not None else (None, None)
             opts.update(_norm_opts(c, cv[0], cv[1], norm), colorbar=bool(colorbar))
+            cmap = _rc_cmap(cmap)
             if cmap is not None:
                 opts["cmap"] = cmap
             i, entry = self._add("quiver", "quiver", x, y, u, v, c, **opts)
@@ -2549,6 +2572,7 @@ class Axes(_AxesBase):
                 a = f
         else:
             opts = dict(kw, colorbar=bool(colorbar), **_norm_opts(a, vmin, vmax, norm))
+            cmap = _rc_cmap(cmap)
             if cmap is not None:
                 opts["cmap"] = cmap
         if label is not None:
@@ -2596,6 +2620,7 @@ class Axes(_AxesBase):
         if len(C) != len(x):
             raise ValueError("tripcolor(): one value per vertex is drawn; C must be as long as x")
         opts = dict(kw, colorbar=bool(colorbar), **_norm_opts(C, vmin, vmax, norm))
+        cmap = _rc_cmap(cmap)
         if cmap is not None:
             opts["cmap"] = cmap
         if label is not None:
@@ -2628,6 +2653,7 @@ class Axes(_AxesBase):
             if cmax is not None:
                 counts = np.where(counts > cmax, np.nan, counts)
             opts = dict(kw, colorbar=bool(colorbar), **_norm_opts(counts, vmin, vmax, norm))
+            cmap = _rc_cmap(cmap)
             if cmap is not None:
                 opts["cmap"] = cmap
             if label is not None:
@@ -2653,6 +2679,7 @@ class Axes(_AxesBase):
             opts["cmin"] = float(cmin)
         if cmax is not None:
             opts["cmax"] = float(cmax)
+        cmap = _rc_cmap(cmap)
         if cmap is not None:
             opts["cmap"] = cmap
         core, nvmin, nvmax = resolve_norm(norm)
@@ -2838,6 +2865,7 @@ class Axes(_AxesBase):
             opts = dict(kw, colorbar=bool(colorbar), **_norm_opts(C, vmin, vmax, norm))
             if label is not None:
                 opts["name"] = str(label)
+            cmap = _rc_cmap(cmap)
             if cmap is not None:
                 opts["cmap"] = cmap
             i, entry = self._add("heatmap", "heatmap_rec", C, x, y, **opts)
@@ -3508,6 +3536,7 @@ class Axes3D(_AxesBase):
         if values is not None:
             lo, hi = _auto_limits(values, vmin, vmax)
             opts.update(vmin=lo, vmax=hi, colorbar=bool(colorbar))
+            cmap = _rc_cmap(cmap)
             if cmap is not None:
                 opts["cmap"] = cmap
             i, entry = self._add("scatter3d", "scatter3d", xs, ys, zs, colors=values, **opts)
@@ -4029,11 +4058,16 @@ class Figure:
     """A figure, matplotlib style, over a core sextant.Figure (``.core``)."""
 
     def __init__(self, figsize=None, dpi=None, num=None, **kw):
-        w, h = figsize if figsize is not None else (6.4, 4.8)
-        self._dpi = float(dpi) if dpi is not None else 100.0
+        rc = _rc.rcParams
+        w, h = figsize if figsize is not None else rc["figure.figsize"]
+        self._dpi = float(dpi) if dpi is not None else float(rc["figure.dpi"])
         self._size = (int(round(w * 100)), int(round(h * 100)))
         title = kw.pop("title", f"Figure {num}" if num is not None else "sextant")
         facecolor = kw.pop("facecolor", None)
+        if facecolor is None and rc.changed("figure.facecolor"):
+            facecolor = rc["figure.facecolor"]
+        if rc.changed("mathtext.fontset"):
+            kw.setdefault("math_fontset", rc["mathtext.fontset"])
         if facecolor is not None:
             kw["background"] = to_rgba(facecolor)
         self.core = _sextant.Figure(width=self._size[0], height=self._size[1], dpi=96.0 * self._dpi / 100.0,
@@ -4152,6 +4186,9 @@ class Figure:
 
     def gca(self):
         return self.axes[-1] if self.axes else self.add_subplot(1, 1, 1)
+
+    def get_children(self):
+        return list(self.axes)
 
     # --- decoration and output ---
 
