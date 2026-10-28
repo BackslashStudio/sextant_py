@@ -1787,7 +1787,9 @@ def test_spine_colour_follows_the_twin_axes():
     ax.spines["left"].set_color("#00ff00")
     tw.spines["right"].set_color("#0000ff")
     frame = _frame(fig)
-    assert _segments(frame[GREEN]) == [f"M34 15.5V450"] and len(_segments(frame[BLUE])) == 1
+    # the left edge's x depends on the tick label font (34 px here, 36 on CI's Linux), so only its shape is pinned
+    assert re.fullmatch(r"M\d+ 15\.5V450", _segments(frame[GREEN])[0]) and len(_segments(frame[GREEN])) == 1
+    assert len(_segments(frame[BLUE])) == 1
     assert len(_segments(frame[GREY])) == 2  # top and bottom keep the cell's colour
     # Same edge through either object; the edge with no axis of its own is the cell's.
     assert ax.spines["right"].get_edgecolor() == tw.spines["right"].get_edgecolor() == (0.0, 0.0, 1.0, 1.0)
