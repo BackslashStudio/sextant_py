@@ -1,5 +1,11 @@
 # Release wheels and the sdist, tested, and published on a version tag.
 #
+# Two test depths. "full" (dev pushes, PRs, the default by hand) runs the whole
+# suite on every wheel and the sdist, plus the teardown stress and the display
+# run. "smoke" (version tags, or by hand) runs tests/test_smoke.py on every
+# wheel and nothing else: a tag only names a dev commit whose full run already
+# passed (the release gate), so the tag run builds and publishes.
+#
 # The build settings are [tool.cibuildwheel] in pyproject.toml, so a local
 # `cibuildwheel` run builds the same wheels.
 #
@@ -30,9 +36,19 @@ on:
         type: choice
         options: [none, testpypi, pypi]
         default: none
+      tests:
+        description: Test depth (smoke = tests/test_smoke.py on each wheel only)
+        type: choice
+        options: [full, smoke]
+        default: full
 
 permissions:
   contents: read
+
+env:
+  # Keep in sync with the `if:` of the full-only jobs below (a job's `if:`
+  # cannot read env).
+  TESTS: ${{ ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || inputs.tests == 'smoke') && 'smoke' || 'full' }}
 
 jobs:
   build_wheels:
@@ -57,6 +73,12 @@ jobs:
         if: runner.os == 'Windows'
         uses: ssciwr/setup-mesa-dist-win@v3
 
+      # Overrides [tool.cibuildwheel]'s test-command; full leaves it alone.
+      - name: Smoke tests only
+        if: env.TESTS == 'smoke'
+        shell: bash
+        run: echo "CIBW_TEST_COMMAND=pytest -q tests/test_smoke.py" >> "$GITHUB_ENV"
+
       - uses: pypa/cibuildwheel@v4.2
         env:
           GALLIUM_DRIVER: llvmpipe
@@ -73,11 +95,11 @@ jobs:
       # run in twenty: one pytest run cannot show it is gone. Tear windows down
       # early, many times, with the abi3 arm64 wheel built above.
       - uses: actions/setup-python@v7
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && env.TESTS == 'full'
         with:
           python-version: "3.12"
       - name: Stress window teardown (macOS)
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && env.TESTS == 'full'
         run: |
           python -m venv "$RUNNER_TEMP/stress"
           "$RUNNER_TEMP/stress/bin/python" -m pip install -q wheelhouse/*-cp312-abi3-macosx_*_arm64.whl
@@ -107,6 +129,7 @@ jobs:
   test_linux_display:
     name: Linux wheel with a display, Python ${{ matrix.python }}
     needs: build_wheels
+    if: ${{ !((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || inputs.tests == 'smoke') }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -151,6 +174,7 @@ jobs:
   test_sdist:
     name: sdist builds and passes
     needs: build_sdist
+    if: ${{ !((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || inputs.tests == 'smoke') }}
     runs-on: ubuntu-24.04
     env:
       GALLIUM_DRIVER: llvmpipe
@@ -186,9 +210,15 @@ jobs:
   publish:
     name: Publish to ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'pypi' }}
     needs: [build_wheels, build_sdist, test_linux_display, test_sdist]
+    # The test jobs are skipped in smoke mode, and a skipped need skips this job
+    # unless the condition says otherwise; a failed or cancelled one still stops it.
     if: >-
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
-      (github.event_name == 'workflow_dispatch' && inputs.target != 'none')
+      !cancelled() &&
+      needs.build_wheels.result == 'success' && needs.build_sdist.result == 'success' &&
+      contains(fromJSON('["success", "skipped"]'), needs.test_linux_display.result) &&
+      contains(fromJSON('["success", "skipped"]'), needs.test_sdist.result) &&
+      ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+       (github.event_name == 'workflow_dispatch' && inputs.target != 'none'))
     runs-on: ubuntu-24.04
     environment:
       name: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'pypi' }}

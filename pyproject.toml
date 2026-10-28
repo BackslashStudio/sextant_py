@@ -78,8 +78,9 @@ wheel.packages = ["src/sextant"]
 # dropped): a directory sextant adds later is never missing.
 sdist.include = ["extern/sextant"]
 # The dev build dir is only left out on its own while it is the build-dir
-# setting, which is editable-only here.
-sdist.exclude = ["build/"]
+# setting, which is editable-only here. The agent skill and its marketplace ship as a
+# Claude Code plugin, not in the package.
+sdist.exclude = ["build/", "skills/", ".claude-plugin/"]
 
 # An editable wheel points at its interpreter's build dir; tagged abi3, uv
 # would reuse the cached one in a venv of another Python version. The build

@@ -34,10 +34,10 @@ def _native_stacks(pid):
         os.unlink(path)
 
 
-def run_python(args, *, input=None, env=None, timeout=TIMEOUT):
+def run_python(args, *, input=None, env=None, cwd=None, timeout=TIMEOUT):
     """`python *args` -> CompletedProcess (text); fails the test if it hangs."""
     env = dict(os.environ if env is None else env, PYTHONFAULTHANDLER="1")
-    p = subprocess.Popen([sys.executable, *args], env=env, text=True,
+    p = subprocess.Popen([sys.executable, *args], env=env, cwd=cwd, text=True,
                          stdin=None if input is None else subprocess.PIPE,
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
