@@ -1414,6 +1414,46 @@ def _host_style(field, shared):
     return field in _CELL_STYLE or field in {f.format(a=shared) for f in _AXIS_STYLE}
 
 
+class _StaticText:
+    """A string standing in for matplotlib's Text where sextant keeps only the string
+    (tick labels, legend entries)."""
+
+    def __init__(self, text):
+        self._text = str(text)
+
+    def get_text(self):
+        return self._text
+
+    def get_visible(self):
+        return True
+
+    def __str__(self):
+        return self._text
+
+    def __repr__(self):
+        return f"Text({self._text!r})"
+
+
+class _Legend:
+    """ax.get_legend()'s return once legend() has been called: its entries and frame."""
+
+    def __init__(self, axes):
+        self.axes = axes
+        self._frame = True
+        for e in axes._log:
+            if e[0] == "legend":
+                self._frame = e[2].get("frameon", True)
+
+    def get_texts(self):
+        return [_StaticText(s) for s in self.axes.get_legend_handles_labels()[1]]
+
+    def get_frame_on(self):
+        return bool(self._frame)
+
+    def get_visible(self):
+        return True
+
+
 class _AxesBase:
     _GRID_ON = False  # a new axes' grid
     _LINE = "line"  # the core's line call
@@ -1429,6 +1469,7 @@ class _AxesBase:
         self._grid_on = self._GRID_ON
         self._grid_minor = {}  # grid(which='minor'): minor / minor_color, kept across grid() calls
         self._xticks = self._yticks = self._zticks = None
+        self._xticklabels = self._yticklabels = None
         self._style = {}  # AxesStyle fields set through this adapter (set_axes_style takes the whole struct)
         self.transData = _Transform("data")
         self.transAxes = _Transform("fraction")
@@ -1569,6 +1610,8 @@ class _AxesBase:
         self._line_cycle = self._patch_cycle = 0
         self._cycle = None
         self._grid_on = self._GRID_ON
+        self._xticks = self._yticks = self._zticks = None
+        self._xticklabels = self._yticklabels = None
         self._grid_minor = {}
         self._style.clear()
         self.figure._changed()
@@ -1654,6 +1697,108 @@ class _AxesBase:
         lo, hi = self.core.xlim()
         self._call("set_xlim", hi, lo)
 
+    def get_xbound(self):
+        lo, hi = self.core.xlim()
+        return (lo, hi) if lo <= hi else (hi, lo)
+
+    def get_ybound(self):
+        lo, hi = self.core.ylim()
+        return (lo, hi) if lo <= hi else (hi, lo)
+
+    def set_xbound(self, lower=None, upper=None):
+        """Like set_xlim(), but the axis keeps its direction (an inverted axis stays inverted)."""
+        self._bound("x", lower, upper)
+
+    def set_ybound(self, lower=None, upper=None):
+        self._bound("y", lower, upper)
+
+    def _bound(self, axis, lower, upper):
+        if upper is None and lower is not None and np.ndim(lower) == 1:
+            lower, upper = lower
+        cur = self.get_xbound() if axis == "x" else self.get_ybound()
+        inverted = self.xaxis_inverted() if axis == "x" else self.yaxis_inverted()
+        lo = cur[0] if lower is None else float(lower)
+        hi = cur[1] if upper is None else float(upper)
+        lo, hi = min(lo, hi), max(lo, hi)
+        self._lim(axis, *((hi, lo) if inverted else (lo, hi)), {})
+
+    def xaxis_inverted(self):
+        lo, hi = self.core.xlim()
+        return lo > hi
+
+    def yaxis_inverted(self):
+        lo, hi = self.core.ylim()
+        return lo > hi
+
+    def _tick_values(self, axis):
+        owner = self._owner(axis)
+        ticks = getattr(owner, f"_{axis}ticks")
+        if ticks is None:
+            raise RuntimeError(f"get_{axis}ticks(): the ticks are automatic -- sextant chooses them when "
+                               f"it draws, so there are none to read; set_{axis}ticks() first")
+        return owner, ticks
+
+    def get_xticks(self, minor=False):
+        return self._tick_values("x")[1].copy() if not minor else np.empty(0)
+
+    def get_yticks(self, minor=False):
+        return self._tick_values("y")[1].copy() if not minor else np.empty(0)
+
+    def _tick_labels(self, axis, minor):
+        owner, ticks = self._tick_values(axis)
+        if minor:
+            return []
+        given = getattr(owner, f"_{axis}ticklabels", None)
+        texts = given if given else [f"{t:g}" for t in ticks]
+        return [_StaticText(s) for s in texts]
+
+    def get_xticklabels(self, minor=False, which=None):
+        return self._tick_labels("x", minor)
+
+    def get_yticklabels(self, minor=False, which=None):
+        return self._tick_labels("y", minor)
+
+    # --- what is on the axes ---
+
+    # Artist kind -> the list matplotlib files it under. A bar's container stands for its rectangles.
+    _FILES = {
+        "line": "lines", "axline": "lines", "path3d": "lines",
+        "text": "texts",
+        "bar": "patches", "axspan": "patches", "pie": "patches", "shape_circle": "patches",
+        "shape_wedge": "patches", "shape_poly": "patches",
+        "heatmap": "images", "heatmap_tri": "images",
+    }
+
+    def _filed(self, name):
+        return tuple(a for (kind, _), a in self._artists.items() if self._FILES.get(kind, "collections") == name)
+
+    lines = property(lambda self: self._filed("lines"))
+    texts = property(lambda self: self._filed("texts"))
+    patches = property(lambda self: self._filed("patches"))
+    collections = property(lambda self: self._filed("collections"))
+    images = property(lambda self: self._filed("images"))
+
+    def get_lines(self):
+        return list(self.lines)
+
+    def get_children(self):
+        out = list(self._artists.values())
+        out += [a for a in (getattr(self, "xaxis", None), getattr(self, "yaxis", None)) if a is not None]
+        return out
+
+    def get_legend_handles_labels(self):
+        handles = [a for a in self._artists.values() if a.get_label() and not a.get_label().startswith("_")]
+        return handles, [a.get_label() for a in handles]
+
+    def get_legend(self):
+        return _Legend(self) if any(e[0] == "legend" for e in self._log) else None
+
+    def get_facecolor(self):
+        return self._style.get("background", (1.0, 1.0, 1.0, 1.0))
+
+    def get_visible(self):
+        return True
+
     def _ticks(self, axis, ticks, labels, kw):
         owner = self._owner(axis)
         if owner is not self:  # a twin's shared axis is its host's
@@ -1663,6 +1808,7 @@ class _AxesBase:
             raise TypeError(f"set_{axis}ticks(): unsupported keyword(s) {sorted(kw)}")
         ticks = _vec(ticks)
         setattr(self, f"_{axis}ticks", ticks)
+        setattr(self, f"_{axis}ticklabels", [str(s) for s in labels] if labels is not None else None)
         self._call(f"set_{axis}ticks", ticks, [str(s) for s in labels] if labels is not None else [])
         # An empty list means "no ticks" here as in matplotlib (sextant's own set_xticks([]) means
         # "automatic", which is why this goes through the style's show_{axis}ticks).
@@ -3705,6 +3851,7 @@ class PolarAxes(_AxesBase):
             raise TypeError(f"set_{axis}ticks(): unsupported keyword(s) {sorted(kw)}")
         ticks = _vec(ticks)
         setattr(self, f"_{axis}ticks", ticks)
+        setattr(self, f"_{axis}ticklabels", [str(s) for s in labels] if labels is not None else None)
         labels = [str(s) for s in labels] if labels is not None else []
         if axis == "x":  # theta: radians here, degrees in the core
             self._call("set_thetagrids", np.degrees(ticks), labels)
@@ -4076,6 +4223,30 @@ class Figure:
 
     def get_size_inches(self):
         return np.array(self._size, dtype=float) / 100.0
+
+    def get_figwidth(self):
+        return self._size[0] / 100.0
+
+    def get_figheight(self):
+        return self._size[1] / 100.0
+
+    def set_figwidth(self, w):
+        self.set_size_inches(w, self.get_figheight())
+
+    def set_figheight(self, h):
+        self.set_size_inches(self.get_figwidth(), h)
+
+    def get_dpi(self):
+        return self._dpi
+
+    def set_dpi(self, dpi):
+        raise NotImplementedError("set_dpi(): sextant fixes the dpi when the figure is made (figure(dpi=...))")
+
+    def get_edgecolor(self):
+        return (1.0, 1.0, 1.0, 1.0)
+
+    def get_visible(self):
+        return True
 
     @property
     def dpi(self):
