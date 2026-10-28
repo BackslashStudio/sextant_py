@@ -1,4 +1,4 @@
-"""sextant 1.3 stage 1: per-object zorder. The core takes zorder= on every 2D plotting
+"""Per-object zorder. The core takes zorder= on every 2D plotting
 call and set_zorder(id, z) / zorder(id) on Axes and Plane2D; sextant.pyplot gives
 matplotlib's per-kind defaults and zorder=, set_zorder(), get_zorder() on artists."""
 

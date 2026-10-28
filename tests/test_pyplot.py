@@ -498,7 +498,7 @@ def test_mpl_event_translation():
 
 
 def test_pick_finds_fills_and_stack_layers():
-    # sextant 1.2 step 39: a press inside a fill is a pick of kind "fill" with
+    # A press inside a fill is a pick of kind "fill" with
     # the segment as its index.
     fig, ax = plt.subplots()
     band = ax.fill_between([0, 1, 2], [0, 1, 0], [2, 3, 2])
@@ -867,7 +867,7 @@ def test_set_prop_cycle():
     assert color_of(ax._log[-1]) == hexrgba(_mpl.TAB10[0])
 
 
-# --- markers, steps, sizes, bar bases, barh, reference lines (sextant 1.2 step 36c) -------
+# --- markers, steps, sizes, bar bases, barh, reference lines ------------------------------
 
 @pytest.mark.parametrize("code, shape", [
     ("v", "triangle_down"), ("<", "triangle_left"), (">", "triangle_right"), ("*", "star"),
@@ -1495,7 +1495,7 @@ def test_artist_remove_on_a_twin_and_after_cla():
         own.remove()
 
 
-# --- axline with a slope or two points, and the patches (sextant 1.3 stage 2) ----------------
+# --- axline with a slope or two points, and the patches ----------------------------------
 
 def test_axline_point_slope_and_two_points():
     fig, ax = plt.subplots()
@@ -1719,7 +1719,7 @@ def test_quiver3d_arrow_length_ratio():
     assert "head_length" not in ax.quiver(*pts)._entry[2]
 
 
-# --- C7: subplots figure keywords, spines, axis colours ---------------------------------
+# --- subplots figure keywords, spines, axis colours ---------------------------------
 
 def _frame(fig):
     """The frame's strokes in the SVG: {stroke colour: its path data}."""

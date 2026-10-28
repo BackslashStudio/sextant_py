@@ -1,4 +1,4 @@
-"""sextant 1.3 stage 4: PolarAxes and Figure.add_subplot_polar(), through the core binding and pyplot."""
+"""PolarAxes and Figure.add_subplot_polar(), through the core binding and pyplot."""
 
 import math
 

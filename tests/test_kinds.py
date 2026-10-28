@@ -1,4 +1,4 @@
-"""sextant 1.2 step 36c through the core binding: the new marker shapes, step
+"""Plot-kind options through the core binding: the marker shapes, step
 drawstyles, per-point scatter sizes, bar bases and horizontal bars, and the
 reference lines and spans (axline/axspan)."""
 

@@ -1,4 +1,4 @@
-"""sextant 1.2 step 40: hiding plot objects. visible= on every plotting call,
+"""Hiding plot objects. visible= on every plotting call,
 set_<kind>_visible(i, b) / <kind>_visible(i) on Axes, Plane2D and Axes3D, and
 matplotlib's set_visible()/get_visible() and visible= in sextant.pyplot. A hidden
 object draws as if it were absent."""

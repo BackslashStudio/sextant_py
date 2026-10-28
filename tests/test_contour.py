@@ -1,4 +1,4 @@
-"""sextant 1.3 stage 3: contour / contourf, the grid form of quiver, and the 3D
+"""contour / contourf, the grid form of quiver, and the 3D
 quiver through the core binding."""
 
 import numpy as np

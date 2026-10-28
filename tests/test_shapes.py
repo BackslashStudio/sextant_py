@@ -1,4 +1,4 @@
-"""sextant 1.3 stage 2 through the core binding: pixel positions, the shapes (poly, circle,
+"""Pixel positions through the core binding, the shapes (poly, circle,
 wedge) on Axes and Plane2D, sloped axline, and Plane2D.axspan."""
 
 import math

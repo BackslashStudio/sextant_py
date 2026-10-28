@@ -1,4 +1,4 @@
-"""sextant 1.3: plot-object ids and removal. last_object(), remove(id), find_object(id) on
+"""Plot-object ids and removal. last_object(), remove(id), find_object(id) on
 Axes, Axes3D and Plane2D; Plane2D.id(), Axes3D.last_plane() / remove_plane() / plane_index();
 pick events name the object and plane by id. An id that is not there warns through the
 message handler and returns False; nothing raises."""

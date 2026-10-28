@@ -221,7 +221,7 @@ def test_malformed_math_warns_and_draws_as_written():
     assert r">$\alp$</text>" in fig.render_svg()[0]
 
 
-# --- Math font sets (sextant 1.2, step 37f) -----------------------------------
+# --- Math font sets ----------------------------------------------------------------------
 
 SERIF_FILES = [  # a font file other than the text font, to use as a math font
     "C:/Windows/Fonts/georgia.ttf", "C:/Windows/Fonts/times.ttf",

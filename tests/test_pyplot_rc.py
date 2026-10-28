@@ -1,4 +1,4 @@
-"""C11: colormaps, the current image, rcParams, setp/getp/findobj."""
+"""pyplot colormaps, the current image, rcParams, setp/getp/findobj."""
 import io
 import warnings
 

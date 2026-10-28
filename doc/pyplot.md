@@ -19,11 +19,15 @@ This page lists what is supported and where it differs from matplotlib. The core
 - [Figures and axes](#figures-and-axes)
 - [Plotting (2D)](#plotting-2d)
 - [Plotting (3D)](#plotting-3d)
-- [Decoration](#decoration)
+- [Polar axes](#polar-axes)
+- [Draw order](#draw-order)
+- [Decoration](#decoration) · [spines](#spines)
 - [Scales, shared axes, twins and aspect](#scales-shared-axes-twins-and-aspect)
 - [Text and annotations](#text-and-annotations)
 - [Colours, sizes and format strings](#colours-sizes-and-format-strings)
-- [Changing what is drawn](#changing-what-is-drawn) · [hiding artists](#hiding-artists)
+- [Changing what is drawn](#changing-what-is-drawn) · [hiding artists](#hiding-artists) ·
+  [reading back](#reading-back)
+- [Settings: rcParams](#settings-rcparams)
 - [Showing, animation and interactive mode](#showing-animation-and-interactive-mode)
 - [Events](#events)
 - [Saving](#saving)
@@ -60,15 +64,16 @@ The window that opens is sextant's: pan, zoom, hover readouts, and the Cosmetic 
 | Call | Notes |
 |---|---|
 | `plt.figure(num=None, figsize=None, dpi=None, clear=False)` | `num` an int or a str label; an existing number makes that figure current |
-| `plt.subplots(nrows=1, ncols=1, *, figsize=, dpi=, num=, width_ratios=, height_ratios=, squeeze=True, subplot_kw=)` | Returns `(fig, ax)` or `(fig, array of axes)` as matplotlib does |
-| `plt.subplot(nrows, ncols, index)`, `plt.subplot(221)`, `plt.axes(projection=None)` | |
-| `fig.add_subplot(nrows, ncols, index, projection=None)` | `projection="3d"` for an `Axes3D`; `index` may be a `(first, last)` span |
-| `plt.gcf()`, `plt.gca()`, `plt.sca(ax)` | |
+| `plt.subplots(nrows=1, ncols=1, *, figsize=, dpi=, num=, facecolor=, width_ratios=, height_ratios=, squeeze=True, subplot_kw=)` | Returns `(fig, ax)` or `(fig, array of axes)` as matplotlib does |
+| `plt.subplot(nrows, ncols, index)`, `plt.subplot(221)`, `plt.axes(projection=None, polar=False)` | |
+| `fig.add_subplot(nrows, ncols, index, projection=None, polar=False)` | `projection="3d"` for an `Axes3D`, `"polar"` (or `polar=True`) for a [polar axes](#polar-axes); `index` may be a `(first, last)` span |
+| `plt.gcf()`, `plt.gca()`, `plt.sca(ax)`, `fig.sca(ax)` | |
+| `plt.fignum_exists(num)`, `plt.get_figlabels()`, `plt.figaspect(arg)` | |
 | `plt.close(fig=None)` | The current figure, a `Figure`, a number or label, or `"all"` |
 | `plt.clf()`, `plt.cla()`, `fig.clear()`, `ax.cla()` / `ax.clear()` | |
 | `plt.get_fignums()` | |
-| `fig.set_size_inches(w, h)`, `fig.get_size_inches()`, `fig.dpi` | |
-| `fig.tight_layout()`, `fig.subplots_adjust()` | Accepted and ignored: sextant measures its own layout |
+| `fig.set_size_inches(w, h)`, `fig.get_size_inches()`, `fig.get_figwidth()`, `fig.get_figheight()`, `fig.dpi`, `fig.get_dpi()` | |
+| `fig.tight_layout()`, `fig.subplots_adjust()`, `fig.align_labels()`, `plt.tight_layout()`, `plt.subplots_adjust()` | Accepted and ignored: sextant measures its own layout |
 
 **One subplot grid per figure.** sextant lays a figure out on one grid, fixed by its first subplot. A later
 position on a grid that divides it evenly is mapped onto it: on a 2×2 figure, `add_subplot(2, 1, 2)` is the
@@ -99,17 +104,28 @@ Each is a method of the axes and a `plt.` function acting on the current axes.
 | `axhline(y=0, xmin=0, xmax=1)`, `axvline(x=0, ymin=0, ymax=1)` | `RefLine` | Reference lines across the frame; `color`, `linewidth`, `linestyle`, `alpha`, `label` |
 | `axhspan(ymin, ymax, xmin=0, xmax=1)`, `axvspan(xmin, xmax, ymin=0, ymax=1)` | `Span` | Bands; opaque unless `alpha=`, no outline unless `edgecolor` (or `color=` with `linewidth`) |
 | `errorbar(x, y, yerr=None, xerr=None, fmt="", ecolor=, elinewidth=, capsize=, label=)` | `Line2D` | `yerr`/`xerr` a scalar, `(N,)`, or `(2, N)` lower/upper; `fmt="none"` for bars alone |
-| `imshow(X, cmap=, vmin=, vmax=, origin=None, extent=None, label=, colorbar=False)` | `AxesImage` | 2-D scalar data only |
-| `pcolormesh([X, Y,] C, cmap=, vmin=, vmax=, shading=)` | `AxesImage` | A uniform mesh (cell edges or centres) |
+| `imshow(X, cmap=, norm=, vmin=, vmax=, origin=None, extent=None, alpha=, label=, colorbar=False)` | `AxesImage` | 2-D scalar data, or an RGB(A) image `(rows, cols, 3 or 4)` (floats in [0, 1] or `uint8`), which `alpha=` fades |
+| `pcolormesh([X, Y,] C, cmap=, norm=, vmin=, vmax=, shading=)` | `AxesImage` | Cell edges or centres, evenly spaced or not (1-D, or a meshgrid of them); a curvilinear mesh raises |
+| `tripcolor(x, y, C, [triangles], shading="gouraud", cmap=, norm=, vmin=, vmax=)`, `tripcolor(triang, C)` | `AxesImage` | One value per vertex, interpolated across each triangle; no `triangles` = Delaunay. `shading="flat"` raises |
+| `hist2d(x, y, bins=10, range=None, density=False, weights=None, cmin=None, cmax=None, cmap=, norm=, vmin=, vmax=)` | `(counts, xedges, yedges, AxesImage)` | Binned with `numpy.histogram2d`; `bins` an int, a pair, or edges |
+| `contour([X, Y,] Z, [levels], colors=, cmap=, norm=, vmin=, vmax=, linewidths=, alpha=)`, `contourf(...)` | `ContourSet` | Lines at, or bands between, the levels; `origin`/`extent` for `contour(Z)` as `imshow`'s. `levels` an int or values |
+| `clabel(cs, levels=None, fontsize=None)` | | Writes the levels on a `contour`'s lines |
+| `pie(x, explode=, labels=, colors=, autopct=, pctdistance=0.6, labeldistance=1.1, startangle=0, radius=1, counterclock=True, wedgeprops=, textprops=, center=(0, 0), normalize=True)` | `(wedges, texts)`, plus `autotexts` with `autopct` | The axes takes equal aspect; `wedgeprops` takes `width` (a ring), `edgecolor`, `linewidth`, `alpha`; `textprops` `fontsize`, `color` |
 
 Behaviour kept from matplotlib:
 
 - `imshow`: `origin="upper"` (the default) puts row 0 at the top with the y axis pointing down; pixel centres
   sit on integers; `extent=(left, right, bottom, top)` places the image.
+- `norm=` takes the norms of `sextant.colors` (`Normalize`, `LogNorm`, `TwoSlopeNorm`, `BoundaryNorm`, which
+  mirror matplotlib's), or `"linear"`/`"log"`, on `imshow`, `pcolormesh`, `tripcolor`, `hist2d`, `scatter`,
+  `quiver` and the contours. `hist2d(norm=LogNorm())` leaves empty bins blank, as matplotlib.
+- `contour`/`contourf` draw on a grid (1-D `X`, `Y` or a meshgrid of them). Non-solid `linestyles`, `extend`,
+  `hatches` and a curvilinear grid raise.
+- `pie`: `explode` is in data units, as matplotlib; `shadow`, `hatch`, `rotatelabels` and a callable `autopct`
+  raise.
 - `vmin`/`vmax` default to the data's range (in the core API they default to 0..1).
 - `plot` with only a marker in its format (`"o"`) draws markers without a line; a format with both draws both.
-- Draw order is call order across kinds: an `imshow` after a `plot` covers the line (matplotlib keeps lines above
-  images). `zorder` is ignored.
+- Draw order follows `zorder`, with matplotlib's defaults: see [Draw order](#draw-order).
 - A hidden artist (`set_visible(False)`) also leaves the automatic limits; matplotlib's still count.
 - `legend(loc=...)` takes matplotlib's names and codes, mapped onto sextant's corners inside the frame (`"best"`
   is upper right).
@@ -125,7 +141,7 @@ Behaviour kept from matplotlib:
 Unknown keywords are passed on to the core call, so sextant's own options work in pyplot code too:
 `ax.plot(x, y, loop=True)`, `ax.scatter(x, y, hint_labels=names)`. Anything that is neither matplotlib's nor
 sextant's fails there, listing sextant's options. A set of matplotlib keywords that only tune rendering details
-(`zorder`, `antialiased`, `picker`, `rasterized`, `clip_on`, `rstride`, `cstride`, …) is accepted and ignored.
+(`antialiased`, `picker`, `rasterized`, `clip_on`, `rstride`, `cstride`, …) is accepted and ignored.
 
 ---
 
@@ -142,6 +158,7 @@ mplot3d's calls:
 | `ax.plot_wireframe(X, Y, Z, color=, linewidth=)` | A surface with transparent faces and drawn edges |
 | `ax.plot_trisurf(x, y, z, triangles=None, cmap=, color=, ...)` | Without `triangles`, a Delaunay triangulation in xy |
 | `ax.bar3d(x, y, z, dx, dy, dz, color=, alpha=, shade=True, edgecolor=, label=)` | The bars must form a grid (every x with every y, once) |
+| `ax.quiver(X, Y, Z, U, V, W, length=1, arrow_length_ratio=, pivot="tail", normalize=False, color=, alpha=, label=)` | An arrow per point, `length` times the vector (`normalize=True`: all `length` long). The arrows are flat and face the eye |
 | `ax.text(x, y, z, s, **kw)`, `ax.text2D(x, y, s, **kw)` | `text2D` takes fractions of the axes (`ax.transAxes`); see [Text and annotations](#text-and-annotations). 3D text always faces the viewer (no `zdir`) |
 | `ax.set_zlabel`, `set_zlim`, `get_zlim`, `set_zticks` | |
 | `ax.view_init(elev=None, azim=None)` | No `roll`; z is up |
@@ -150,9 +167,56 @@ mplot3d's calls:
 
 ---
 
+## Polar axes
+
+```python
+fig = plt.figure()
+ax = fig.add_subplot(projection="polar")
+theta = np.linspace(0, 4 * np.pi, 400)
+ax.plot(theta, theta / (4 * np.pi))
+ax.set_theta_zero_location("N")
+ax.set_theta_direction(-1)
+ax.set_rmax(1.2)
+```
+
+`projection="polar"` (or `polar=True`) on `add_subplot`, `subplot`, `subplots(subplot_kw=)` or `plt.axes`, and
+`plt.polar(theta, r)`, give a polar axes over the core [`PolarAxes`](api.md#polar-axes). Its data is (θ, r),
+θ in radians; angles are in degrees where matplotlib's are (`set_thetagrids`, `set_thetamin`/`set_thetamax`,
+`set_rlabel_position`, the zero location's offset).
+
+| Call | Notes |
+|---|---|
+| `plot`, `step`, `scatter`, `bar`, `fill`, `fill_between`, `text`, `annotate` | As on a 2D axes, in (θ, r); a `bar` is a ring sector `width` radians wide, without error bars |
+| `set_rlim`, `set_rmin`, `set_rmax`, `set_ylim`, `set_rticks`, `set_rgrids`, `set_rlabel_position` | `plt.rgrids(radii, labels=None, angle=None)` |
+| `set_thetagrids(angles, labels=None)`, `set_xticks`, `set_thetamin`, `set_thetamax`, `set_thetalim`, `set_xlim` | `plt.thetagrids(...)`; a sector when the span is under 360° |
+| `set_theta_zero_location(loc, offset=0)`, `set_theta_offset`, `set_theta_direction` | `loc` `"N"`, `"NW"`, `"W"`, …; direction `1`/`-1` or `"clockwise"` |
+| `grid`, `set_title`, `legend`, `set_facecolor` | |
+
+`set_rorigin`, a log r axis and error bars raise: sextant draws a linear r from the centre.
+
+**`fill` in polar differs from matplotlib.** sextant runs a polygon's edges straight in (θ, r), so it bends
+with the circles, where matplotlib draws them straight on screen. A closed curve given as many points looks
+the same, but few points (a radar chart) do not: the fill follows arcs and spirals between them. For a region
+from the centre out to a curve, use `fill_between(theta, 0, r)`: it fills inside the curve (its edges still
+follow (θ, r), as matplotlib's own polar `fill_between`). Give a radar chart more points per side for straight
+edges.
+
+---
+
+## Draw order
+
+Objects draw in ascending `zorder`, equal ones in call order, with matplotlib's defaults: images and meshes
+(`imshow`, `pcolormesh`, `tripcolor`, `hist2d`, `contourf`) 0, patches and collections (`bar`, `fill_between`,
+`scatter`, spans, `pie`) 1, lines (`plot`, `contour`, reference lines, error bars) 2. So a line stays above an
+`imshow` drawn after it. Every 2D plotting call takes `zorder=`, and the handles have `set_zorder(z)` and
+`get_zorder()`; a `zorder` must be finite. Texts always draw above the data (their `get_zorder()` reads 3). A
+3D scene draws by depth and ignores `zorder`.
+
+---
+
 ## Decoration
 
-On axes (2D and 3D): `set_title`, `set_xlabel`, `set_ylabel` (with `fontsize=`), `get_title`, `get_xlabel`,
+On axes (2D and 3D): `set_title`, `set_xlabel`, `set_ylabel` (with `fontsize=` and `color=`), `get_title`, `get_xlabel`,
 `get_ylabel`; `set_xlim`/`set_ylim` (positional, a pair, or `left=`/`right=`/`bottom=`/`top=`),
 `get_xlim`/`get_ylim`, `invert_xaxis`, `invert_yaxis`; `set_xticks(ticks, labels=None)`,
 `set_yticks`, `set_xticklabels`/`set_yticklabels` (after `set_xticks`/`set_yticks`); `grid(visible=None,
@@ -160,7 +224,8 @@ color=, linestyle=, linewidth=, alpha=)`; `legend(labels=None, loc=None, fontsiz
 `ax.set_facecolor(color)` (2D); `ax.set(title=..., xlabel=..., xlim=..., ...)`; `ax.tick_params(axis="both",
 which="major", ...)` with `colors`, `color`, `labelcolor`, `labelsize`, `length`, `width` and
 `labelbottom`/`labeltop`/`labelleft`/`labelright` (`which="minor"` sets the minor mark length only; other
-keywords such as `direction`, `pad` and `rotation` raise); `ax.label_outer()`. `set_xticks([])` hides the
+keywords such as `direction`, `pad` and `rotation` raise), also as `ax.xaxis.set_tick_params(...)`;
+`ax.xaxis.label.set_color()`/`set_fontsize()`; `ax.label_outer()`. `set_xticks([])` hides the
 ticks and their labels, as in matplotlib (the core API's `set_xticks([])` means automatic ticks).
 
 On the figure: `fig.suptitle(t, fontsize=None)`, `fig.colorbar(mappable=None, ax=None, label="",
@@ -171,7 +236,7 @@ colours the figure as it is made, and on `fig.add_subplot()` the axes.
 matplotlib's mathtext, fractions, roots and accents included ([api.md](api.md#math-in-text)).
 `plt.figure(mathtext=False)` turns it off for a figure; `plt.figure(math_fontset="cm")` (or `"stix"`,
 `"stixsans"`, `"dejavusans"`, `"dejavuserif"`, `"custom"` with `math_font_path=`) chooses the font math is drawn
-in, since there are no `rcParams` to set `mathtext.fontset` in;
+in (or `rcParams["mathtext.fontset"]`, read when a figure is made);
 `parse_math=False` turns it off for one `text()` or `annotate()` (on a title or label it raises, pointing to
 the figure's switch). `usetex=True` raises: sextant draws its own math, with no LaTeX. Math that does not parse
 is drawn as written, with a `RuntimeWarning`.
@@ -182,7 +247,19 @@ The same through `plt`: `title`, `xlabel`, `ylabel`, `xlim`, `ylim` (no argument
 **Colorbars** belong to the colour-mapped object in sextant: `plt.colorbar()` (or `fig.colorbar(im)`) turns
 on the colorbar of the last (or given) colour-mapped object, and `label=` titles it. `orientation="horizontal"`
 puts the axes' colorbars below the frame. Passing `colorbar=True` to `imshow`, `scatter` or a surface does the
-same at once.
+same at once. A `contourf`'s colorbar is stepped at its levels; `fig.colorbar(h[3])` takes `hist2d`'s image.
+
+### Spines
+
+```python
+ax.spines[["top", "right"]].set_visible(False)
+ax.spines["left"].set_color("tab:red")
+```
+
+`ax.spines["left"]` (`"right"`, `"top"`, `"bottom"`), a list of them or `[:]` take `set_visible`,
+`set_linewidth`, `set_color`/`set_edgecolor` and `set_alpha`. sextant draws one frame colour per axes, so
+recolouring a spine whose side has no axis of its own recolours all four. `set_position` and `set_bounds`
+raise.
 
 ---
 
@@ -198,6 +275,7 @@ same at once.
 | `ax.twinx()`, `ax.twiny()`, `plt.twinx(ax=None)`, `plt.twiny(ax=None)` | The twin is in `fig.axes` and `plt.` makes it current. sextant has one twin per side, so a second call returns the same one |
 | `ax.set_aspect(aspect, adjustable=None)`, `get_aspect()`, `set_adjustable()`, `get_adjustable()` | `aspect` is `"auto"`, `"equal"` or a number; `anchor` only `"C"` |
 | `ax.axis(arg)`, `plt.axis(arg)` | `"equal"` (limits widen), `"scaled"`/`"image"` (frame shrinks), `"square"`, `"auto"`, `"on"`/`"off"`, a `[xmin, xmax, ymin, ymax]` list; `"tight"` raises |
+| `ax.set_axis_off()`, `set_axis_on()`, `ax.axison` | Off hides the frame, ticks, labels, grid and background, as matplotlib |
 
 Differences that are sextant's design:
 
@@ -275,7 +353,9 @@ The returned handles have the usual setters:
 | `Quiver` | `X`, `Y`, `U`, `V`, `N`, `set_UVC(U, V, C=None)`, `get_offsets`, `set_offsets`, `get_array`, `set_array`, `set_clim`, `set_cmap`, `set_color`, `set_alpha` |
 | `RefLine` (axhline, axvline) | `get_xdata`, `set_xdata`, `get_ydata`, `set_ydata`, `get_color`, `set_color`, `set_linewidth`, `set_linestyle`, `set_alpha` |
 | `Span` (axhspan, axvspan) | `get_span`, `set_span(lo, hi)` (sextant's), `get_facecolor`, `set_facecolor`, `set_edgecolor`, `set_linewidth`, `set_alpha` |
-| `AxesImage` (imshow, pcolormesh) | `get_array`, `set_data`, `set_clim`, `set_cmap`, `get_extent` |
+| `AxesImage` (imshow, pcolormesh, tripcolor, hist2d) | `get_array`, `set_data`, `set_clim`, `set_cmap`, `get_extent` |
+| `ContourSet` (contour, contourf) | `levels`, `set_clim`, `set_cmap` |
+| `PieWedge` (pie) | `theta1`, `theta2`, `r`, `center`, `set_facecolor`, `set_alpha` |
 | `BarContainer` (bar, hist, bar3d) | `datavalues`, `set_heights(heights)` (sextant's; matplotlib changes bars one by one) |
 | `Path3D` (3D plot, scatter) | `get_data_3d`, `set_data_3d` |
 | `Surface3D` | `set_cmap` |
@@ -285,11 +365,40 @@ Data setters (`set_data`, `set_ydata`, `set_offsets`, `set_array`, `set_UVC`, �
 are cheap: use them for animation. Style setters (`set_color`, `set_linewidth`, `set_clim`, `legend(labels)`,
 `colorbar()`) redraw the axes from scratch, which resets a view panned or zoomed in the window.
 
+Every handle also has `set_zorder()`/`get_zorder()` ([Draw order](#draw-order)).
+
 ### Hiding artists
 
 Every handle has `set_visible(b)` / `get_visible()`, and the plotting calls take `visible=`. Hiding is cheap
 like a data setter. For a `plot()` with markers it hides both the line and its markers; for `hist()` or
 `stackplot()`, every bar or layer. Unlike matplotlib, a hidden artist leaves the automatic limits.
+
+### Reading back
+
+`ax.lines`, `ax.texts`, `ax.patches`, `ax.collections`, `ax.images` and `ax.get_children()` list the handles,
+`ax.get_legend_handles_labels()` and `ax.get_legend()` the legend's, `ax.get_facecolor()` the background.
+`get_xbound()`/`set_xbound()` (and y) read and set the limits low to high, `xaxis_inverted()` tells.
+`get_xticks()` and `get_xticklabels()` return ticks set with `set_xticks()`; automatic ticks are chosen at draw
+time, so for them they raise a `RuntimeError`. `plt.setp(artist, **props)`, `plt.getp(artist, name)` and
+`plt.findobj(match=None)` work on these handles.
+
+---
+
+## Settings: rcParams
+
+```python
+plt.rcParams["axes.grid"] = True
+with plt.rc_context({"figure.figsize": (8, 4), "image.cmap": "magma"}):
+    fig, ax = plt.subplots()
+```
+
+`plt.rcParams`, `plt.rc(group, **kw)`, `plt.rc_context()` (also a decorator) and `plt.rcdefaults()` hold
+matplotlib's keys. sextant reads `figure.figsize`, `figure.dpi`, `figure.facecolor`, `axes.facecolor`,
+`axes.grid`, `axes.prop_cycle` (colours), `image.cmap` and `mathtext.fontset`, when a figure or axes is made;
+setting another key stores it and warns once.
+
+**Colormaps:** `plt.colormaps` (also `plt.cm`), `plt.get_cmap(name)`, and the current image's `plt.gci()`,
+`plt.sci(im)`, `plt.clim(vmin, vmax)`, `plt.set_cmap(name)` and the per-map shortcuts (`plt.viridis()`).
 
 ---
 
@@ -394,12 +503,11 @@ axes.
 
 These raise rather than draw something different:
 
-- `contour`/`contourf` (use a heatmap's `contours=`), `pie`, `boxplot`, `violinplot`, `quiverkey`, a 3D
-  `quiver`, `hatch=`;
-- `imshow` of RGB(A) images (scalar data only) and `alpha=` on images (a warning; ignored);
+- `boxplot`, `violinplot`, `quiverkey`, `hatch=`;
 - bars with varying widths, a `hist` with unequal bins or `histtype="step"`;
-- a non-uniform `pcolormesh` mesh, a `bar3d` whose positions do not form a grid;
+- a curvilinear `pcolormesh` or `contour` mesh, a `bar3d` whose positions do not form a grid;
+- in polar axes: `set_rorigin`, a log r axis, error bars;
 - `view_init(roll=)`, `vertical_axis` other than `"z"`, `Axes3D.plot(zdir=)` other than `"z"`;
-- a `FuncFormatter`, `usetex=True`, and `rcParams` (there are none: the options they would set are keywords);
+- a `FuncFormatter`, `usetex=True`;
 - `legend(handles, labels)` (pass `label=` when plotting, or `legend(labels)`);
 - subplot positions that do not fit the figure's grid ([Figures and axes](#figures-and-axes)).

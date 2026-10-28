@@ -1,4 +1,4 @@
-"""sextant 1.3 stage 4: Axes.pie() and the axis switch, through the core binding and pyplot."""
+"""Axes.pie() and the axis switch, through the core binding and pyplot."""
 
 import math
 

@@ -1,4 +1,4 @@
-"""C9: what the adapter reads back -- bounds, ticks, the artist lists, the legend, figure geometry."""
+"""What the adapter reads back -- bounds, ticks, the artist lists, the legend, figure geometry."""
 import numpy as np
 import pytest
 

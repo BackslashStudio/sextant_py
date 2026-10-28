@@ -1,4 +1,4 @@
-"""sextant 1.3 stage 3: the heatmap family through the core binding -- imshow_rgb,
+"""The heatmap family through the core binding -- imshow_rgb,
 heatmap_rec, heatmap_tri, hist2d, ColorNorm, and the read-back / setters."""
 
 import numpy as np

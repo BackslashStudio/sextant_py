@@ -1,4 +1,4 @@
-"""sextant 1.2 steps 36d and 36e through the core binding: filled areas (fill,
+"""Filled areas through the core binding (fill,
 stack) and arrow fields (quiver), their options, read-back and setters."""
 
 import math

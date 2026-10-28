@@ -81,7 +81,7 @@ def plots() -> None:
     ax.set_aspect(1.0, "datalim")
     adj: sextant.Adjustable = ax.adjustable()
 
-    # sextant 1.2 step 36c: markers, steps, per-point sizes, bar bases, reference lines.
+    # Markers, steps, per-point sizes, bar bases, reference lines.
     ax.scatter([0, 1], [0, 1], marker="x", sizes=[4.0, 8.0]).line([0, 1], drawstyle="steps-mid")
     ax.bar([0, 1], [1, 2], bottom=0.5, orientation=sextant.Orientation.HORIZONTAL)
     ax.axline(0.5, orientation="vertical", from_=0.2, to=0.8).axspan(0, 1, edgecolor="k", linewidth=1.0)
@@ -90,7 +90,7 @@ def plots() -> None:
     ax.set_bar_data(0, sextant.BarData([0, 1], [1, 2], bottom=None)).set_axspan_data(0, 1.0, 2.0)
     style: sextant.DrawStyle = sextant.DrawStyle.STEPS_PRE
 
-    # sextant 1.2 steps 36d/36e: filled areas and arrow fields.
+    # Filled areas and arrow fields.
     ax.fill([0, 1], [1, 2], 0.5, exclude=[False, True], drawstyle="steps-post").fill([0, 1], [1, 2], [0, 1])
     ax.stack([0, 1], [[1, 2], [3, 4]], baseline="weighted_wiggle", colors=["red", (0.0, 0.0, 1.0)])
     ax.quiver([0, 1], [0, 1], [1, 1], [0, 1], [0.5, 1.0], amp=0.5, pivot="mid", cmap="plasma")

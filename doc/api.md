@@ -18,11 +18,13 @@ The core API follows sextant's C++ API name for name, so the C++ documentation a
 - [Conventions](#conventions): [options](#options-are-keyword-arguments) · [enums](#enums-are-strings) ·
   [colours](#colours) · [arrays](#arrays) · [tuples](#tuples) · [typing](#typing)
 - [2D plot types](#2d-plot-types): [line](#line) · [scatter](#scatter) · [scatter_z](#scatter_z) ·
-  [bar](#bar) · [hist](#hist) · [heatmap and imshow](#heatmap-and-imshow) · [fill](#fill) ·
-  [stack](#stack) · [quiver](#quiver) · [axline and axspan](#axline-and-axspan)
+  [bar](#bar) · [hist](#hist) · [heatmap and imshow](#heatmap-and-imshow) · [imshow_rgb](#imshow_rgb) ·
+  [heatmap_rec](#heatmap_rec) · [heatmap_tri](#heatmap_tri) · [hist2d](#hist2d) · [fill](#fill) ·
+  [stack](#stack) · [quiver](#quiver) · [axline and axspan](#axline-and-axspan) · [shapes](#shapes) ·
+  [pie](#pie)
 - [Error bars](#error-bars)
 - [Contours](#contours)
-- [Colormaps](#colormaps)
+- [Colormaps](#colormaps): [colour norms](#colour-norms)
 - [Titles, legends, colorbars and ticks](#titles-legends-colorbars-and-ticks)
 - [Scales, shared and twin axes](#scales-shared-and-twin-axes): [log and symlog](#log-and-symlog-axes) ·
   [tick formats and minor ticks](#tick-formats-and-minor-ticks) · [shared axes](#shared-axes) ·
@@ -31,12 +33,14 @@ The core API follows sextant's C++ API name for name, so the C++ documentation a
 - [Math in text](#math-in-text)
 - [Styling](#styling)
 - [Layout](#layout): [subplots and spans](#subplots-and-spans) · [sizing a figure](#sizing-a-figure)
+- [Polar axes](#polar-axes)
 - [Saving and rendering](#saving-and-rendering)
 - [Jupyter and IPython display](#jupyter-and-ipython-display)
 - [The window](#the-window): [show() and waiting](#show-and-waiting) · [interactive sessions](#interactive-sessions) ·
   [what the window offers](#what-the-window-offers)
 - [Live updates](#live-updates)
 - [Events](#events)
+- [Objects and ids](#objects-and-ids)
 - [Reading back](#reading-back)
 - [Threads](#threads)
 - [Errors and warnings](#errors-and-warnings)
@@ -75,6 +79,15 @@ Every plotting and decorating method of `Axes` returns the axes itself, so calls
 
 **Data is copied.** Each call copies what it needs, so you can reuse or change your arrays afterwards. To
 change what is plotted, use [`set_<kind>_data()`](#live-updates).
+
+**Draw order.** Objects draw in the order of the calls, unless a `zorder` says otherwise: every 2D plotting
+call takes `zorder=` (0 by default), and objects draw in ascending `zorder`, equal ones in call order. The
+window, PNG, SVG, planes, twins and the hover hint follow it; the legend and colorbars stay in call order.
+
+```python
+ax.bar(x, h).line(x, trend, zorder=-1.0)     # the line goes behind the bars
+ax.set_zorder(ax.last_object(), 2.0)         # ...and back in front: see Objects and ids
+```
 
 **Objects keep their identity.** `fig.axes() is fig.axes()`, and `fig.add_subplot(2, 2, 1)` returns the same
 object every time it is asked for that cell. An `Axes` keeps its figure alive: a figure whose `Figure` object
@@ -238,13 +251,17 @@ ax.scatter(x, y, sizes=8 + 40 * weight, alpha=0.5)
 ```
 
 **Outlines and hollow markers.** `edge_linewidth` (pixels, 0 by default) draws an outline inside the marker,
-so `size` stays its full diameter. `edgecolor` sets its colour (unset: the marker's own) and `edge_alpha` its
-opacity, independent of `alpha`. With `alpha=0` only the outline is drawn: a hollow marker. Every shape takes
-one, `cross` and `plus` included (both are filled shapes). `scatter_z` and `scatter3d` take the same keywords.
+so `size` stays its full diameter. `edgecolor` sets its colour (unset: the marker's own). `filled=False` draws
+the outline alone: a hollow marker. Every shape takes one, `cross` and `plus` included (both are filled
+shapes). `scatter_z` and `scatter3d` take the same keywords.
 
 ```python
-ax.scatter(px, py, color="orange", size=16, alpha=0, edge_linewidth=2)       # hollow
+ax.scatter(px, py, color="orange", size=16, filled=False, edge_linewidth=2)  # hollow
 ```
+
+**One alpha rule.** Every part of an object, fill, outline and error bars alike, is drawn at its own colour's
+alpha times the object's `alpha`. For a faint fill with a solid outline, give `color` the alpha and leave
+`alpha` at 1: `color=(1, 0.5, 0, 0.3), edgecolor="black"`. `alpha=0` hides the whole object.
 
 ### scatter_z
 
@@ -323,13 +340,98 @@ centres, so a cell is `(hi - lo) / cols` wide. The mesh is uniform. `imshow()` i
 `ValueError`.
 
 `origin="lower"` (the default) draws row 0 at the bottom, `"upper"` at the top. As with `scatter_z`,
-**`vmin`/`vmax` default to 0 and 1**.
+**`vmin`/`vmax` default to 0 and 1**; `norm=` changes how values land on the colormap
+([colour norms](#colour-norms)).
+
+**A NaN cell is empty** (transparent), and contours leave out the squares that touch one; hover says "no
+value". A heatmap draws on a log or symlog axis, each cell placed through the scale; on a log axis the part of
+a cell at or below 0 is not drawn.
 
 Automatic limits never pad a heatmap: the image meets the frame. Hovering a cell in the window reports its row,
 column and value.
 
 (`sextant.pyplot`'s `imshow` follows matplotlib instead: row 0 at the top, cell centres on integers, colour
 limits from the data.)
+
+### imshow_rgb
+
+An RGB or RGBA image:
+
+```python
+ax.imshow_rgb(data, **ImageOptions) -> Axes
+```
+
+```python
+img = np.zeros((64, 96, 3), dtype=np.uint8)            # rows, cols, channels
+img[..., 0] = np.linspace(0, 255, 96).astype(np.uint8)
+ax.imshow_rgb(img)
+```
+
+`data` is `(rows, cols, 3)` or `(rows, cols, 4)`: floats in [0, 1] (clamped) or `uint8` bytes. `xrange` and
+`yrange` place it (the pixel index by default), and `origin` is `"upper"` by default, as matplotlib's
+`imshow`. A NaN channel leaves its pixel empty. An image counts as a heatmap: `heatmap_count()`,
+`heatmap_data(i)` (its `data` is `(rows, cols, channels)`, in [0, 1]), `set_heatmap_data(i, ...)` (the channel
+count cannot change),
+visibility, `remove()` and picks work as for heatmaps. It has no colorbar and no contours; hover shows the
+pixel's colour.
+
+### heatmap_rec
+
+Cells of any size, as matplotlib's `pcolormesh`:
+
+```python
+ax.heatmap_rec(data, x_edges, y_edges, **HeatmapRecOptions) -> Axes
+```
+
+```python
+xe = np.logspace(0, 3, 13)                          # 12 columns, even on a log axis
+ye = np.array([0.0, 1.0, 3.0, 6.0, 10.0])          # 4 rows
+ax.heatmap_rec(field, xe, ye, cmap="magma", colorbar=True).set_xscale("log")
+```
+
+`data` is `(rows, cols)`; column j spans `x_edges[j]..x_edges[j+1]`, row i `y_edges[i]..y_edges[i+1]`, so
+row 0 is at the first y edge (there is no `origin`). Edges are strictly increasing or decreasing. The options
+are the heatmap's colormap, `vmin`/`vmax`, `norm`, colorbar and contour fields. It counts as a heatmap:
+`heatmap_data(i)` returns its edges in `HeatmapData.x_edges` / `y_edges` (`None` for the other kinds), and
+`set_heatmap_data(i, d)` takes new ones. A wrong edge count, unordered or non-finite edges are a `ValueError`.
+
+### heatmap_tri
+
+One value per vertex of a triangle mesh, interpolated across each triangle, as matplotlib's
+`tripcolor(shading="gouraud")`:
+
+```python
+ax.heatmap_tri(x, y, values, tri=None, **HeatmapTriOptions) -> Axes
+```
+
+```python
+ax.heatmap_tri(px, py, np.hypot(px, py), cmap="viridis", colorbar=True)   # Delaunay of the points
+ax.heatmap_tri(x, y, v, triangles)                                        # an (n, 3) index array
+```
+
+Without `tri` the points are triangulated (Delaunay). Edges are straight on screen on any scale; a NaN value,
+or a vertex at or below 0 on a log axis, leaves out its triangles. Limits are the vertices' extent, unpadded.
+It is its own kind: `heatmap_tri_count()`, `heatmap_tri_data(i)` (`HeatmapTriData`),
+`set_heatmap_tri_data(i, ...)`, `set_heatmap_tri_visible()`, `PickKind.HEATMAP_TRI`; hover shows the
+interpolated value and the nearest vertex's `hint_labels` entry.
+
+### hist2d
+
+Points binned into a heatmap, as matplotlib's `hist2d`:
+
+```python
+ax.hist2d(x, y, **Hist2dOptions) -> Axes
+```
+
+```python
+ax.hist2d(hx, hy, xbins=40, ybins=40, cmin=1, norm=sextant.ColorNorm.log(), colorbar=True)
+```
+
+`xbins`/`ybins` and `xrange`/`yrange` set the bins, or `x_edges`/`y_edges` give them (then the result is a
+`heatmap_rec`). `density` normalises; bins below `cmin` or above `cmax` are empty. `vmin`/`vmax` default to the
+bins' extent (under a log norm, the smallest count above 0). Bins are numpy's: half-open, the last including
+its upper edge; points outside or NaN are not counted. The result is a heatmap: it reads back, picks and
+removes as one. Unequal lengths, a bin count below 1 or an empty range are a `ValueError`.
 
 ### fill
 
@@ -394,6 +496,16 @@ then kept, so the frames of an animation stay comparable. `pivot` is `"tail"`, `
 0 on a log axis is not drawn. Automatic limits cover whole arrows. Hover shows the vector (`PickKind.QUIVER`),
 and `quiver_data(i)` / `set_quiver_data(i, ...)` read and replace it. `Plane2D` has `quiver()` too.
 
+**On a grid**, as matplotlib's: `x` one value per column, `y` one per row, and `u`, `v` (and `c`) 2-D arrays of
+shape `(len(y), len(x))`, or flat with `len(x) * len(y)` values, row-major. `quiver_data()` reads back one
+point per arrow.
+
+```python
+qx = np.linspace(-2, 2, 9); qy = np.linspace(-1, 1, 5)
+QX, QY = np.meshgrid(qx, qy)
+ax.quiver(qx, qy, -QY, QX, np.hypot(QX, QY), cmap="viridis").set_aspect(1.0)
+```
+
 ### axline and axspan
 
 Reference lines and bands across the frame:
@@ -416,6 +528,67 @@ draw in call order, have legend keys, and are edited in the Data panel. Automati
 (on a log axis only those > 0); a non-finite value is a `ValueError`. They are read back and moved with
 `axline_data(i)` / `set_axline_data(i, value)` and `axspan_data(i)` / `set_axspan_data(i, lo, hi)`. They are
 decorations: never hovered or picked.
+
+**Sloped lines** go through a point with a slope, or through two points:
+
+```python
+ax.axline(x, y, *, slope, coords="data", **AxLineOptions) -> Axes
+ax.axline(x1, y1, x2, y2, *, coords="data", **AxLineOptions) -> Axes
+```
+
+```python
+(ax.axline(0, 0, slope=1.0, linestyle="dashed", name="y = x")
+   .axline(0, 1, 1, 0, coords="fraction", color="gray"))     # corner to corner of the frame
+```
+
+In data units it is the line of the data: straight on linear axes, a curve on log and symlog axes. If a point is
+a `"fraction"` or `"pixels"` position (`coords`, or `xcoords`/`ycoords` per axis), it is a straight screen line.
+`orientation`, `from_` and `to` do not apply. `AxLineData` carries `mode` (`"value"`, `"point_slope"`,
+`"two_points"`), `x`, `y`, `x2`, `y2` and `slope`.
+
+### shapes
+
+A filled polygon, circle, and wedge or ring:
+
+```python
+ax.shape_poly(x, y, **PolyOptions) -> Axes
+ax.shape_circle(cx, cy, r, *, coords="data", **CircleOptions) -> Axes
+ax.shape_wedge(cx, cy, r, theta1, theta2, *, coords="data", **WedgeOptions) -> Axes
+```
+
+```python
+(ax.shape_poly([0.5, 2.0, 1.2], [0.5, 0.8, 2.2], color="orange", alpha=0.6)
+   .shape_circle(3.0, 1.0, 0.5, edgecolor="black")
+   .shape_wedge(3.0, 2.4, 0.5, 30, 300, inner=0.25, color="green")
+   .shape_circle(0.9, 0.9, 12, coords="fraction", rcoords="pixels", color="red"))   # a dot that stays round
+```
+
+`coords` (or `xcoords`/`ycoords`/`rcoords` one by one) is `"data"`, `"fraction"` of the frame or `"pixels"`
+from its bottom left. A radius in data units follows the axes (an ellipse where the scales differ); in pixels or
+as a fraction of the frame's shorter side it stays round. A wedge's `inner` makes it a ring; angles are in
+degrees, counter-clockwise from +x. `shape_poly` takes `space=` for its vertices. The options are `color`,
+`alpha`, an outline (`edgecolor`, `linewidth`, `linestyle`), `name`, `show_legend`, `visible` and `zorder`.
+Limits include only shapes in data units. Each has its own count and data calls (`shape_poly_count()`,
+`shape_poly_data(i)` as `PolyData`, `CircleData`, `WedgeData`), a legend key, hover and a pick
+(`PickKind.POLY`, `CIRCLE`, `WEDGE`). A radius <= 0 or fewer than 3 vertices is a `ValueError`.
+
+### pie
+
+```python
+ax.pie(values, **PieOptions) -> Axes
+```
+
+```python
+ax.pie([35, 25, 20, 20], labels=["A", "B", "C", "D"], autopct="%1.0f%%", explode=[0.08, 0, 0, 0],
+       startangle=90)
+```
+
+As matplotlib's `pie`: `labels`, `explode` (a fraction of the radius), `colors`, `autopct` (matplotlib's format
+strings), `labeldistance` and `pctdistance`, `startangle`, `counterclock`, `radius`, the centre `cx`/`cy`,
+`normalize`, a ring through `inner`, and `edgecolor`, `linewidth`, `alpha`, `fontsize`, `textcolor`. `pie()`
+turns the axis off and sets aspect 1. One legend entry per labelled slice; hover shows `label: value (pct%)`
+and a pick (`PickKind.PIE`) gives the slice in `pick_index`. `pie_count()`, `pie_data(i)` (`PieData`),
+`set_pie_data()`, `set_pie_visible()`. Bad values or a bad `autopct` are a `ValueError`.
 
 ---
 
@@ -467,6 +640,32 @@ Levels are values in the data's own units, the numbers on the colorbar. They are
 you. `contour_labels=True` writes each level on its line. Lines pass through cell centres, so they stop half a
 cell inside the image, and a heatmap smaller than 2×2 traces nothing.
 
+### contour and contourf
+
+Contour lines and filled bands as plots of their own, as matplotlib's `contour` / `contourf` with 1-D x and y:
+
+```python
+ax.contour(x, y, z, **ContourOptions) -> Axes
+ax.contourf(x, y, z, **ContourOptions) -> Axes
+```
+
+```python
+gx = np.linspace(-3, 3, 80); gy = np.linspace(-2, 2, 60)
+X, Y = np.meshgrid(gx, gy)
+Z = np.exp(-X**2 - Y**2) - 0.5 * np.exp(-(X - 1.5)**2 - (Y - 0.5)**2)
+(ax.contourf(gx, gy, Z, nlevels=9, cmap="coolwarm", colorbar=True)
+   .contour(gx, gy, Z, nlevels=9, line_color="black", labels=True))
+```
+
+`z` is `(len(y), len(x))`, NaN allowed (its squares are left out). `levels` gives the values, or `nlevels` nice
+values over z's range (7 by default). A line is coloured at its level through `cmap`, `norm` and `vmin`/`vmax`,
+or all in `line_color`; a band at its midpoint. A `contourf` leaves values outside the first..last level
+unfilled and has a stepped colorbar; a `contour` over a `contourf` of the same data follows the band edges.
+`labels=True` breaks each line at its level (`fontsize`); a plane draws the lines without labels. It is its own
+kind: `contour_count()`, `contour_data(i)` (`ContourData`), `set_contour_data(i, ...)` (with or without new
+levels), `set_contour_visible()`, `PickKind.CONTOUR`. Hover shows a band's value and levels, or a line's level.
+Wrong lengths, unordered x or y, or a non-finite level are a `ValueError`.
+
 ---
 
 ## Colormaps
@@ -503,6 +702,28 @@ sextant.colormaps()                                        # every name, registe
 `register_colormap()` spreads two or more colours evenly from `vmin` to `vmax` (alpha included) and returns the
 name; a name already taken, empty or ending in `"_r"` is a `ValueError`, and a registered map cannot be removed.
 The panel's colormap list shows registered maps too, with a Reversed toggle.
+
+### Colour norms
+
+`norm=` sets how values land on the colormap between `vmin` and `vmax`, as matplotlib's norms. It is taken by
+`heatmap`/`imshow`, `heatmap_rec`, `heatmap_tri`, `hist2d`, `contour`/`contourf`, `scatter_z`, `quiver` with a
+`c`, and `quiver3d`:
+
+| `norm=` | matplotlib | |
+|---|---|---|
+| `"linear"`, `ColorNorm.linear()` | `Normalize` | The default |
+| `"log"`, `ColorNorm.log()` | `LogNorm` | `vmin` and `vmax` above 0; a value at or below 0 has no colour, as NaN |
+| `ColorNorm.two_slope(center)` | `TwoSlopeNorm` | `center` at the middle of the map, strictly between `vmin` and `vmax` |
+| `ColorNorm.boundaries(b)` | `BoundaryNorm` | One colour per band `[b[i], b[i+1])`; `vmin`/`vmax` unused; a stepped colorbar |
+
+```python
+from sextant import ColorNorm
+ax.imshow(anomaly, cmap="coolwarm", vmin=-0.6, vmax=1.0, norm=ColorNorm.two_slope(0.0), colorbar=True)
+```
+
+A norm that does not fit its `vmin`/`vmax` is a `ValueError`; one that stops fitting after a panel edit draws
+as linear until it fits again. A triangle heatmap applies the norm per pixel. The Data panel has a Norm choice,
+a Centre and a Bounds field. (`sextant.pyplot` takes matplotlib's norm objects, see [pyplot.md](pyplot.md).)
 
 ---
 
@@ -574,7 +795,7 @@ stay in data units**; pan and zoom move whole decades.
 On a log axis values <= 0 are clipped off the frame (a bar stands on its bottom edge) and ignored by the
 automatic limits, and `set_xlim()` / `set_ylim()` with an end <= 0 is a `ValueError`. Switching to `"log"` drops
 set limits that reach 0 back to automatic. Ticks fall on the decades, labelled `10^3`; symlog adds 0 and the
-negative decades. A [heatmap](#heatmap-and-imshow) keeps its axes linear (`ValueError` otherwise).
+negative decades. Heatmaps and images draw on log and symlog axes too, each cell placed through the scale.
 
 ### Tick formats and minor ticks
 
@@ -777,6 +998,11 @@ fig = sextant.Figure(background="#dde6ef")
 fig.axes().set_axes_style(background="#1e1f29", show_xticks=False)
 ```
 
+**Axis off.** `ax.set_axis_visible(False)`, as matplotlib's `axis('off')`, hides the spines, ticks, tick labels,
+axis titles, grid and background, and the frame grows into the freed room. Data, title, legend, colorbars and
+texts stay; `set_axis_visible(True)` brings back exactly what was set, and `axis_visible()` reads it. The window
+has an "Axis" checkbox.
+
 The window's side panels (not the plot) take a theme when the figure is made:
 `sextant.Figure(theme="dark", panel_width=300)`; `"light"` is the default, `"classic"` the third.
 
@@ -841,6 +1067,45 @@ w, h = fig.size_for_frame(400, 300)          # figure size giving a 400x300 data
 fig.resize_to_frame(400, 300)                # ...and apply it
 fig.resize_to_frame(400, 300, slot_index=2)  # for subplot 2's frame
 ```
+
+---
+
+## Polar axes
+
+```python
+fig.add_subplot_polar(rows, cols, index) -> PolarAxes
+```
+
+```python
+pax = fig.add_subplot_polar(1, 2, 2)
+th = np.linspace(0, 4 * np.pi, 400)
+(pax.plot(th, th / (4 * np.pi), name="spiral")
+    .set_theta_zero_location("n")       # θ = 0 at the top
+    .set_theta_direction(-1)            # clockwise
+    .set_rmax(1.2))
+```
+
+A `PolarAxes` takes a grid cell as `add_subplot()` does (also a span, or the figure's grid alone), as
+matplotlib's `projection="polar"`. **θ is in radians in data** (`plot()`, `line_data()`, events) **and in
+degrees in every setter** that places the frame or its grid, as matplotlib's. `plot(theta, r)` and `plot(r)`
+draw curved lines with the `LineOptions` keywords; `scatter`, `scatter_z` (with a colorbar), `bar(theta,
+height)` as ring sectors, `fill(theta, r1, r2=0)` (`fill(theta, r)` fills inside a curve: a radar chart),
+`shape_poly(theta, r)`, `text(s, theta, r)` and `annotate(theta, r, s, ttheta, tr)` take the options of
+their `Axes` counterparts. Edges are straight in (θ, r), so arcs where θ changes; everything is cut to the r
+limits and the sector.
+
+- **r**: `set_rlim()`, `set_rmin()`, `set_rmax()` (0 and the largest r by default), `set_rticks()`,
+  `set_rtick_format()`, `set_rlabel_position()`.
+- **θ**: `set_thetagrids()` (every 45° by default), `set_theta_zero_location("n")` (`"e"`, `"n"`, `"w"`, `"s"`,
+  `"ne"`, …) or `set_theta_offset()`, `set_theta_direction(±1)`, and a sector with `set_thetamin()` /
+  `set_thetamax()` / `set_thetalim()`.
+- `rlim()`, `rlabel_position()`, `theta_offset()`, `theta_direction()` and `thetalim()` read them back;
+  `grid()` turns the rings and spokes on and off.
+
+Objects read back, change, hide, remove and order as on `Axes` (`line_data(i)` has θ in `x`, r in `y`); picks
+are the 2D kinds, and an event's `xdata`/`ydata` are θ and r (`inaxes` is the `PolarAxes`). In the window, drag
+turns the frame, Shift-drag moves r and the wheel zooms r. `add_subplot()` on a polar cell, and
+`add_subplot_polar()` on another kind, are a `ValueError`.
 
 ---
 
@@ -1118,16 +1383,20 @@ The `Event` fields are listed in [reference.md](reference.md#event). The useful 
   (`"a"`, `"ctrl+a"`, `"escape"`, `"f5"`, `"left"`, …), `scroll_y`, `width`/`height` for resize;
 - `x2data`/`y2data`: over an axes with a `twiny()` / `twinx()`, the twin's coordinate under the pointer (NaN
   without one); `xdata`/`ydata` stay the host's;
-- for a pick: `pick_kind` (`"line"`, `"scatter"`, `"bar"`, `"heatmap"`, `"quiver"`, `"fill"`, …), `pick_object`
-  (the `i` of `<kind>_data(i)`), `pick_index` (the point, bar or vertex; a fill's segment *i*, between its points
-  *i* and *i* + 1), `pick_row`/`pick_col` (a heatmap cell), `pick_plane` (in 3D), `pick_twin` (0 the axes' own,
-  1 its `twinx()`, 2 its `twiny()`).
+- for a pick: `pick_kind` (`"line"`, `"scatter"`, `"bar"`, `"heatmap"`, `"quiver"`, `"fill"`, `"pie"`, …),
+  `pick_object` (the object's [id](#objects-and-ids), 0 = none; `find_object(id)` gives its kind and the `i` of
+  `<kind>_data(i)`), `pick_index` (the point, bar, slice or vertex; a fill's segment *i*, between its points *i*
+  and *i* + 1), `pick_row`/`pick_col` (a heatmap cell), `pick_plane` (in 3D: the plane's id, 0 for an object of
+  the axes itself), `pick_twin` (0 the axes' own, 1 its `twinx()`, 2 its `twiny()`; in a twinned cell, ask the
+  axes it names).
 
 ```python
 def on_pick(e):
     if e.pick_kind == "scatter":
-        d = e.inaxes.scatter_data(e.pick_object)
-        print("picked point", e.pick_index, d.x[e.pick_index], d.y[e.pick_index])
+        found = e.inaxes.find_object(e.pick_object)       # None if removed since
+        if found:
+            d = e.inaxes.scatter_data(found[1])
+            print("picked point", e.pick_index, d.x[e.pick_index], d.y[e.pick_index])
 
 fig.connect("pick", on_pick)
 ```
@@ -1151,6 +1420,31 @@ continues. `KeyboardInterrupt` is raised from the wait that was delivering. A ca
 
 ---
 
+## Objects and ids
+
+Every plotting call's object has an id. `last_object()` is the id of the object the latest call made (the last
+layer for `stack()`); `remove(id)` takes it out for good:
+
+```python
+ax.line(x, y, name="data")
+fit = ax.last_object()
+ax.line(x, model(x), linestyle="dashed", name="fit")
+kind, i = ax.find_object(fit)          # (PickKind.LINE, 1): the i of line_data(i)
+ax.set_zorder(fit, 2.0)                # draw it on top
+ax.remove(fit)                         # gone; True
+```
+
+- An id stays valid when other objects are removed; removing shifts the indices of the later objects of its
+  kind, so `<kind>_data(i)` follows the new order.
+- An id that is not there (removed already, unknown, another axes') changes nothing: `remove()` and
+  `set_zorder()` return `False`, `find_object()` and `zorder()` `None`, and a warning goes through the message
+  handler. A non-finite `zorder` is a `ValueError`.
+- `Plane2D` and `PolarAxes` have the same calls; `Axes3D` has `last_object()`, `remove()` and `find_object()`
+  for its own objects (a 3D scene draws by depth, so no `zorder`), plus `last_plane()`, `remove_plane(id)` and
+  `plane_index(id)` (the `i` of `plane_at(i)`). A removed `Plane2D` stays usable but is no longer drawn.
+
+---
+
 ## Reading back
 
 `Axes` (and `Plane2D`, `Axes3D`) report what they hold now, including edits made in the window:
@@ -1164,9 +1458,9 @@ d = ax.line_data(0)            # LineData(x=array(...), y=array(...))
 ```
 
 Each kind has `<kind>_count()` and `<kind>_data(i)`, returning an object named after the kind (`LineData`,
-`ScatterData`, `ScatterZData`, `BarData`, `HeatmapData`, `FillData`, `QuiverData`, `AxLineData`,
-`AxSpanData`; in 3D `Bar3DData`, `SurfaceData`, `SurfaceTriData`,
-`Scatter3DData`, `Line3DData`) whose attributes are numpy arrays named after the plotting call's arguments.
+`ScatterData`, `ScatterZData`, `BarData`, `HeatmapData`, `HeatmapTriData`, `ContourData`, `FillData`,
+`QuiverData`, `AxLineData`, `AxSpanData`, `PolyData`, `CircleData`, `WedgeData`, `PieData`; in 3D
+`Bar3DData`, `SurfaceData`, `SurfaceTriData`, `Scatter3DData`, `Line3DData`, `Quiver3DData`) whose attributes are numpy arrays named after the plotting call's arguments.
 Texts read back the same way: `text_count()`, `text_data(i)` (`TextData`, in 3D `Text3DData`).
 `bar_data` covers `hist()` (bin centres and heights) and `heatmap_data` covers `imshow()`; `HeatmapData.data`
 is `(rows, cols)`, rounded to single precision. `ScatterData.sizes` and `BarData.bottom` are `None` when the

@@ -1,4 +1,4 @@
-"""C10: matplotlib's layout calls (accepted, no effect), figure registry queries, figaspect."""
+"""matplotlib's layout calls (accepted, no effect), figure registry queries, figaspect."""
 import io
 
 import numpy as np
