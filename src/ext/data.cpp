@@ -42,6 +42,15 @@ namespace sextant_py {
             return {a.span().begin(), a.span().end()};
         }
 
+        // Layers as a (layers, points) array.
+        F64 rows(std::vector<std::vector<double>>&& l) {
+            const std::size_t k = l.size(), n = k ? l[0].size() : 0;
+            std::vector<double> flat;
+            flat.reserve(k * n);
+            for (const auto& r : l) flat.insert(flat.end(), r.begin(), r.end());
+            return to_numpy(std::move(flat), {k, n});
+        }
+
         std::string repr_fields(const char* cls, std::initializer_list<std::pair<const char*, nb::handle>> fields) {
             std::string out = std::string(cls) + "(";
             bool first = true;
@@ -52,6 +61,41 @@ namespace sextant_py {
             return out + ")";
         }
     } // namespace
+
+    std::vector<std::vector<double>> layers(nb::handle ys, const std::string& what) {
+        nb::object a;
+        try {
+            nb::object np = nb::module_::import_("numpy");
+            a = np.attr("asarray")(ys, nb::arg("dtype") = np.attr("float64"));
+        } catch (const nb::python_error&) {
+            throw nb::type_error((what + ": expected a 2-D array of numbers (one row per layer) or a sequence of "
+                                         "equally long 1-D arrays, got " +
+                                  nb::cast<std::string>(nb::repr(ys))).c_str());
+        }
+        const int nd = nb::cast<int>(a.attr("ndim"));
+        if (nd == 1) a = a.attr("reshape")(1, -1);
+        else if (nd != 2)
+            throw nb::type_error((what + ": expected a 2-D array (one row per layer)").c_str());
+        const Mat m = as_array<2>(a, what.c_str());
+        std::vector<std::vector<double>> out(m.shape(0));
+        const auto s = m.span();
+        const std::size_t n = m.shape(1);
+        for (std::size_t k = 0; k < out.size(); ++k) out[k].assign(s.begin() + k * n, s.begin() + (k + 1) * n);
+        return out;
+    }
+
+    PyStackData to_python(sextant::StackData&& d) { return {vec(std::move(d.x)), rows(std::move(d.ys))}; }
+
+    sextant::StackData PyStackData::to_cpp() const { return {owned(x, "StackData.x"), layers(ys, "StackData.ys")}; }
+
+    PyBarStackData to_python(sextant::BarStackData&& d) {
+        return {vec(std::move(d.x)), rows(std::move(d.heights)), vec_or_none(std::move(d.bottom))};
+    }
+
+    sextant::BarStackData PyBarStackData::to_cpp() const {
+        return {owned(x, "BarStackData.x"), layers(heights, "BarStackData.heights"),
+                owned(bottom, "BarStackData.bottom")};
+    }
 
     std::size_t index(std::int64_t i, std::size_t n) {
         if (i < 0) i += static_cast<std::int64_t>(n);
@@ -369,6 +413,27 @@ namespace sextant_py {
             .def_rw("exclude", &PyFillData::exclude, nb::arg().none())
             .def("__repr__", [](const PyFillData& d) {
                 return repr_fields("FillData", {{"x", d.x}, {"y1", d.y1}, {"y2", d.y2}, {"exclude", d.exclude}});
+            });
+
+        nb::class_<PyStackData>(m, "StackData",
+                                "stack(): x and the layers ys, a (layers, points) array, one row per layer\n"
+                                "as given (not stacked). set_stack_data(i, data) restacks from it.")
+            .def(nb::init<F64, F64>(), "x"_a, "ys"_a)
+            .def_rw("x", &PyStackData::x)
+            .def_rw("ys", &PyStackData::ys)
+            .def("__repr__", [](const PyStackData& d) { return repr_fields("StackData", {{"x", d.x}, {"ys", d.ys}}); });
+
+        nb::class_<PyBarStackData>(m, "BarStackData",
+                                   "bar_stack(): the bar positions x, the heights, a (layers, bars) array, one\n"
+                                   "row per layer as given (not stacked), and bottom, None for bars on 0.\n"
+                                   "set_bar_stack_data(i, data) takes bottom as given (None clears it); the\n"
+                                   "(x, heights) form keeps it while the bar count holds.")
+            .def(nb::init<F64, F64, F64OrNone>(), "x"_a, "heights"_a, "bottom"_a.none() = nb::none())
+            .def_rw("x", &PyBarStackData::x)
+            .def_rw("heights", &PyBarStackData::heights)
+            .def_rw("bottom", &PyBarStackData::bottom, nb::arg().none())
+            .def("__repr__", [](const PyBarStackData& d) {
+                return repr_fields("BarStackData", {{"x", d.x}, {"heights", d.heights}, {"bottom", d.bottom}});
             });
 
         nb::class_<PyQuiverData>(m, "QuiverData",

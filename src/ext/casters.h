@@ -208,7 +208,7 @@ namespace sextant_py {
                      {"surface_tri", SurfaceTri}, {"scatter3d", Scatter3D}, {"line3d", Line3D},
                      {"quiver", Quiver}, {"fill", Fill}, {"poly", Poly}, {"circle", Circle},
                      {"wedge", Wedge}, {"heatmap_tri", HeatmapTri}, {"contour", Contour},
-                     {"quiver3d", Quiver3D}, {"pie", Pie}),
+                     {"quiver3d", Quiver3D}, {"pie", Pie}, {"stack", Stack}, {"bar_stack", BarStack}),
                     ())
     SEXTANT_PY_ENUM(ThetaZero,
                     ({"e", E}, {"n", N}, {"w", W}, {"s", S}, {"ne", NE}, {"nw", NW}, {"sw", SW}, {"se", SE}),

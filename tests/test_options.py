@@ -171,6 +171,7 @@ def apply(struct, kwargs):
         "WedgeOptions": lambda: ax.shape_wedge(1, 1, 3, 0, 90, **kwargs),  # inner (2) < r
         "PieOptions": lambda: ax.pie([1.0, 2.0], **{**kwargs, "radius": 3}),  # inner (2) < radius
         "StackOptions": lambda: ax.stack(x, [x, x], **kwargs),
+        "BarStackOptions": lambda: ax.bar_stack(x, [x, x], **kwargs),
         "QuiverOptions": lambda: ax.quiver(x, x, x, x, **kwargs),
         "HeatmapOptions": lambda: ax.heatmap(np.ones((2, 2)), (0, 1), (0, 1), **kwargs),
         "ImageOptions": lambda: ax.imshow_rgb(np.ones((2, 2, 3)), **kwargs),

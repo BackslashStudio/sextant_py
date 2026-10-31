@@ -100,10 +100,11 @@ def test_set_visible_hides_after_the_call_and_index_errors():
         ax.line(X, Y, visible="no")
 
 
-def test_stack_hides_every_layer():
+def test_stack_and_bar_stack_hide_as_one():
     ax = figure().axes()
-    ax.stack(X, [Y, Y], visible=False)
-    assert ax.fill_count() == 2 and not ax.fill_visible(0) and not ax.fill_visible(1)
+    ax.stack(X, [Y, Y], visible=False).bar_stack(X, [Y, Y], visible=False)
+    assert ax.stack_count() == 1 and not ax.stack_visible(0)
+    assert ax.bar_stack_count() == 1 and not ax.bar_stack_visible(0)
 
 
 def axes3d(fig):
@@ -209,7 +210,8 @@ def test_pyplot_visible_kw_and_set_visible(call):
     rax.legend()
     out = call(ax, visible=False)
     same_core(fig, ref)
-    artists = [a for a in (out if isinstance(out, (list, tuple)) else [out]) if isinstance(a, _mpl._Artist)]
+    artists = [a for a in (out if isinstance(out, (list, tuple)) else [out])
+               if isinstance(a, (_mpl._Artist, _mpl.StackLayer))]
     assert artists and not any(a.get_visible() for a in artists)
 
     # A later style call replays it hidden; set_visible(True) brings it back.

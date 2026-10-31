@@ -239,6 +239,7 @@ namespace sextant_py {
         add_fields<sextant::WedgeOptions>(d);
         add_fields<sextant::PieOptions>(d);
         add_fields<sextant::StackOptions>(d);
+        add_fields<sextant::BarStackOptions>(d);
         add_fields<sextant::QuiverOptions>(d);
         add_fields<sextant::HeatmapOptions>(d);
         add_fields<sextant::ImageOptions>(d);

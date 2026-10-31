@@ -203,7 +203,10 @@ namespace sextant_py {
                        F(show_legend), F(visible), F(zorder))
     SEXTANT_PY_OPTIONS(StackOptions,
                        F(orientation), F(baseline), F(colors), F(names), F(alpha), F(edgecolor), F(linewidth),
-                       F(linestyle), F(drawstyle), F(show_legend), F(visible), F(zorder))
+                       F(linestyle), F(drawstyle), F(name), F(show_legend), F(visible), F(zorder))
+    SEXTANT_PY_OPTIONS(BarStackOptions,
+                       F(orientation), F(bottom), F(colors), F(names), F(width), F(alpha), F(edgecolor),
+                       F(linewidth), F(name), F(show_legend), F(visible), F(zorder), F(hint_labels))
     SEXTANT_PY_OPTIONS(QuiverOptions,
                        F(color), F(alpha), F(cmap), F(vmin), F(vmax), F(norm), F(colorbar), F(amp), F(pivot), F(width),
                        F(head_width), F(head_length), F(name), F(show_legend), F(visible), F(zorder), F(hint_labels))

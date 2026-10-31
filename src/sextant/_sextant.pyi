@@ -41,7 +41,7 @@ MathFontsetLike: TypeAlias = sextant._enums.MathFontset | Literal["text", "stix"
 ProjectionLike: TypeAlias = sextant._enums.Projection | Literal["orthographic", "perspective", "ortho", "persp"]
 PlaneOrientationLike: TypeAlias = sextant._enums.PlaneOrientation | Literal["xy", "yz", "zx"]
 EventKindLike: TypeAlias = sextant._enums.EventKind | Literal["close", "mouse_down", "mouse_up", "mouse_move", "scroll", "key_down", "key_up", "resize", "pick", "close_event", "button_press_event", "button_release_event", "motion_notify_event", "scroll_event", "key_press_event", "key_release_event", "resize_event", "pick_event"]
-PickKindLike: TypeAlias = sextant._enums.PickKind | Literal["none", "line", "scatter", "scatter_z", "bar", "heatmap", "bar3d", "surface", "surface_tri", "scatter3d", "line3d", "quiver", "fill", "poly", "circle", "wedge", "heatmap_tri", "contour", "quiver3d", "pie"]
+PickKindLike: TypeAlias = sextant._enums.PickKind | Literal["none", "line", "scatter", "scatter_z", "bar", "heatmap", "bar3d", "surface", "surface_tri", "scatter3d", "line3d", "quiver", "fill", "poly", "circle", "wedge", "heatmap_tri", "contour", "quiver3d", "pie", "stack", "bar_stack"]
 EventConsumedLike: TypeAlias = sextant._enums.EventConsumed | Literal["none", "select", "navigate", "grid_drag"]
 ThetaZeroLike: TypeAlias = sextant._enums.ThetaZero | Literal["e", "n", "w", "s", "ne", "nw", "sw", "se"]
 NormKindLike: TypeAlias = sextant._enums.NormKind | Literal["linear", "log", "two_slope", "boundaries"]
@@ -236,9 +236,25 @@ class StackOptions(TypedDict, total=False):
     linewidth: float
     linestyle: LineStyleLike
     drawstyle: DrawStyleLike
+    name: str
     show_legend: bool
     visible: bool
     zorder: float
+
+class BarStackOptions(TypedDict, total=False):
+    orientation: OrientationLike
+    bottom: ArrayLike | float | None
+    colors: collections.abc.Sequence[str | tuple[float, ...]]
+    names: collections.abc.Sequence[str]
+    width: float
+    alpha: float
+    edgecolor: str | tuple[float, ...]
+    linewidth: float
+    name: str
+    show_legend: bool
+    visible: bool
+    zorder: float
+    hint_labels: collections.abc.Sequence[str]
 
 class QuiverOptions(TypedDict, total=False):
     color: str | tuple[float, ...] | None
@@ -797,6 +813,58 @@ class FillData:
 
     @exclude.setter
     def exclude(self, arg: ArrayLike | None, /) -> None: ...
+
+    def __repr__(self) -> str: ...
+
+class StackData:
+    """
+    stack(): x and the layers ys, a (layers, points) array, one row per layer
+    as given (not stacked). set_stack_data(i, data) restacks from it.
+    """
+
+    def __init__(self, x: ArrayLike, ys: ArrayLike) -> None: ...
+
+    @property
+    def x(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @x.setter
+    def x(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def ys(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @ys.setter
+    def ys(self, arg: ArrayLike, /) -> None: ...
+
+    def __repr__(self) -> str: ...
+
+class BarStackData:
+    """
+    bar_stack(): the bar positions x, the heights, a (layers, bars) array, one
+    row per layer as given (not stacked), and bottom, None for bars on 0.
+    set_bar_stack_data(i, data) takes bottom as given (None clears it); the
+    (x, heights) form keeps it while the bar count holds.
+    """
+
+    def __init__(self, x: ArrayLike, heights: ArrayLike, bottom: ArrayLike | None = None) -> None: ...
+
+    @property
+    def x(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @x.setter
+    def x(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def heights(self) -> numpy.typing.NDArray[numpy.float64]: ...
+
+    @heights.setter
+    def heights(self, arg: ArrayLike, /) -> None: ...
+
+    @property
+    def bottom(self) -> numpy.typing.NDArray[numpy.float64] | None: ...
+
+    @bottom.setter
+    def bottom(self, arg: ArrayLike | None, /) -> None: ...
 
     def __repr__(self) -> str: ...
 
@@ -1721,10 +1789,24 @@ class Axes:
         stack(x, ys, **opts)
 
         Stacked areas (matplotlib's stackplot): ys is a 2-D array, one row per layer (or a
-        sequence of 1-D arrays), each one value per x. Each layer is added as an ordinary
-        fill(), read back and edited as one. colors/names: empty, or one per layer.
+        sequence of 1-D arrays), each one value per x. One object (stack_count(), stack_data(),
+        picked with the layer), restacked when drawn, so editing a layer moves the ones above.
+        colors/names: empty, or one per layer; a legend entry per named layer.
 
-        Keyword options (StackOptions): orientation, baseline, colors, names, alpha, edgecolor, linewidth, linestyle, drawstyle, show_legend, visible, zorder.
+        Keyword options (StackOptions): orientation, baseline, colors, names, alpha, edgecolor, linewidth, linestyle, drawstyle, name, show_legend, visible, zorder.
+        """
+
+    def bar_stack(self, x: ArrayLike, heights: ArrayLike, **opts: Unpack[BarStackOptions]) -> Axes:
+        """
+        bar_stack(x, heights, **opts)
+
+        Stacked bars: heights is a 2-D array, one row per layer (or a sequence of 1-D arrays),
+        each one value per x. Positive heights stack up and negative ones down from bottom,
+        each on its own running sum; a NaN draws no bar and moves neither. One object
+        (bar_stack_count(), bar_stack_data(), picked with the layer and the bar), restacked
+        when drawn. width is a fraction of the bar spacing; colors/names: empty, or one per layer.
+
+        Keyword options (BarStackOptions): orientation, bottom, colors, names, width, alpha, edgecolor, linewidth, name, show_legend, visible, zorder, hint_labels.
         """
 
     def quiver(self, x: ArrayLike, y: ArrayLike, u: ArrayLike, v: ArrayLike, c: ArrayLike | None = None, **opts: Unpack[QuiverOptions]) -> Axes:
@@ -1798,8 +1880,8 @@ class Axes:
 
     def last_object(self) -> int:
         """
-        The id (an int, 0 = none) of the object the latest plotting call made; the last
-        one when a call makes several (stack()). Events name picked objects by it.
+        The id (an int, 0 = none) of the object the latest plotting call made. Events
+        name picked objects by it.
         """
 
     def remove(self, id: int) -> bool:
@@ -1841,8 +1923,11 @@ class Axes:
 
     def heatmap_count(self) -> int: ...
 
-    def fill_count(self) -> int:
-        """fill() and each stack() layer alike."""
+    def fill_count(self) -> int: ...
+
+    def stack_count(self) -> int: ...
+
+    def bar_stack_count(self) -> int: ...
 
     def quiver_count(self) -> int: ...
 
@@ -1868,6 +1953,10 @@ class Axes:
         """contour() and contourf() alike."""
 
     def fill_data(self, i: int) -> FillData: ...
+
+    def stack_data(self, i: int) -> StackData: ...
+
+    def bar_stack_data(self, i: int) -> BarStackData: ...
 
     def quiver_data(self, i: int) -> QuiverData: ...
 
@@ -1938,6 +2027,25 @@ class Axes:
 
     @overload
     def set_fill_data(self, i: int, x: ArrayLike, y1: ArrayLike, y2: ArrayLike) -> Axes: ...
+
+    @overload
+    def set_stack_data(self, i: int, data: StackData) -> Axes: ...
+
+    @overload
+    def set_stack_data(self, i: int, x: ArrayLike, ys: ArrayLike) -> Axes:
+        """
+        Restacks from the new layers; a new layer count trims the colors and names (or
+        extends them, from the cycle and empty).
+        """
+
+    @overload
+    def set_bar_stack_data(self, i: int, data: BarStackData) -> Axes: ...
+
+    @overload
+    def set_bar_stack_data(self, i: int, x: ArrayLike, heights: ArrayLike) -> Axes:
+        """
+        Restacks from the new heights; the bottom stays while the bar count holds.
+        """
 
     @overload
     def set_quiver_data(self, i: int, data: QuiverData) -> Axes: ...
@@ -2049,6 +2157,24 @@ class Axes:
         """
 
     def fill_visible(self, i: int) -> bool: ...
+
+    def set_stack_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def stack_visible(self, i: int) -> bool: ...
+
+    def set_bar_stack_visible(self, i: int, visible: bool) -> Axes:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def bar_stack_visible(self, i: int) -> bool: ...
 
     def set_quiver_visible(self, i: int, visible: bool) -> Axes:
         """
@@ -2169,7 +2295,9 @@ class Axes:
         """
         hist(data, bins=10, *, density=False, cumulative=False, **opts)
 
-        Histogram as bars. width defaults to 1.0 here (bins touch), not bar()'s 0.8.
+        Histogram drawn as bar() at the bin centres: a bar for read-back (bar_count(),
+        bar_data() with the counts) and picking. width is a fraction of the bin width and
+        defaults to 1.0 here (bins touch), not bar()'s 0.8.
 
         Keyword options (BarOptions): color, orientation, bottom, width, alpha, name, show_legend, visible, zorder, edgecolor, linewidth, errorbar, hint_labels.
         """
@@ -2352,7 +2480,8 @@ class Axes:
     def set_color_cycle(self, colors: Sequence[str | tuple[float, ...]]) -> Axes:
         """
         The colors an unset `color` takes in turn: line(), scatter(), bar(), hist(),
-        fill() (stack() one per layer), quiver() without c, axline() (not axspan()).
+        fill(), stack() and bar_stack() (one per layer), quiver() without c, axline()
+        (not axspan()).
         Restarts from the first; [] restores the default, matplotlib's tab10. Objects
         already plotted keep theirs. A twin shares its host's cycle.
         """
@@ -2549,10 +2678,24 @@ class Plane2D:
         stack(x, ys, **opts)
 
         Stacked areas (matplotlib's stackplot): ys is a 2-D array, one row per layer (or a
-        sequence of 1-D arrays), each one value per x. Each layer is added as an ordinary
-        fill(), read back and edited as one. colors/names: empty, or one per layer.
+        sequence of 1-D arrays), each one value per x. One object (stack_count(), stack_data(),
+        picked with the layer), restacked when drawn, so editing a layer moves the ones above.
+        colors/names: empty, or one per layer; a legend entry per named layer.
 
-        Keyword options (StackOptions): orientation, baseline, colors, names, alpha, edgecolor, linewidth, linestyle, drawstyle, show_legend, visible, zorder.
+        Keyword options (StackOptions): orientation, baseline, colors, names, alpha, edgecolor, linewidth, linestyle, drawstyle, name, show_legend, visible, zorder.
+        """
+
+    def bar_stack(self, x: ArrayLike, heights: ArrayLike, **opts: Unpack[BarStackOptions]) -> Plane2D:
+        """
+        bar_stack(x, heights, **opts)
+
+        Stacked bars: heights is a 2-D array, one row per layer (or a sequence of 1-D arrays),
+        each one value per x. Positive heights stack up and negative ones down from bottom,
+        each on its own running sum; a NaN draws no bar and moves neither. One object
+        (bar_stack_count(), bar_stack_data(), picked with the layer and the bar), restacked
+        when drawn. width is a fraction of the bar spacing; colors/names: empty, or one per layer.
+
+        Keyword options (BarStackOptions): orientation, bottom, colors, names, width, alpha, edgecolor, linewidth, name, show_legend, visible, zorder, hint_labels.
         """
 
     def quiver(self, x: ArrayLike, y: ArrayLike, u: ArrayLike, v: ArrayLike, c: ArrayLike | None = None, **opts: Unpack[QuiverOptions]) -> Plane2D:
@@ -2626,8 +2769,8 @@ class Plane2D:
 
     def last_object(self) -> int:
         """
-        The id (an int, 0 = none) of the object the latest plotting call made; the last
-        one when a call makes several (stack()). Events name picked objects by it.
+        The id (an int, 0 = none) of the object the latest plotting call made. Events
+        name picked objects by it.
         """
 
     def remove(self, id: int) -> bool:
@@ -2669,8 +2812,11 @@ class Plane2D:
 
     def heatmap_count(self) -> int: ...
 
-    def fill_count(self) -> int:
-        """fill() and each stack() layer alike."""
+    def fill_count(self) -> int: ...
+
+    def stack_count(self) -> int: ...
+
+    def bar_stack_count(self) -> int: ...
 
     def quiver_count(self) -> int: ...
 
@@ -2696,6 +2842,10 @@ class Plane2D:
         """contour() and contourf() alike."""
 
     def fill_data(self, i: int) -> FillData: ...
+
+    def stack_data(self, i: int) -> StackData: ...
+
+    def bar_stack_data(self, i: int) -> BarStackData: ...
 
     def quiver_data(self, i: int) -> QuiverData: ...
 
@@ -2766,6 +2916,25 @@ class Plane2D:
 
     @overload
     def set_fill_data(self, i: int, x: ArrayLike, y1: ArrayLike, y2: ArrayLike) -> Plane2D: ...
+
+    @overload
+    def set_stack_data(self, i: int, data: StackData) -> Plane2D: ...
+
+    @overload
+    def set_stack_data(self, i: int, x: ArrayLike, ys: ArrayLike) -> Plane2D:
+        """
+        Restacks from the new layers; a new layer count trims the colors and names (or
+        extends them, from the cycle and empty).
+        """
+
+    @overload
+    def set_bar_stack_data(self, i: int, data: BarStackData) -> Plane2D: ...
+
+    @overload
+    def set_bar_stack_data(self, i: int, x: ArrayLike, heights: ArrayLike) -> Plane2D:
+        """
+        Restacks from the new heights; the bottom stays while the bar count holds.
+        """
 
     @overload
     def set_quiver_data(self, i: int, data: QuiverData) -> Plane2D: ...
@@ -2877,6 +3046,24 @@ class Plane2D:
         """
 
     def fill_visible(self, i: int) -> bool: ...
+
+    def set_stack_visible(self, i: int, visible: bool) -> Plane2D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def stack_visible(self, i: int) -> bool: ...
+
+    def set_bar_stack_visible(self, i: int, visible: bool) -> Plane2D:
+        """
+        Show or hide object i of this kind (its options' visible). A hidden object is
+        not drawn or exported, has no legend key or colorbar, takes no hover or pick,
+        and leaves the automatic limits; its data, color and draw order stay.
+        """
+
+    def bar_stack_visible(self, i: int) -> bool: ...
 
     def set_quiver_visible(self, i: int, visible: bool) -> Plane2D:
         """

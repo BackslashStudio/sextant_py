@@ -199,7 +199,7 @@ def _takes_visible(method):
 
 
 # The 2D core kinds that take a zorder.
-_ZORDERED = frozenset({"line", "scatter", "scatter_z", "bar", "heatmap", "heatmap_tri", "contour", "fill", "quiver",
+_ZORDERED = frozenset({"line", "scatter", "scatter_z", "bar", "heatmap", "heatmap_tri", "contour", "fill", "stack", "quiver",
                        "axline", "axspan", "shape_poly", "shape_circle", "shape_wedge", "pie"})
 # A pick event's PickKind -> the adapter's kind (the core method's name) where they differ.
 _PICK_KINDS = {"poly": "shape_poly", "circle": "shape_circle", "wedge": "shape_wedge", "heatmap_tri": "heatmap_tri",
@@ -235,7 +235,7 @@ def _finite_zorder(z):
 
 
 def _hide(out):
-    if isinstance(out, _Artist):
+    if isinstance(out, (_Artist, StackLayer)):
         out.set_visible(False)
     elif isinstance(out, (list, tuple)):
         for a in out:
@@ -778,8 +778,8 @@ class Span(_Painted, _Artist):
 
 
 class FillBetweenPolyCollection(_Artist):
-    """fill_between()/fill_betweenx()'s return, and each stackplot() layer's: its
-    curves (set_data, as matplotlib 3.10's), colours, outline and alpha."""
+    """fill_between()/fill_betweenx()'s return: its curves (set_data, as matplotlib
+    3.10's), colours, outline and alpha."""
 
     def __init__(self, axes, kind, index, entry, label, linewidth=PT):
         super().__init__(axes, kind, index, entry, label)
@@ -1103,6 +1103,115 @@ class Text(_Artist):
 
     def set_alpha(self, a):
         self._set_options(alpha=1.0 if a is None else float(a))
+
+
+class _Stack(_Artist):
+    """One core stack: the artist that log replays and picks track. stackplot() hands
+    out a StackLayer per layer as views on it."""
+
+    def __init__(self, axes, index, entry, linewidth):
+        super().__init__(axes, "stack", index, entry)
+        self._linewidth = linewidth  # the outline's, in px, whenever there is one
+        self.layers = []
+
+
+class StackLayer:
+    """A layer of a stackplot() (matplotlib's FillBetweenPolyCollection): its face colour,
+    label and values are its own; the outline, alpha, zorder and visibility are the whole
+    stack's, which sextant draws as one object, and remove() takes the whole stack out.
+    Editing a layer's values restacks the layers above it."""
+
+    def __init__(self, stack, k):
+        self._stack, self._k = stack, k
+
+    @property
+    def axes(self):
+        return self._stack.axes
+
+    @property
+    def figure(self):
+        return self._stack.figure
+
+    def _opts(self):
+        return self._stack._entry[2]
+
+    def get_label(self):
+        return self._opts()["names"][self._k]
+
+    def set_label(self, label):
+        names = list(self._opts()["names"])
+        names[self._k] = "" if label is None else str(label)
+        self._stack._set_options(names=names)
+
+    def get_data(self):
+        """Not matplotlib: (x, y), the run coordinate and this layer's own values (not stacked)."""
+        d = self.axes.core.stack_data(self._stack._index)
+        return d.x, d.ys[self._k]
+
+    def set_data(self, t, f1, f2=None):
+        """This layer's values: f1, or the thickness f2 - f1 with matplotlib 3.10's
+        (t, f1, f2); t is the whole stack's run coordinate. The stack restacks."""
+        s = self._stack
+        s._check()
+        t = _vec(t)
+        y = np.broadcast_to(np.asarray(f1, dtype=float), t.shape).astype(float)
+        if f2 is not None:
+            y = np.broadcast_to(np.asarray(f2, dtype=float), t.shape) - y
+        ys = np.array(s._entry[1][1], dtype=float)
+        if ys.shape[1] != len(t):
+            raise ValueError(f"set_data(): {len(t)} points, the stack has {ys.shape[1]}")
+        ys[self._k] = y
+        self.axes.core.set_stack_data(s._index, t, ys)
+        s._entry[1][:2] = [t, ys]
+        self.figure._changed()
+
+    def get_facecolor(self):
+        return self._opts()["colors"][self._k]
+
+    def set_facecolor(self, c):
+        colors = list(self._opts()["colors"])
+        colors[self._k] = to_rgba(c)
+        self._stack._set_options(colors=colors)
+
+    set_color = set_facecolor
+
+    def get_edgecolor(self):
+        return self._opts().get("edgecolor") if self._opts().get("linewidth") else None
+
+    def set_edgecolor(self, c):
+        """The whole stack's outline."""
+        if c is None or (isinstance(c, str) and c.lower() == "none"):
+            self._opts().pop("edgecolor", None)
+            self._stack._set_options(linewidth=0.0)
+        else:
+            self._stack._set_options(edgecolor=to_rgba(c), linewidth=self._stack._linewidth)
+
+    def set_linewidth(self, lw):
+        """The whole stack's outline."""
+        self._stack._linewidth = float(lw) * PT
+        if "edgecolor" in self._opts():
+            self._stack._set_options(linewidth=self._stack._linewidth)
+
+    def set_linestyle(self, ls):
+        self._stack._set_options(linestyle=_linestyle(ls))
+
+    def set_alpha(self, a):
+        self._stack._set_options(alpha=1.0 if a is None else float(a))
+
+    def get_zorder(self):
+        return self._stack.get_zorder()
+
+    def set_zorder(self, z):
+        self._stack.set_zorder(z)
+
+    def get_visible(self):
+        return self._stack.get_visible()
+
+    def set_visible(self, b):
+        self._stack.set_visible(b)
+
+    def remove(self):
+        self._stack.remove()
 
 
 class _Pie(_Artist):
@@ -2375,9 +2484,9 @@ class Axes(_AxesBase):
     @_zorder(1)
     @_takes_visible
     def stackplot(self, x, *args, labels=(), colors=None, hatch=None, baseline="zero", data=None, **kw):
-        """Stacked areas, as matplotlib's: one FillBetweenPolyCollection per layer, in a
-        list. Layers past `labels` are unnamed; `colors` repeats as needed (unset: the
-        line colour cycle, one per layer)."""
+        """Stacked areas, as matplotlib's: a list with a StackLayer per layer, views on one
+        sextant stack (picked per layer, restacked on edit). Layers past `labels` are
+        unnamed; `colors` repeats as needed (unset: the line colour cycle, one per layer)."""
         if hatch is not None:
             raise ValueError("stackplot(): sextant draws no hatching")
         if data is not None:
@@ -2398,23 +2507,10 @@ class Axes(_AxesBase):
             fill_colors = [self._next_color() for _ in range(n)]
         labels = [str(s) for s in labels][:n]
         names = labels + [""] * (n - len(labels))
-        # The core computes the curves; each layer is then recorded as the plain fill it
-        # is, so a layer's own setters and a replay act on it alone.
-        i0 = self.core.fill_count()
-        self.core.stack(x, ys, baseline=baseline, colors=fill_colors, names=names, **opts)
-        handles = []
-        for k in range(n):
-            d = self.core.fill_data(i0 + k)
-            fopts = dict(opts, color=fill_colors[k])
-            if names[k]:
-                fopts["name"] = names[k]
-            if d.exclude is not None:
-                fopts["exclude"] = d.exclude
-            entry = ["fill", [d.x, d.y1, d.y2], fopts]
-            self._log.append(entry)
-            handles.append(FillBetweenPolyCollection(self, "fill", i0 + k, entry, names[k] or None, lw))
-        self.figure._changed()
-        return handles
+        i, entry = self._add("stack", "stack", x, ys, baseline=baseline, colors=fill_colors, names=names, **opts)
+        stack = _Stack(self, i, entry, lw)
+        stack.layers = [StackLayer(stack, k) for k in range(n)]
+        return list(stack.layers)
 
     # --- arrow fields ---------------------------------------------------------------
 
@@ -4021,6 +4117,8 @@ class MplEvent:
             self.artist = ax._artists.get((_PICK_KINDS.get(str(loc[0]), str(loc[0])), loc[1])) if loc else None
             if isinstance(self.artist, _Pie):  # a press picks one slice
                 self.artist = self.artist.wedges[e.pick_index]
+            elif isinstance(self.artist, _Stack):  # and one layer
+                self.artist = self.artist.layers[e.pick_index]
             self.ind = np.array([e.pick_index])
             self.mouseevent = self
 

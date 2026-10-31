@@ -498,16 +498,17 @@ def test_mpl_event_translation():
 
 
 def test_pick_finds_fills_and_stack_layers():
-    # A press inside a fill is a pick of kind "fill" with
-    # the segment as its index.
+    # A press inside a fill is a pick of kind "fill" with the segment as its index;
+    # inside a stack, of kind "stack" with the layer.
     fig, ax = plt.subplots()
     band = ax.fill_between([0, 1, 2], [0, 1, 0], [2, 3, 2])
     layers = ax.stackplot([0, 1, 2], [1, 1, 1], [2, 2, 2])
-    band_id = ax.core.last_object() - 2  # the fill, then the stack's two layers, made back to back
-    picked = [twin_event(fig, ax, pick_kind=sextant.PickKind.FILL, pick_object=band_id + i, pick_index=1)
-              for i in range(3)]
-    assert [m.artist for m in picked] == [band, *layers]
-    assert list(picked[0].ind) == [1]
+    stack_id = ax.core.last_object()
+    picked = twin_event(fig, ax, pick_kind=sextant.PickKind.FILL, pick_object=stack_id - 1, pick_index=1)
+    assert picked.artist is band and list(picked.ind) == [1]
+    for k in range(2):
+        m = twin_event(fig, ax, pick_kind=sextant.PickKind.STACK, pick_object=stack_id, pick_index=k)
+        assert m.artist is layers[k] and list(m.ind) == [k]
 
 
 @window
@@ -1073,30 +1074,34 @@ def test_stackplot():
     x = np.arange(4.0)
     ys = np.array([[1.0, 2, 3, 4], [1, 1, 1, 1], [2, 0, 2, 0]])
     layers = ax.stackplot(x, *ys, labels=["a", "b"])
-    assert len(layers) == 3 and ax.core.fill_count() == 3
-    assert all(isinstance(h, _mpl.FillBetweenPolyCollection) and h._entry[0] == "fill" for h in layers)
+    assert len(layers) == 3 and ax.core.stack_count() == 1 and ax.core.fill_count() == 0
+    assert all(isinstance(h, _mpl.StackLayer) for h in layers)
     # One line-cycle colour per layer; the patch cycle untouched (matplotlib 3.10).
-    assert [color_of(h._entry) for h in layers] == [hexrgba(c) for c in _mpl.TAB10[:3]]
+    assert [tuple(round(c, 3) for c in h.get_facecolor()) for h in layers] == [hexrgba(c) for c in _mpl.TAB10[:3]]
     assert color_of(ax.plot([0, 1])[0]._entry) == hexrgba(_mpl.TAB10[3])
     assert color_of(ax.bar([0], [1])._entry) == hexrgba(_mpl.TAB10[0])
     # Labels past the given ones are unnamed.
-    assert [h.get_label() for h in layers] == ["a", "b", ""] and "name" not in layers[2]._entry[2]
-    np.testing.assert_array_equal(ax.core.fill_data(2).y2, ys.sum(axis=0))
-    # Each layer is its own fill: its setters and a replay act on it alone.
+    assert [h.get_label() for h in layers] == ["a", "b", ""]
+    np.testing.assert_array_equal(ax.core.stack_data(0).ys, ys)
+    # A layer's values and colour are its own; the stack restacks, and a replay keeps them.
     layers[0].set_data(x, 0, 9)
     layers[2].set_color("k")
-    np.testing.assert_array_equal(ax.core.fill_data(0).y2, np.full(4, 9.0))
-    np.testing.assert_array_equal(ax.core.fill_data(1).y1, ys[0])
+    layers[1].set_label("B")
+    np.testing.assert_array_equal(layers[0].get_data()[1], np.full(4, 9.0))
+    np.testing.assert_array_equal(layers[1].get_data()[1], ys[1])
+    assert layers[2].get_facecolor() == (0, 0, 0, 1) and layers[1].get_label() == "B"
+    ax._rebuild()
+    np.testing.assert_array_equal(ax.core.stack_data(0).ys[0], np.full(4, 9.0))
     ax.legend()
     svg, _ = ax.figure.core.render_svg()
-    assert ">a<" in svg and ">b<" in svg
+    assert ">a<" in svg and ">B<" in svg
 
     ax.cla()
     sym = ax.stackplot(x, ys[:2], colors=["r"], baseline="sym", alpha=0.5, ec="k", step="post")
-    assert [color_of(h._entry) for h in sym] == [(1, 0, 0, 1)] * 2  # colors repeat
-    kw = sym[0]._entry[2]
+    assert [h.get_facecolor() for h in sym] == [(1, 0, 0, 1)] * 2  # colors repeat
+    kw = sym[0]._opts()
     assert kw["alpha"] == 0.5 and kw["edgecolor"] == (0, 0, 0, 1) and kw["drawstyle"] == "steps-post"
-    np.testing.assert_allclose(ax.core.fill_data(0).y1, -ys[:2].sum(axis=0) / 2)
+    assert kw["baseline"] == "sym" and sym[1].get_edgecolor() == (0, 0, 0, 1)
     with pytest.raises(ValueError, match="hatch"):
         ax.stackplot(x, ys, hatch="//")
     with pytest.raises(TypeError):
@@ -1473,12 +1478,17 @@ def test_artist_remove_takes_markers_and_stack_layers_whole():
     assert ax.core.line_count() == 1 and ax.core.scatter_count() == 0
     assert list(other.get_ydata()) == [3, 3, 3]
 
+    band = ax.fill_between([0, 1, 2], [0, 0, 0], [1, 1, 1])
     layers = ax.stackplot([0, 1, 2], [1, 1, 1], [2, 2, 2], [3, 3, 3])
-    assert ax.core.fill_count() == 3
-    layers[1].remove()
-    assert ax.core.fill_count() == 2
-    layers[2].set_visible(False)  # still addresses its own fill
+    after = ax.fill_between([0, 1, 2], [5, 5, 5], [6, 6, 6])
+    layers[2].set_visible(False)  # a layer's visibility is the whole stack's
+    assert ax.core.stack_visible(0) is False and layers[0].get_visible() is False
+    layers[1].remove()  # and remove() takes the whole stack out
+    assert ax.core.stack_count() == 0 and ax.core.fill_count() == 2
+    after.set_visible(False)  # the others still address their own objects
     assert ax.core.fill_visible(1) is False and ax.core.fill_visible(0) is True
+    with pytest.raises(ValueError):
+        layers[0].remove()
 
 
 def test_artist_remove_on_a_twin_and_after_cla():

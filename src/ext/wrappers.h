@@ -240,6 +240,23 @@ namespace sextant_py {
         sextant::PieData to_cpp() const;
     };
 
+    // stack()/bar_stack(): ys/heights a (layers, points) array, one row per
+    // layer, as given (not stacked); bottom None for none.
+    struct PyStackData {
+        F64 x, ys;
+        sextant::StackData to_cpp() const;
+    };
+    struct PyBarStackData {
+        F64 x, heights;
+        F64OrNone bottom;
+        sextant::BarStackData to_cpp() const;
+    };
+
+    // stack()'s and bar_stack()'s layers: a 2-D array-like, one layer per row
+    // (a 1-D one is one layer), as the C++ vectors; `what` ("stack() ys") names
+    // the argument in the TypeError.
+    std::vector<std::vector<double>> layers(nb::handle ys, const std::string& what);
+
     PyLineData to_python(sextant::LineData&& d);
     PyScatterData to_python(sextant::ScatterData&& d);
     PyScatterZData to_python(sextant::ScatterZData&& d);
@@ -261,6 +278,8 @@ namespace sextant_py {
     PyWedgeData to_python(sextant::WedgeData&& d);
     PyAxLineData to_python(sextant::AxLineData&& d);
     PyPieData to_python(sextant::PieData&& d);
+    PyStackData to_python(sextant::StackData&& d);
+    PyBarStackData to_python(sextant::BarStackData&& d);
 
     void bind_data(nb::module_& m);
     void bind_events(nb::module_& m, nb::class_<PyFigure>& fig);

@@ -121,37 +121,55 @@ def test_fill_takes_the_color_cycle(fig, ax):
 def test_plane_fill_and_stack():
     f = sextant.Figure(width=200, height=150)
     pl = f.add_subplot3d(1, 1, 1).plane("xy", 0.0)
-    pl.fill(X, X, 1.0).stack(X, [X, X])
-    assert pl.fill_count() == 3
-    np.testing.assert_array_equal(pl.fill_data(2).y2, 2 * X)
-    pl.set_fill_data(0, X, X, X)
+    pl.fill(X, X, 1.0).stack(X, [X, X]).bar_stack(X, [X, X], bottom=1.0)
+    assert (pl.fill_count(), pl.stack_count(), pl.bar_stack_count()) == (1, 1, 1)
+    np.testing.assert_array_equal(pl.stack_data(0).ys, [X, X])
+    np.testing.assert_array_equal(pl.bar_stack_data(0).bottom, np.ones(5))
+    pl.set_fill_data(0, X, X, X).set_stack_data(0, X, [X]).set_bar_stack_visible(0, False)
+    assert pl.stack_data(0).ys.shape == (1, 5) and not pl.bar_stack_visible(0)
     f.render_rgba()
 
 
 # --- stack ---------------------------------------------------------------------------
 
-def test_stack_adds_one_fill_per_layer(ax):
+def svg_of(draw):
+    f = sextant.Figure(width=300, height=200)
+    draw(f.add_subplot(1, 1, 1))
+    return f.render_svg()[0]
+
+
+def test_stack_is_one_object_read_back_as_given(ax):
     ys = np.array([[1.0, 2, 3, 4, 5], [1, 1, 1, 1, 1], [2, 2, 2, 2, 2]])
     ax.stack(X, ys)
-    assert ax.fill_count() == 3
-    np.testing.assert_array_equal(ax.fill_data(0).y1, np.zeros(5))
-    for k in range(3):  # each layer starts where the one below ends
-        d = ax.fill_data(k)
-        np.testing.assert_allclose(d.y2 - d.y1, ys[k])
-        if k:
-            np.testing.assert_allclose(d.y1, ax.fill_data(k - 1).y2)
+    assert ax.stack_count() == 1 and ax.fill_count() == 0
+    d = ax.stack_data(0)
+    np.testing.assert_array_equal(d.x, X)
+    np.testing.assert_array_equal(d.ys, ys)  # the layers as given, not stacked
+    assert isinstance(d, sextant.StackData) and "StackData(" in repr(d)
     ax.stack(X, [list(ys[0]), ys[1]])  # a sequence of 1-D arrays
     ax.stack(X, ys[2])  # a 1-D array is one layer
-    assert ax.fill_count() == 6
+    assert ax.stack_count() == 3 and ax.stack_data(-1).ys.shape == (1, 5)
+    # Edits restack; the struct form and the (x, ys) form.
+    ax.set_stack_data(0, X, ys[:2])
+    assert ax.stack_data(0).ys.shape == (2, 5)
+    ax.set_stack_data(0, sextant.StackData(X[:3], ys[:, :3]))
+    assert ax.stack_data(0).ys.shape == (3, 3)
+    ax.set_stack_visible(0, False)
+    assert not ax.stack_visible(0) and ax.stack_visible(1)
+    with pytest.raises(IndexError):
+        ax.stack_data(3)
 
 
-def test_stack_baselines(ax):
-    ys = np.ones((2, 5))
-    ax.stack(X, ys, baseline="sym")
-    np.testing.assert_allclose(ax.fill_data(0).y1, np.full(5, -1.0))  # centred on 0
-    np.testing.assert_allclose(ax.fill_data(1).y2, np.full(5, 1.0))
-    ax.stack(X, ys, baseline=sextant.StackBaseline.WEIGHTED_WIGGLE)
-    assert ax.fill_count() == 4
+def test_stack_draws_as_its_layers_fills():
+    # Zero stacks from 0; sym centres the total on 0: the same SVG as the fills.
+    ys = np.array([[1.0, 2, 1, 2, 1], [1, 1, 1, 1, 1]])
+    c = ["red", "blue"]
+    for baseline, lo in (("zero", np.zeros(5)), ("sym", -ys.sum(axis=0) / 2)):
+        a = svg_of(lambda ax: ax.stack(X, ys, baseline=baseline, colors=c))
+        b = svg_of(lambda ax: ax.fill(X, lo, lo + ys[0], color=c[0]).fill(X, lo + ys[0], lo + ys.sum(axis=0),
+                                                                            color=c[1]))
+        assert a == b, baseline
+    svg_of(lambda ax: ax.stack(X, ys, baseline=sextant.StackBaseline.WEIGHTED_WIGGLE))
 
 
 def test_stack_colors_names_and_refusals(fig, ax):
@@ -160,7 +178,7 @@ def test_stack_colors_names_and_refusals(fig, ax):
     assert red_mask(fig.render_rgba()).sum() > 100
     svg, _ = fig.render_svg()
     assert "low" in svg and "high" in svg
-    n = ax.fill_count()
+    n = ax.stack_count()
     for bad in (lambda: ax.stack(X, np.ones((2, 5)), colors=["red"]),
                 lambda: ax.stack(X, np.ones((2, 5)), names=["a", "b", "c"]),
                 lambda: ax.stack(X, np.ones((2, 3)))):
@@ -169,7 +187,45 @@ def test_stack_colors_names_and_refusals(fig, ax):
     for bad in (lambda: ax.stack(X, np.ones((2, 2, 5))), lambda: ax.stack(X, [[1, 2], [1, 2, 3]])):
         with pytest.raises(TypeError):
             bad()
-    assert ax.fill_count() == n
+    assert ax.stack_count() == n
+
+
+# --- bar_stack -----------------------------------------------------------------------
+
+def test_bar_stack_read_back_and_update(ax):
+    h = np.array([[1.0, -1, 2, 1, 1], [2, -2, 1, 1, 1]])
+    ax.bar_stack(X, h, names=["a", "b"], hint_labels=list("pqrst"))
+    ax.bar_stack(X, [h[0]], bottom=[1, 2, 3, 4, 5])
+    assert ax.bar_stack_count() == 2 and ax.bar_count() == 0
+    d = ax.bar_stack_data(0)
+    np.testing.assert_array_equal(d.x, X)
+    np.testing.assert_array_equal(d.heights, h)
+    assert d.bottom is None and "BarStackData(" in repr(d)
+    np.testing.assert_array_equal(ax.bar_stack_data(1).bottom, [1, 2, 3, 4, 5])
+    # The (x, heights) form keeps the bottom while the bar count holds; the struct sets it.
+    ax.set_bar_stack_data(1, X, h)
+    np.testing.assert_array_equal(ax.bar_stack_data(1).bottom, [1, 2, 3, 4, 5])
+    ax.set_bar_stack_data(1, sextant.BarStackData(X, h))
+    assert ax.bar_stack_data(1).bottom is None
+    ax.set_bar_stack_visible(0, False)
+    assert not ax.bar_stack_visible(0)
+    for bad in (lambda: ax.bar_stack(X, h, colors=["red"]), lambda: ax.bar_stack(X, np.ones((2, 3))),
+                lambda: ax.bar_stack(X, h, bottom=[1, 2])):
+        with pytest.raises(ValueError):
+            bad()
+    with pytest.raises(TypeError):
+        ax.bar_stack(X, np.ones((2, 2, 5)))
+    assert ax.bar_stack_count() == 2
+
+
+def test_bar_stack_draws_as_bars_with_bottoms():
+    # Positives up, negatives down, each from the bottom on its own sum.
+    h = np.array([[1.0, -1, 2], [2, -2, 1]])
+    x = np.array([0.0, 1, 2])
+    a = svg_of(lambda ax: ax.bar_stack(x, h, bottom=0.5, colors=["red", "blue"], linewidth=1.0))
+    b = svg_of(lambda ax: ax.bar(x, h[0], color="red", bottom=[0.5, 0.5, 0.5], linewidth=1.0)
+               .bar(x, h[1], color="blue", bottom=[1.5, -0.5, 2.5], linewidth=1.0))
+    assert a == b
 
 
 # --- quiver --------------------------------------------------------------------------

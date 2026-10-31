@@ -3,7 +3,7 @@
     python tools/gen_skill.py            # rewrite the blocks
     python tools/gen_skill.py --check    # exit 1 if one is out of date
 
-The skill (skills/sextant/) lives in the Agent-Skills repo: $AGENT_SKILLS, else
+The skill (plugins/sextant/skills/sextant/) lives in the Agent-Skills repo: $AGENT_SKILLS, else
 ../Agent-Skills next to this checkout. Run it at every release, so the skill's
 calls match the stub that ships.
 
@@ -34,7 +34,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 STUB = ROOT / "src" / "sextant" / "_sextant.pyi"
 AGENT_SKILLS = Path(os.environ.get("AGENT_SKILLS", ROOT.parent / "Agent-Skills")).resolve()
-SKILL = AGENT_SKILLS / "skills" / "sextant"
+SKILL = AGENT_SKILLS / "plugins" / "sextant" / "skills" / "sextant"
 
 COMMON = ("name", "show_legend", "visible", "zorder", "hint_labels")
 WIDE = 44              # the widest call that keeps its keywords on its own line

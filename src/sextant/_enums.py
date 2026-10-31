@@ -293,6 +293,8 @@ class PickKind(_Named):
     CONTOUR = "contour"
     QUIVER3D = "quiver3d"
     PIE = "pie"
+    STACK = "stack"
+    BAR_STACK = "bar_stack"
 
 
 class NormKind(_Named):
