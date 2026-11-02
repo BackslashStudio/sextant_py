@@ -258,6 +258,10 @@ namespace sextant_py {
     std::vector<std::vector<double>> layers(nb::handle ys, const std::string& what);
 
     PyLineData to_python(sextant::LineData&& d);
+    // A plot's error bars read back (line_errorbar(i), ...): each end None or
+    // one value per point; all None = none.
+    PyErrorBar to_python(sextant::ErrorBarData&& d);
+    PyErrorBar3D to_python(sextant::ErrorBar3DData&& d);
     PyScatterData to_python(sextant::ScatterData&& d);
     PyScatterZData to_python(sextant::ScatterZData&& d);
     PyBarData to_python(sextant::BarData&& d);

@@ -27,6 +27,22 @@ namespace sextant_py {
 
         sextant::ErrorBar3D spans(const PyErrorBar3D* err) { return err ? err->spans() : sextant::ErrorBar3D{}; }
 
+        constexpr const char* set_data_err_doc =
+            "Replace the data. With err=, the error bars too, taken as given (the count may change);\n"
+            "without it they stay while the count holds and are dropped when it changes.";
+        constexpr const char* errorbar_doc =
+            "The object's error bars as it holds them: an ErrorBar3D whose ends are None or one value\n"
+            "per point (all None, any() False: none). Pass it back to set_*_errorbar() or err=.";
+        constexpr const char* set_errorbar_doc =
+            "Add, replace or remove (None, or an ErrorBar3D with no ends) the error bars, keeping the\n"
+            "data. Each given end must hold one value per point; their look is the options' errorbar.";
+        constexpr const char* options_doc =
+            "The object's options as a dict of keyword names, as stored (the color the call took from\n"
+            "the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.";
+        constexpr const char* set_options_text =
+            "Change the object's options: the keywords given replace those fields, the rest keep their\n"
+            "current values. Checked as the plotting call checks them; the data and the id stay.";
+
         using ArrowArg = nb::typed<nb::object, Named<"ArrowOptions">>;
 
         // A bar3d/surface `heights` (or `bottoms`): flat, or 2-D with shape
@@ -516,6 +532,19 @@ namespace sextant_py {
                  },
                  "i"_a, "data"_a)
             .def("set_surface_tri_data",
+                 [](Self self, std::int64_t i, const Vec& x, const Vec& y, const Vec& z, PlaneOrientation orient,
+                    const std::optional<Vec>& colors) {
+                     return chain(self, [&](Axes3D& ax) {
+                         const std::size_t k = index(i, ax.surface_tri_count());
+                         if (colors) ax.set_surface_tri_data(k, x.span(), y.span(), z.span(), orient, colors->span());
+                         else ax.set_surface_tri_data(k, x.span(), y.span(), z.span(), orient);
+                     });
+                 },
+                 "i"_a, "x"_a, "y"_a, "z"_a, "orient"_a, "colors"_a = nb::none(),
+                 "Replace the vertices without triangles, as surface_tri() with `orient`: the triangles\n"
+                 "are kept while the two coordinates orient projects onto are unchanged (only the heights\n"
+                 "moved), else the points are triangulated again in that plane.")
+            .def("set_surface_tri_data",
                  [](Self self, std::int64_t i, const Vec& x, const Vec& y, const Vec& z, const U32& tri,
                     const std::optional<Vec>& colors) {
                      const auto t = triangles(tri, "set_surface_tri_data()");
@@ -542,11 +571,15 @@ namespace sextant_py {
                  },
                  "i"_a, "x"_a, "y"_a, "z"_a, "u"_a, "v"_a, "w"_a, "Replace the arrows, keeping c (the count must hold).")
             .def("set_scatter3d_data",
-                 [](Self self, std::int64_t i, const PyScatter3DData& d) {
+                 [](Self self, std::int64_t i, const PyScatter3DData& d, const PyErrorBar3D* err) {
                      const sextant::Scatter3DData cd = d.to_cpp();
-                     return chain(self, [&](Axes3D& ax) { ax.set_scatter3d_data(index(i, ax.scatter3d_count()), cd); });
+                     return chain(self, [&](Axes3D& ax) {
+                         const std::size_t k = index(i, ax.scatter3d_count());
+                         if (err) ax.set_scatter3d_data(k, cd, err->spans());
+                         else ax.set_scatter3d_data(k, cd);
+                     });
                  },
-                 "i"_a, "data"_a)
+                 "i"_a, "data"_a, nb::kw_only(), "err"_a.none() = nb::none(), set_data_err_doc)
             .def("set_scatter3d_data",
                  [](Self self, std::int64_t i, const Vec& x, const Vec& y, const Vec& z,
                     const std::optional<Vec>& colors) {
@@ -558,18 +591,22 @@ namespace sextant_py {
                  },
                  "i"_a, "x"_a, "y"_a, "z"_a, "colors"_a = nb::none())
             .def("set_line3d_data",
-                 [](Self self, std::int64_t i, const PyLine3DData& d) {
+                 [](Self self, std::int64_t i, const PyLine3DData& d, const PyErrorBar3D* err) {
                      const auto x = as_array<1>(d.x, "Line3DData.x"), y = as_array<1>(d.y, "Line3DData.y"),
                                 z = as_array<1>(d.z, "Line3DData.z");
                      std::optional<Vec> c;
                      if (!d.colors.is_none()) c = as_array<1>(d.colors, "Line3DData.colors");
                      return chain(self, [&](Axes3D& ax) {
                          const std::size_t k = index(i, ax.line3d_count());
-                         if (c) ax.set_line3d_data(k, x.span(), y.span(), z.span(), c->span());
+                         if (err) {
+                             auto v = [](const Vec& a) { return std::vector<double>(a.span().begin(), a.span().end()); };
+                             ax.set_line3d_data(k, sextant::Line3DData{v(x), v(y), v(z), c ? v(*c) : std::vector<double>{}},
+                                                err->spans());
+                         } else if (c) ax.set_line3d_data(k, x.span(), y.span(), z.span(), c->span());
                          else ax.set_line3d_data(k, x.span(), y.span(), z.span());
                      });
                  },
-                 "i"_a, "data"_a)
+                 "i"_a, "data"_a, nb::kw_only(), "err"_a.none() = nb::none(), set_data_err_doc)
             .def("set_line3d_data",
                  [](Self self, std::int64_t i, const Vec& x, const Vec& y, const Vec& z,
                     const std::optional<Vec>& colors) {
@@ -580,6 +617,74 @@ namespace sextant_py {
                      });
                  },
                  "i"_a, "x"_a, "y"_a, "z"_a, "colors"_a = nb::none())
+            .def("scatter3d_errorbar",
+                 [](PyAxes3D& a, std::int64_t i) {
+                     return to_python(read(a, [&](Axes3D& ax) { return ax.scatter3d_errorbar(index(i, ax.scatter3d_count())); }));
+                 },
+                 "i"_a, errorbar_doc)
+            .def("set_scatter3d_errorbar",
+                 [](Self self, std::int64_t i, const PyErrorBar3D* err) {
+                     return chain(self, [&](Axes3D& ax) { ax.set_scatter3d_errorbar(index(i, ax.scatter3d_count()), spans(err)); });
+                 },
+                 "i"_a, "err"_a.none(), set_errorbar_doc)
+            .def("line3d_errorbar",
+                 [](PyAxes3D& a, std::int64_t i) {
+                     return to_python(read(a, [&](Axes3D& ax) { return ax.line3d_errorbar(index(i, ax.line3d_count())); }));
+                 },
+                 "i"_a, errorbar_doc)
+            .def("set_line3d_errorbar",
+                 [](Self self, std::int64_t i, const PyErrorBar3D* err) {
+                     return chain(self, [&](Axes3D& ax) { ax.set_line3d_errorbar(index(i, ax.line3d_count()), spans(err)); });
+                 },
+                 "i"_a, "err"_a.none(), set_errorbar_doc)
+            .def("surface_options",
+                 [](PyAxes3D& a, std::int64_t i) {
+                     return to_dict(read(a, [&](Axes3D& ax) { return ax.surface_options(index(i, ax.surface_count())); }));
+                 },
+                 "i"_a, options_doc)
+            .def("set_surface_options",
+                 [](Self self, std::int64_t i, const nb::kwargs& kw) {
+                     auto o = read(*self.p, [&](Axes3D& ax) { return ax.surface_options(index(i, ax.surface_count())); });
+                     apply(o, kw, "set_surface_options()");
+                     return chain(self, [&](Axes3D& ax) { ax.set_surface_options(index(i, ax.surface_count()), std::move(o)); });
+                 },
+                 "i"_a, "opts"_a, opts_doc<sextant::SurfaceOptions>("set_surface_options(i, **opts)", set_options_text).c_str())
+            .def("surface_tri_options",
+                 [](PyAxes3D& a, std::int64_t i) {
+                     return to_dict(read(a, [&](Axes3D& ax) { return ax.surface_tri_options(index(i, ax.surface_tri_count())); }));
+                 },
+                 "i"_a, options_doc)
+            .def("set_surface_tri_options",
+                 [](Self self, std::int64_t i, const nb::kwargs& kw) {
+                     auto o = read(*self.p, [&](Axes3D& ax) { return ax.surface_tri_options(index(i, ax.surface_tri_count())); });
+                     apply(o, kw, "set_surface_tri_options()");
+                     return chain(self, [&](Axes3D& ax) { ax.set_surface_tri_options(index(i, ax.surface_tri_count()), std::move(o)); });
+                 },
+                 "i"_a, "opts"_a, opts_doc<sextant::SurfaceTriOptions>("set_surface_tri_options(i, **opts)", set_options_text).c_str())
+            .def("scatter3d_options",
+                 [](PyAxes3D& a, std::int64_t i) {
+                     return to_dict(read(a, [&](Axes3D& ax) { return ax.scatter3d_options(index(i, ax.scatter3d_count())); }));
+                 },
+                 "i"_a, options_doc)
+            .def("set_scatter3d_options",
+                 [](Self self, std::int64_t i, const nb::kwargs& kw) {
+                     auto o = read(*self.p, [&](Axes3D& ax) { return ax.scatter3d_options(index(i, ax.scatter3d_count())); });
+                     apply(o, kw, "set_scatter3d_options()");
+                     return chain(self, [&](Axes3D& ax) { ax.set_scatter3d_options(index(i, ax.scatter3d_count()), std::move(o)); });
+                 },
+                 "i"_a, "opts"_a, opts_doc<sextant::Scatter3DOptions>("set_scatter3d_options(i, **opts)", set_options_text).c_str())
+            .def("line3d_options",
+                 [](PyAxes3D& a, std::int64_t i) {
+                     return to_dict(read(a, [&](Axes3D& ax) { return ax.line3d_options(index(i, ax.line3d_count())); }));
+                 },
+                 "i"_a, options_doc)
+            .def("set_line3d_options",
+                 [](Self self, std::int64_t i, const nb::kwargs& kw) {
+                     auto o = read(*self.p, [&](Axes3D& ax) { return ax.line3d_options(index(i, ax.line3d_count())); });
+                     apply(o, kw, "set_line3d_options()");
+                     return chain(self, [&](Axes3D& ax) { ax.set_line3d_options(index(i, ax.line3d_count()), std::move(o)); });
+                 },
+                 "i"_a, "opts"_a, opts_doc<sextant::Line3DOptions>("set_line3d_options(i, **opts)", set_options_text).c_str())
             .def("set_text_data",
                  [](Self self, std::int64_t i, const PyText3DData& d) {
                      return chain(self, [&](Axes3D& ax) { ax.set_text_data(index(i, ax.text_count()), d); });

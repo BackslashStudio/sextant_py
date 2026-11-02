@@ -24,6 +24,8 @@ namespace sextant_py {
         void (*set)(T& o, nb::handle v, const std::string& ctx, const std::string& path);
         // The Python annotation of what `set` takes, for the type stubs.
         std::string (*type)();
+        // The field's value as Python (what `set` takes back), for to_dict().
+        nb::object (*get)(const T& o);
     };
 
     template <class T>
@@ -131,6 +133,27 @@ namespace sextant_py {
         }
     }
 
+    // A field's value as Python: a nested struct as a dict of its fields, a
+    // per-point vector as a list, the rest through its caster.
+    template <class T>
+    nb::dict to_dict(const T& o);
+
+    template <class F>
+    nb::object to_py(const F& v) {
+        if constexpr (has_fields<F>) return to_dict(v);
+        else return nb::cast(v);
+    }
+
+    // Every field of `o` by name, in declaration order: what an options getter
+    // (line_options(i), ...) returns, and what set_*_options() and the plotting
+    // call take back as keywords.
+    template <class T>
+    nb::dict to_dict(const T& o) {
+        nb::dict d;
+        for (const auto& f : Fields<T>::list()) d[f.name] = f.get(o);
+        return d;
+    }
+
     // A T from `kwargs` over `init` (T's defaults unless given).
     template <class T>
     T options(const std::string& ctx, const nb::kwargs& kwargs, T init = {}) {
@@ -141,7 +164,8 @@ namespace sextant_py {
 #define SEXTANT_PY_FIELD_AS(f, py)                                                   \
     Field<Self>{py, [](Self& o, nb::handle v, const std::string& ctx, const std::string& path) { \
         assign(o.f, v, ctx, path);                                                   \
-    }, [] { return annotation<decltype(Self::f)>(); }}
+    }, [] { return annotation<decltype(Self::f)>(); },                              \
+    [](const Self& o) { return to_py(o.f); }}
 #define SEXTANT_PY_FIELD(f) SEXTANT_PY_FIELD_AS(f, #f)
 #define SEXTANT_PY_OPTIONS(T, ...)                                                   \
     template <>                                                                      \
@@ -168,7 +192,7 @@ namespace sextant_py {
 
     SEXTANT_PY_OPTIONS(LineOptions,
                        F(color), F(linewidth), F(linestyle), F(name), F(show_legend), F(visible), F(zorder), F(alpha),
-                       F(loop), F(drawstyle), F(errorbar), F(hint_labels))
+                       F(loop), F(marker), F(markersize), F(drawstyle), F(errorbar), F(hint_labels))
     SEXTANT_PY_OPTIONS(ScatterOptions,
                        F(color), F(size), F(sizes), F(marker), F(name), F(show_legend), F(visible), F(zorder), F(alpha),
                        F(filled), F(edgecolor), F(edge_linewidth), F(errorbar), F(hint_labels))

@@ -115,6 +115,51 @@ namespace sextant_py {
                 s(z_cap_lo), s(z_cap_hi), s(z_box_lo), s(z_box_hi)};
     }
 
+    namespace {
+        std::optional<Vec> owned_vec(std::vector<double>&& v) {
+            if (v.empty()) return std::nullopt;
+            return nb::cast<Vec>(nb::object(vec(std::move(v))));
+        }
+
+        // An ErrorBar end as a read-only numpy array over the wrapper's own
+        // array (kept alive by the ErrorBar object), or None.
+        nb::object end_array(const std::optional<Vec>& v, nb::handle owner) {
+            if (!v) return nb::none();
+            const std::size_t n = v->a.size();
+            return nb::cast(nb::ndarray<nb::numpy, const double, nb::ndim<1>>(v->a.data(), {n}, owner));
+        }
+    } // namespace
+
+    PyErrorBar to_python(sextant::ErrorBarData&& d) {
+        PyErrorBar e;
+        e.x_cap_lo = owned_vec(std::move(d.x_cap_lo));
+        e.x_cap_hi = owned_vec(std::move(d.x_cap_hi));
+        e.x_box_lo = owned_vec(std::move(d.x_box_lo));
+        e.x_box_hi = owned_vec(std::move(d.x_box_hi));
+        e.y_cap_lo = owned_vec(std::move(d.y_cap_lo));
+        e.y_cap_hi = owned_vec(std::move(d.y_cap_hi));
+        e.y_box_lo = owned_vec(std::move(d.y_box_lo));
+        e.y_box_hi = owned_vec(std::move(d.y_box_hi));
+        return e;
+    }
+
+    PyErrorBar3D to_python(sextant::ErrorBar3DData&& d) {
+        PyErrorBar3D e;
+        e.x_cap_lo = owned_vec(std::move(d.x_cap_lo));
+        e.x_cap_hi = owned_vec(std::move(d.x_cap_hi));
+        e.x_box_lo = owned_vec(std::move(d.x_box_lo));
+        e.x_box_hi = owned_vec(std::move(d.x_box_hi));
+        e.y_cap_lo = owned_vec(std::move(d.y_cap_lo));
+        e.y_cap_hi = owned_vec(std::move(d.y_cap_hi));
+        e.y_box_lo = owned_vec(std::move(d.y_box_lo));
+        e.y_box_hi = owned_vec(std::move(d.y_box_hi));
+        e.z_cap_lo = owned_vec(std::move(d.z_cap_lo));
+        e.z_cap_hi = owned_vec(std::move(d.z_cap_hi));
+        e.z_box_lo = owned_vec(std::move(d.z_box_lo));
+        e.z_box_hi = owned_vec(std::move(d.z_box_hi));
+        return e;
+    }
+
     PyLineData to_python(sextant::LineData&& d) { return {vec(std::move(d.x)), vec(std::move(d.y))}; }
 
     PyScatterData to_python(sextant::ScatterData&& d) {
@@ -350,7 +395,17 @@ namespace sextant_py {
             .def(nb::init<OV, OV, OV, OV, OV, OV, OV, OV>(), nb::kw_only(),
                  "x_cap_lo"_a = nb::none(), "x_cap_hi"_a = nb::none(), "x_box_lo"_a = nb::none(),
                  "x_box_hi"_a = nb::none(), "y_cap_lo"_a = nb::none(), "y_cap_hi"_a = nb::none(),
-                 "y_box_lo"_a = nb::none(), "y_box_hi"_a = nb::none());
+                 "y_box_lo"_a = nb::none(), "y_box_hi"_a = nb::none())
+            .def_prop_ro("x_cap_lo", [](const PyErrorBar& e) { return end_array(e.x_cap_lo, nb::find(&e)); })
+            .def_prop_ro("x_cap_hi", [](const PyErrorBar& e) { return end_array(e.x_cap_hi, nb::find(&e)); })
+            .def_prop_ro("x_box_lo", [](const PyErrorBar& e) { return end_array(e.x_box_lo, nb::find(&e)); })
+            .def_prop_ro("x_box_hi", [](const PyErrorBar& e) { return end_array(e.x_box_hi, nb::find(&e)); })
+            .def_prop_ro("y_cap_lo", [](const PyErrorBar& e) { return end_array(e.y_cap_lo, nb::find(&e)); })
+            .def_prop_ro("y_cap_hi", [](const PyErrorBar& e) { return end_array(e.y_cap_hi, nb::find(&e)); })
+            .def_prop_ro("y_box_lo", [](const PyErrorBar& e) { return end_array(e.y_box_lo, nb::find(&e)); })
+            .def_prop_ro("y_box_hi", [](const PyErrorBar& e) { return end_array(e.y_box_hi, nb::find(&e)); })
+            .def("any", [](const PyErrorBar& e) { return e.spans().any(); },
+                 "True when any end is given (an ErrorBar read back with none is all None).");
 
         nb::class_<PyErrorBar3D>(m, "ErrorBar3D",
                                  "ErrorBar for scatter3d/line3d, with a z axis. Same rules as ErrorBar.")
@@ -358,7 +413,21 @@ namespace sextant_py {
                  "x_cap_lo"_a = nb::none(), "x_cap_hi"_a = nb::none(), "x_box_lo"_a = nb::none(),
                  "x_box_hi"_a = nb::none(), "y_cap_lo"_a = nb::none(), "y_cap_hi"_a = nb::none(),
                  "y_box_lo"_a = nb::none(), "y_box_hi"_a = nb::none(), "z_cap_lo"_a = nb::none(),
-                 "z_cap_hi"_a = nb::none(), "z_box_lo"_a = nb::none(), "z_box_hi"_a = nb::none());
+                 "z_cap_hi"_a = nb::none(), "z_box_lo"_a = nb::none(), "z_box_hi"_a = nb::none())
+            .def_prop_ro("x_cap_lo", [](const PyErrorBar3D& e) { return end_array(e.x_cap_lo, nb::find(&e)); })
+            .def_prop_ro("x_cap_hi", [](const PyErrorBar3D& e) { return end_array(e.x_cap_hi, nb::find(&e)); })
+            .def_prop_ro("x_box_lo", [](const PyErrorBar3D& e) { return end_array(e.x_box_lo, nb::find(&e)); })
+            .def_prop_ro("x_box_hi", [](const PyErrorBar3D& e) { return end_array(e.x_box_hi, nb::find(&e)); })
+            .def_prop_ro("y_cap_lo", [](const PyErrorBar3D& e) { return end_array(e.y_cap_lo, nb::find(&e)); })
+            .def_prop_ro("y_cap_hi", [](const PyErrorBar3D& e) { return end_array(e.y_cap_hi, nb::find(&e)); })
+            .def_prop_ro("y_box_lo", [](const PyErrorBar3D& e) { return end_array(e.y_box_lo, nb::find(&e)); })
+            .def_prop_ro("y_box_hi", [](const PyErrorBar3D& e) { return end_array(e.y_box_hi, nb::find(&e)); })
+            .def_prop_ro("z_cap_lo", [](const PyErrorBar3D& e) { return end_array(e.z_cap_lo, nb::find(&e)); })
+            .def_prop_ro("z_cap_hi", [](const PyErrorBar3D& e) { return end_array(e.z_cap_hi, nb::find(&e)); })
+            .def_prop_ro("z_box_lo", [](const PyErrorBar3D& e) { return end_array(e.z_box_lo, nb::find(&e)); })
+            .def_prop_ro("z_box_hi", [](const PyErrorBar3D& e) { return end_array(e.z_box_hi, nb::find(&e)); })
+            .def("any", [](const PyErrorBar3D& e) { return e.spans().any(); },
+                 "True when any end is given (an ErrorBar3D read back with none is all None).");
 
         nb::class_<PyLineData>(m, "LineData")
             .def(nb::init<F64, F64>(), "x"_a, "y"_a)

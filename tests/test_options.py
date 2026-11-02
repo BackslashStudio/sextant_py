@@ -6,6 +6,7 @@ call that takes it, with a value of its C++ type.
 """
 
 import keyword
+import os
 import pathlib
 import re
 
@@ -14,7 +15,10 @@ import pytest
 
 import sextant
 
-HEADERS = pathlib.Path(__file__).parents[1] / "extern" / "sextant" / "include" / "sextant"
+# The headers the binding was built from: SEXTANT_SOURCE_DIR when a dev build sets it
+# (relative to the repo root, as pyproject.toml takes it), else the pinned copy.
+_ROOT = pathlib.Path(__file__).parents[1]
+HEADERS = (_ROOT / (os.environ.get("SEXTANT_SOURCE_DIR") or "extern/sextant")) / "include" / "sextant"
 
 
 def _strip_comments(text):

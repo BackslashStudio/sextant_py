@@ -71,6 +71,8 @@ class LineOptions(TypedDict, total=False):
     zorder: float
     alpha: float
     loop: bool
+    marker: MarkerStyleLike
+    markersize: float
     drawstyle: DrawStyleLike
     errorbar: ErrorBarOptions
     hint_labels: collections.abc.Sequence[str]
@@ -668,10 +670,80 @@ class ErrorBar:
 
     def __init__(self, *, x_cap_lo: ArrayLike | None = None, x_cap_hi: ArrayLike | None = None, x_box_lo: ArrayLike | None = None, x_box_hi: ArrayLike | None = None, y_cap_lo: ArrayLike | None = None, y_cap_hi: ArrayLike | None = None, y_box_lo: ArrayLike | None = None, y_box_hi: ArrayLike | None = None) -> None: ...
 
+    @property
+    def x_cap_lo(self) -> object: ...
+
+    @property
+    def x_cap_hi(self) -> object: ...
+
+    @property
+    def x_box_lo(self) -> object: ...
+
+    @property
+    def x_box_hi(self) -> object: ...
+
+    @property
+    def y_cap_lo(self) -> object: ...
+
+    @property
+    def y_cap_hi(self) -> object: ...
+
+    @property
+    def y_box_lo(self) -> object: ...
+
+    @property
+    def y_box_hi(self) -> object: ...
+
+    def any(self) -> bool:
+        """
+        True when any end is given (an ErrorBar read back with none is all None).
+        """
+
 class ErrorBar3D:
     """ErrorBar for scatter3d/line3d, with a z axis. Same rules as ErrorBar."""
 
     def __init__(self, *, x_cap_lo: ArrayLike | None = None, x_cap_hi: ArrayLike | None = None, x_box_lo: ArrayLike | None = None, x_box_hi: ArrayLike | None = None, y_cap_lo: ArrayLike | None = None, y_cap_hi: ArrayLike | None = None, y_box_lo: ArrayLike | None = None, y_box_hi: ArrayLike | None = None, z_cap_lo: ArrayLike | None = None, z_cap_hi: ArrayLike | None = None, z_box_lo: ArrayLike | None = None, z_box_hi: ArrayLike | None = None) -> None: ...
+
+    @property
+    def x_cap_lo(self) -> object: ...
+
+    @property
+    def x_cap_hi(self) -> object: ...
+
+    @property
+    def x_box_lo(self) -> object: ...
+
+    @property
+    def x_box_hi(self) -> object: ...
+
+    @property
+    def y_cap_lo(self) -> object: ...
+
+    @property
+    def y_cap_hi(self) -> object: ...
+
+    @property
+    def y_box_lo(self) -> object: ...
+
+    @property
+    def y_box_hi(self) -> object: ...
+
+    @property
+    def z_cap_lo(self) -> object: ...
+
+    @property
+    def z_cap_hi(self) -> object: ...
+
+    @property
+    def z_box_lo(self) -> object: ...
+
+    @property
+    def z_box_hi(self) -> object: ...
+
+    def any(self) -> bool:
+        """
+        True when any end is given (an ErrorBar3D read back with none is all None).
+        """
 
 class LineData:
     def __init__(self, x: ArrayLike, y: ArrayLike) -> None: ...
@@ -1675,7 +1747,7 @@ class Axes:
 
         A line through (x, y); line(y) plots y against 0, 1, 2, ...
 
-        Keyword options (LineOptions): color, linewidth, linestyle, name, show_legend, visible, zorder, alpha, loop, drawstyle, errorbar, hint_labels.
+        Keyword options (LineOptions): color, linewidth, linestyle, name, show_legend, visible, zorder, alpha, loop, marker, markersize, drawstyle, errorbar, hint_labels.
         """
 
     def scatter(self, x: ArrayLike, y: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[ScatterOptions]) -> Axes:
@@ -1977,25 +2049,41 @@ class Axes:
     def shape_wedge_data(self, i: int) -> WedgeData: ...
 
     @overload
-    def set_line_data(self, i: int, data: LineData) -> Axes: ...
+    def set_line_data(self, i: int, data: LineData, *, err: ErrorBar | None = None) -> Axes:
+        """
+        Replace the data. With err=, the error bars too, taken as given (the count may change);
+        without it they stay while the count holds and are dropped when it changes.
+        """
 
     @overload
     def set_line_data(self, i: int, x: ArrayLike, y: ArrayLike) -> Axes: ...
 
     @overload
-    def set_scatter_data(self, i: int, data: ScatterData) -> Axes: ...
+    def set_scatter_data(self, i: int, data: ScatterData, *, err: ErrorBar | None = None) -> Axes:
+        """
+        Replace the data. With err=, the error bars too, taken as given (the count may change);
+        without it they stay while the count holds and are dropped when it changes.
+        """
 
     @overload
     def set_scatter_data(self, i: int, x: ArrayLike, y: ArrayLike) -> Axes: ...
 
     @overload
-    def set_scatter_z_data(self, i: int, data: ScatterZData) -> Axes: ...
+    def set_scatter_z_data(self, i: int, data: ScatterZData, *, err: ErrorBar | None = None) -> Axes:
+        """
+        Replace the data. With err=, the error bars too, taken as given (the count may change);
+        without it they stay while the count holds and are dropped when it changes.
+        """
 
     @overload
     def set_scatter_z_data(self, i: int, x: ArrayLike, y: ArrayLike, z: ArrayLike) -> Axes: ...
 
     @overload
-    def set_bar_data(self, i: int, data: BarData) -> Axes: ...
+    def set_bar_data(self, i: int, data: BarData, *, err: ErrorBar | None = None) -> Axes:
+        """
+        Replace the data. With err=, the error bars too, taken as given (the count may change);
+        without it they stay while the count holds and are dropped when it changes.
+        """
 
     @overload
     def set_bar_data(self, i: int, x: ArrayLike, height: ArrayLike) -> Axes: ...
@@ -2012,7 +2100,8 @@ class Axes:
     @overload
     def set_heatmap_tri_data(self, i: int, x: ArrayLike, y: ArrayLike, values: ArrayLike) -> Axes:
         """
-        Replace the vertices and values, keeping the triangles (the count must hold).
+        Replace the vertices and values: the triangles are kept while x and y are unchanged
+        (only values moved), else the points are triangulated again, as heatmap_tri() does.
         """
 
     @overload
@@ -2021,6 +2110,166 @@ class Axes:
     @overload
     def set_contour_data(self, i: int, x: ArrayLike, y: ArrayLike, z: ArrayLike) -> Axes:
         """Replace the grid, keeping the levels and filled."""
+
+    def line_errorbar(self, i: int) -> ErrorBar:
+        """
+        The object's error bars as it holds them: an ErrorBar whose ends are None or one value
+        per point (all None, any() False: none). Pass it back to set_*_errorbar() or err=.
+        """
+
+    def set_line_errorbar(self, i: int, err: ErrorBar | None) -> Axes:
+        """
+        Add, replace or remove (None, or an ErrorBar with no ends) the error bars, keeping the
+        data. Each given end must hold one value per point; their look is the options' errorbar.
+        """
+
+    def scatter_errorbar(self, i: int) -> ErrorBar:
+        """
+        The object's error bars as it holds them: an ErrorBar whose ends are None or one value
+        per point (all None, any() False: none). Pass it back to set_*_errorbar() or err=.
+        """
+
+    def set_scatter_errorbar(self, i: int, err: ErrorBar | None) -> Axes:
+        """
+        Add, replace or remove (None, or an ErrorBar with no ends) the error bars, keeping the
+        data. Each given end must hold one value per point; their look is the options' errorbar.
+        """
+
+    def scatter_z_errorbar(self, i: int) -> ErrorBar:
+        """
+        The object's error bars as it holds them: an ErrorBar whose ends are None or one value
+        per point (all None, any() False: none). Pass it back to set_*_errorbar() or err=.
+        """
+
+    def set_scatter_z_errorbar(self, i: int, err: ErrorBar | None) -> Axes:
+        """
+        Add, replace or remove (None, or an ErrorBar with no ends) the error bars, keeping the
+        data. Each given end must hold one value per point; their look is the options' errorbar.
+        """
+
+    def bar_errorbar(self, i: int) -> ErrorBar:
+        """
+        The object's error bars as it holds them: an ErrorBar whose ends are None or one value
+        per point (all None, any() False: none). Pass it back to set_*_errorbar() or err=.
+        """
+
+    def set_bar_errorbar(self, i: int, err: ErrorBar | None) -> Axes:
+        """
+        Add, replace or remove (None, or an ErrorBar with no ends) the error bars, keeping the
+        data. Each given end must hold one value per point; their look is the options' errorbar.
+        """
+
+    def line_options(self, i: int) -> dict:
+        """
+        The object's options as a dict of keyword names, as stored (the color the call took from
+        the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.
+        """
+
+    def set_line_options(self, i: int, **opts: Unpack[LineOptions]) -> Axes:
+        """
+        set_line_options(i, **opts)
+
+        Change the object's options: the keywords given replace those fields, the rest keep their
+        current values. Checked as the plotting call checks them; the data and the id stay.
+
+        Keyword options (LineOptions): color, linewidth, linestyle, name, show_legend, visible, zorder, alpha, loop, marker, markersize, drawstyle, errorbar, hint_labels.
+        """
+
+    def scatter_options(self, i: int) -> dict:
+        """
+        The object's options as a dict of keyword names, as stored (the color the call took from
+        the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.
+        """
+
+    def set_scatter_options(self, i: int, **opts: Unpack[ScatterOptions]) -> Axes:
+        """
+        set_scatter_options(i, **opts)
+
+        Change the object's options: the keywords given replace those fields, the rest keep their
+        current values. Checked as the plotting call checks them; the data and the id stay.
+
+        Keyword options (ScatterOptions): color, size, sizes, marker, name, show_legend, visible, zorder, alpha, filled, edgecolor, edge_linewidth, errorbar, hint_labels.
+        """
+
+    def scatter_z_options(self, i: int) -> dict:
+        """
+        The object's options as a dict of keyword names, as stored (the color the call took from
+        the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.
+        """
+
+    def set_scatter_z_options(self, i: int, **opts: Unpack[ScatterZOptions]) -> Axes:
+        """
+        set_scatter_z_options(i, **opts)
+
+        Change the object's options: the keywords given replace those fields, the rest keep their
+        current values. Checked as the plotting call checks them; the data and the id stay.
+
+        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, filled, edgecolor, edge_linewidth, vmin, vmax, norm, colorbar, name, show_legend, visible, zorder, errorbar, hint_labels.
+        """
+
+    def bar_options(self, i: int) -> dict:
+        """
+        The object's options as a dict of keyword names, as stored (the color the call took from
+        the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.
+        """
+
+    def set_bar_options(self, i: int, **opts: Unpack[BarOptions]) -> Axes:
+        """
+        set_bar_options(i, **opts)
+
+        Change the object's options: the keywords given replace those fields, the rest keep their
+        current values. Checked as the plotting call checks them; the data and the id stay.
+
+        Keyword options (BarOptions): color, orientation, bottom, width, alpha, name, show_legend, visible, zorder, edgecolor, linewidth, errorbar, hint_labels.
+        """
+
+    def heatmap_options(self, i: int) -> dict:
+        """
+        The object's options as a dict of keyword names, as stored (the color the call took from
+        the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.
+        """
+
+    def set_heatmap_options(self, i: int, **opts: Unpack[HeatmapOptions]) -> Axes:
+        """
+        set_heatmap_options(i, **opts)
+
+        Change the object's options: the keywords given replace those fields, the rest keep their
+        current values. Checked as the plotting call checks them; the data and the id stay.
+
+        Keyword options (HeatmapOptions): cmap, vmin, vmax, norm, colorbar, name, visible, zorder, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
+        """
+
+    def heatmap_tri_options(self, i: int) -> dict:
+        """
+        The object's options as a dict of keyword names, as stored (the color the call took from
+        the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.
+        """
+
+    def set_heatmap_tri_options(self, i: int, **opts: Unpack[HeatmapTriOptions]) -> Axes:
+        """
+        set_heatmap_tri_options(i, **opts)
+
+        Change the object's options: the keywords given replace those fields, the rest keep their
+        current values. Checked as the plotting call checks them; the data and the id stay.
+
+        Keyword options (HeatmapTriOptions): cmap, vmin, vmax, norm, colorbar, name, visible, zorder, hint_labels.
+        """
+
+    def contour_options(self, i: int) -> dict:
+        """
+        The object's options as a dict of keyword names, as stored (the color the call took from
+        the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.
+        """
+
+    def set_contour_options(self, i: int, **opts: Unpack[ContourOptions]) -> Axes:
+        """
+        set_contour_options(i, **opts)
+
+        Change the object's options: the keywords given replace those fields, the rest keep their
+        current values. Checked as the plotting call checks them; the data and the id stay.
+
+        Keyword options (ContourOptions): levels, nlevels, filled, cmap, norm, vmin, vmax, line_color, linewidth, labels, fontsize, colorbar, name, visible, zorder.
+        """
 
     @overload
     def set_fill_data(self, i: int, data: FillData) -> Axes: ...
@@ -2564,7 +2813,7 @@ class Plane2D:
 
         A line through (x, y); line(y) plots y against 0, 1, 2, ...
 
-        Keyword options (LineOptions): color, linewidth, linestyle, name, show_legend, visible, zorder, alpha, loop, drawstyle, errorbar, hint_labels.
+        Keyword options (LineOptions): color, linewidth, linestyle, name, show_legend, visible, zorder, alpha, loop, marker, markersize, drawstyle, errorbar, hint_labels.
         """
 
     def scatter(self, x: ArrayLike, y: ArrayLike, *, err: ErrorBar | None = None, **opts: Unpack[ScatterOptions]) -> Plane2D:
@@ -2866,25 +3115,41 @@ class Plane2D:
     def shape_wedge_data(self, i: int) -> WedgeData: ...
 
     @overload
-    def set_line_data(self, i: int, data: LineData) -> Plane2D: ...
+    def set_line_data(self, i: int, data: LineData, *, err: ErrorBar | None = None) -> Plane2D:
+        """
+        Replace the data. With err=, the error bars too, taken as given (the count may change);
+        without it they stay while the count holds and are dropped when it changes.
+        """
 
     @overload
     def set_line_data(self, i: int, x: ArrayLike, y: ArrayLike) -> Plane2D: ...
 
     @overload
-    def set_scatter_data(self, i: int, data: ScatterData) -> Plane2D: ...
+    def set_scatter_data(self, i: int, data: ScatterData, *, err: ErrorBar | None = None) -> Plane2D:
+        """
+        Replace the data. With err=, the error bars too, taken as given (the count may change);
+        without it they stay while the count holds and are dropped when it changes.
+        """
 
     @overload
     def set_scatter_data(self, i: int, x: ArrayLike, y: ArrayLike) -> Plane2D: ...
 
     @overload
-    def set_scatter_z_data(self, i: int, data: ScatterZData) -> Plane2D: ...
+    def set_scatter_z_data(self, i: int, data: ScatterZData, *, err: ErrorBar | None = None) -> Plane2D:
+        """
+        Replace the data. With err=, the error bars too, taken as given (the count may change);
+        without it they stay while the count holds and are dropped when it changes.
+        """
 
     @overload
     def set_scatter_z_data(self, i: int, x: ArrayLike, y: ArrayLike, z: ArrayLike) -> Plane2D: ...
 
     @overload
-    def set_bar_data(self, i: int, data: BarData) -> Plane2D: ...
+    def set_bar_data(self, i: int, data: BarData, *, err: ErrorBar | None = None) -> Plane2D:
+        """
+        Replace the data. With err=, the error bars too, taken as given (the count may change);
+        without it they stay while the count holds and are dropped when it changes.
+        """
 
     @overload
     def set_bar_data(self, i: int, x: ArrayLike, height: ArrayLike) -> Plane2D: ...
@@ -2901,7 +3166,8 @@ class Plane2D:
     @overload
     def set_heatmap_tri_data(self, i: int, x: ArrayLike, y: ArrayLike, values: ArrayLike) -> Plane2D:
         """
-        Replace the vertices and values, keeping the triangles (the count must hold).
+        Replace the vertices and values: the triangles are kept while x and y are unchanged
+        (only values moved), else the points are triangulated again, as heatmap_tri() does.
         """
 
     @overload
@@ -2910,6 +3176,166 @@ class Plane2D:
     @overload
     def set_contour_data(self, i: int, x: ArrayLike, y: ArrayLike, z: ArrayLike) -> Plane2D:
         """Replace the grid, keeping the levels and filled."""
+
+    def line_errorbar(self, i: int) -> ErrorBar:
+        """
+        The object's error bars as it holds them: an ErrorBar whose ends are None or one value
+        per point (all None, any() False: none). Pass it back to set_*_errorbar() or err=.
+        """
+
+    def set_line_errorbar(self, i: int, err: ErrorBar | None) -> Plane2D:
+        """
+        Add, replace or remove (None, or an ErrorBar with no ends) the error bars, keeping the
+        data. Each given end must hold one value per point; their look is the options' errorbar.
+        """
+
+    def scatter_errorbar(self, i: int) -> ErrorBar:
+        """
+        The object's error bars as it holds them: an ErrorBar whose ends are None or one value
+        per point (all None, any() False: none). Pass it back to set_*_errorbar() or err=.
+        """
+
+    def set_scatter_errorbar(self, i: int, err: ErrorBar | None) -> Plane2D:
+        """
+        Add, replace or remove (None, or an ErrorBar with no ends) the error bars, keeping the
+        data. Each given end must hold one value per point; their look is the options' errorbar.
+        """
+
+    def scatter_z_errorbar(self, i: int) -> ErrorBar:
+        """
+        The object's error bars as it holds them: an ErrorBar whose ends are None or one value
+        per point (all None, any() False: none). Pass it back to set_*_errorbar() or err=.
+        """
+
+    def set_scatter_z_errorbar(self, i: int, err: ErrorBar | None) -> Plane2D:
+        """
+        Add, replace or remove (None, or an ErrorBar with no ends) the error bars, keeping the
+        data. Each given end must hold one value per point; their look is the options' errorbar.
+        """
+
+    def bar_errorbar(self, i: int) -> ErrorBar:
+        """
+        The object's error bars as it holds them: an ErrorBar whose ends are None or one value
+        per point (all None, any() False: none). Pass it back to set_*_errorbar() or err=.
+        """
+
+    def set_bar_errorbar(self, i: int, err: ErrorBar | None) -> Plane2D:
+        """
+        Add, replace or remove (None, or an ErrorBar with no ends) the error bars, keeping the
+        data. Each given end must hold one value per point; their look is the options' errorbar.
+        """
+
+    def line_options(self, i: int) -> dict:
+        """
+        The object's options as a dict of keyword names, as stored (the color the call took from
+        the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.
+        """
+
+    def set_line_options(self, i: int, **opts: Unpack[LineOptions]) -> Plane2D:
+        """
+        set_line_options(i, **opts)
+
+        Change the object's options: the keywords given replace those fields, the rest keep their
+        current values. Checked as the plotting call checks them; the data and the id stay.
+
+        Keyword options (LineOptions): color, linewidth, linestyle, name, show_legend, visible, zorder, alpha, loop, marker, markersize, drawstyle, errorbar, hint_labels.
+        """
+
+    def scatter_options(self, i: int) -> dict:
+        """
+        The object's options as a dict of keyword names, as stored (the color the call took from
+        the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.
+        """
+
+    def set_scatter_options(self, i: int, **opts: Unpack[ScatterOptions]) -> Plane2D:
+        """
+        set_scatter_options(i, **opts)
+
+        Change the object's options: the keywords given replace those fields, the rest keep their
+        current values. Checked as the plotting call checks them; the data and the id stay.
+
+        Keyword options (ScatterOptions): color, size, sizes, marker, name, show_legend, visible, zorder, alpha, filled, edgecolor, edge_linewidth, errorbar, hint_labels.
+        """
+
+    def scatter_z_options(self, i: int) -> dict:
+        """
+        The object's options as a dict of keyword names, as stored (the color the call took from
+        the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.
+        """
+
+    def set_scatter_z_options(self, i: int, **opts: Unpack[ScatterZOptions]) -> Plane2D:
+        """
+        set_scatter_z_options(i, **opts)
+
+        Change the object's options: the keywords given replace those fields, the rest keep their
+        current values. Checked as the plotting call checks them; the data and the id stay.
+
+        Keyword options (ScatterZOptions): cmap, size, sizes, marker, alpha, filled, edgecolor, edge_linewidth, vmin, vmax, norm, colorbar, name, show_legend, visible, zorder, errorbar, hint_labels.
+        """
+
+    def bar_options(self, i: int) -> dict:
+        """
+        The object's options as a dict of keyword names, as stored (the color the call took from
+        the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.
+        """
+
+    def set_bar_options(self, i: int, **opts: Unpack[BarOptions]) -> Plane2D:
+        """
+        set_bar_options(i, **opts)
+
+        Change the object's options: the keywords given replace those fields, the rest keep their
+        current values. Checked as the plotting call checks them; the data and the id stay.
+
+        Keyword options (BarOptions): color, orientation, bottom, width, alpha, name, show_legend, visible, zorder, edgecolor, linewidth, errorbar, hint_labels.
+        """
+
+    def heatmap_options(self, i: int) -> dict:
+        """
+        The object's options as a dict of keyword names, as stored (the color the call took from
+        the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.
+        """
+
+    def set_heatmap_options(self, i: int, **opts: Unpack[HeatmapOptions]) -> Plane2D:
+        """
+        set_heatmap_options(i, **opts)
+
+        Change the object's options: the keywords given replace those fields, the rest keep their
+        current values. Checked as the plotting call checks them; the data and the id stay.
+
+        Keyword options (HeatmapOptions): cmap, vmin, vmax, norm, colorbar, name, visible, zorder, origin, contours, contour_color, contour_linewidth, contour_labels, contour_fontsize, hint_labels.
+        """
+
+    def heatmap_tri_options(self, i: int) -> dict:
+        """
+        The object's options as a dict of keyword names, as stored (the color the call took from
+        the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.
+        """
+
+    def set_heatmap_tri_options(self, i: int, **opts: Unpack[HeatmapTriOptions]) -> Plane2D:
+        """
+        set_heatmap_tri_options(i, **opts)
+
+        Change the object's options: the keywords given replace those fields, the rest keep their
+        current values. Checked as the plotting call checks them; the data and the id stay.
+
+        Keyword options (HeatmapTriOptions): cmap, vmin, vmax, norm, colorbar, name, visible, zorder, hint_labels.
+        """
+
+    def contour_options(self, i: int) -> dict:
+        """
+        The object's options as a dict of keyword names, as stored (the color the call took from
+        the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.
+        """
+
+    def set_contour_options(self, i: int, **opts: Unpack[ContourOptions]) -> Plane2D:
+        """
+        set_contour_options(i, **opts)
+
+        Change the object's options: the keywords given replace those fields, the rest keep their
+        current values. Checked as the plotting call checks them; the data and the id stay.
+
+        Keyword options (ContourOptions): levels, nlevels, filled, cmap, norm, vmin, vmax, line_color, linewidth, labels, fontsize, colorbar, name, visible, zorder.
+        """
 
     @overload
     def set_fill_data(self, i: int, data: FillData) -> Plane2D: ...
@@ -3434,6 +3860,14 @@ class Axes3D:
     def set_surface_tri_data(self, i: int, data: SurfaceTriData) -> Axes3D: ...
 
     @overload
+    def set_surface_tri_data(self, i: int, x: ArrayLike, y: ArrayLike, z: ArrayLike, orient: PlaneOrientationLike, colors: ArrayLike | None = None) -> Axes3D:
+        """
+        Replace the vertices without triangles, as surface_tri() with `orient`: the triangles
+        are kept while the two coordinates orient projects onto are unchanged (only the heights
+        moved), else the points are triangulated again in that plane.
+        """
+
+    @overload
     def set_surface_tri_data(self, i: int, x: ArrayLike, y: ArrayLike, z: ArrayLike, triangles: ArrayLike, colors: ArrayLike | None = None) -> Axes3D: ...
 
     @overload
@@ -3444,16 +3878,112 @@ class Axes3D:
         """Replace the arrows, keeping c (the count must hold)."""
 
     @overload
-    def set_scatter3d_data(self, i: int, data: Scatter3DData) -> Axes3D: ...
+    def set_scatter3d_data(self, i: int, data: Scatter3DData, *, err: ErrorBar3D | None = None) -> Axes3D:
+        """
+        Replace the data. With err=, the error bars too, taken as given (the count may change);
+        without it they stay while the count holds and are dropped when it changes.
+        """
 
     @overload
     def set_scatter3d_data(self, i: int, x: ArrayLike, y: ArrayLike, z: ArrayLike, colors: ArrayLike | None = None) -> Axes3D: ...
 
     @overload
-    def set_line3d_data(self, i: int, data: Line3DData) -> Axes3D: ...
+    def set_line3d_data(self, i: int, data: Line3DData, *, err: ErrorBar3D | None = None) -> Axes3D:
+        """
+        Replace the data. With err=, the error bars too, taken as given (the count may change);
+        without it they stay while the count holds and are dropped when it changes.
+        """
 
     @overload
     def set_line3d_data(self, i: int, x: ArrayLike, y: ArrayLike, z: ArrayLike, colors: ArrayLike | None = None) -> Axes3D: ...
+
+    def scatter3d_errorbar(self, i: int) -> ErrorBar3D:
+        """
+        The object's error bars as it holds them: an ErrorBar3D whose ends are None or one value
+        per point (all None, any() False: none). Pass it back to set_*_errorbar() or err=.
+        """
+
+    def set_scatter3d_errorbar(self, i: int, err: ErrorBar3D | None) -> Axes3D:
+        """
+        Add, replace or remove (None, or an ErrorBar3D with no ends) the error bars, keeping the
+        data. Each given end must hold one value per point; their look is the options' errorbar.
+        """
+
+    def line3d_errorbar(self, i: int) -> ErrorBar3D:
+        """
+        The object's error bars as it holds them: an ErrorBar3D whose ends are None or one value
+        per point (all None, any() False: none). Pass it back to set_*_errorbar() or err=.
+        """
+
+    def set_line3d_errorbar(self, i: int, err: ErrorBar3D | None) -> Axes3D:
+        """
+        Add, replace or remove (None, or an ErrorBar3D with no ends) the error bars, keeping the
+        data. Each given end must hold one value per point; their look is the options' errorbar.
+        """
+
+    def surface_options(self, i: int) -> dict:
+        """
+        The object's options as a dict of keyword names, as stored (the color the call took from
+        the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.
+        """
+
+    def set_surface_options(self, i: int, **opts: Unpack[SurfaceOptions]) -> Axes3D:
+        """
+        set_surface_options(i, **opts)
+
+        Change the object's options: the keywords given replace those fields, the rest keep their
+        current values. Checked as the plotting call checks them; the data and the id stay.
+
+        Keyword options (SurfaceOptions): color, colormap, cmap, vmin, vmax, colorbar, name, show_legend, visible, alpha, shading, edges, edgecolor, edge_linewidth, hint_labels.
+        """
+
+    def surface_tri_options(self, i: int) -> dict:
+        """
+        The object's options as a dict of keyword names, as stored (the color the call took from
+        the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.
+        """
+
+    def set_surface_tri_options(self, i: int, **opts: Unpack[SurfaceTriOptions]) -> Axes3D:
+        """
+        set_surface_tri_options(i, **opts)
+
+        Change the object's options: the keywords given replace those fields, the rest keep their
+        current values. Checked as the plotting call checks them; the data and the id stay.
+
+        Keyword options (SurfaceTriOptions): color, cmap, vmin, vmax, colorbar, name, show_legend, visible, alpha, shading, edges, edgecolor, edge_linewidth, hint_labels.
+        """
+
+    def scatter3d_options(self, i: int) -> dict:
+        """
+        The object's options as a dict of keyword names, as stored (the color the call took from
+        the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.
+        """
+
+    def set_scatter3d_options(self, i: int, **opts: Unpack[Scatter3DOptions]) -> Axes3D:
+        """
+        set_scatter3d_options(i, **opts)
+
+        Change the object's options: the keywords given replace those fields, the rest keep their
+        current values. Checked as the plotting call checks them; the data and the id stay.
+
+        Keyword options (Scatter3DOptions): color, size, sizes, marker, alpha, filled, edgecolor, edge_linewidth, depthshade, cmap, vmin, vmax, colorbar, name, show_legend, visible, errorbar, hint_labels.
+        """
+
+    def line3d_options(self, i: int) -> dict:
+        """
+        The object's options as a dict of keyword names, as stored (the color the call took from
+        the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.
+        """
+
+    def set_line3d_options(self, i: int, **opts: Unpack[Line3DOptions]) -> Axes3D:
+        """
+        set_line3d_options(i, **opts)
+
+        Change the object's options: the keywords given replace those fields, the rest keep their
+        current values. Checked as the plotting call checks them; the data and the id stay.
+
+        Keyword options (Line3DOptions): color, linewidth, alpha, loop, depthshade, cmap, vmin, vmax, colorbar, name, show_legend, visible, errorbar, hint_labels.
+        """
 
     @overload
     def set_text_data(self, i: int, data: Text3DData) -> Axes3D:
@@ -3548,7 +4078,7 @@ class PolarAxes:
         an arc where theta changes; NaN breaks it. plot(r) plots r against theta = 0, 1, 2,
         ... radians. drawstyle steps in theta; loop closes back to the first point.
 
-        Keyword options (LineOptions): color, linewidth, linestyle, name, show_legend, visible, zorder, alpha, loop, drawstyle, errorbar, hint_labels.
+        Keyword options (LineOptions): color, linewidth, linestyle, name, show_legend, visible, zorder, alpha, loop, marker, markersize, drawstyle, errorbar, hint_labels.
         """
 
     def scatter(self, theta: ArrayLike, r: ArrayLike, **opts: Unpack[ScatterOptions]) -> PolarAxes:

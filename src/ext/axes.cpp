@@ -62,6 +62,22 @@ namespace sextant_py {
                    "): " + field_names<T>() + ".";
         }
 
+        constexpr const char* set_data_err_doc =
+            "Replace the data. With err=, the error bars too, taken as given (the count may change);\n"
+            "without it they stay while the count holds and are dropped when it changes.";
+        constexpr const char* errorbar_doc =
+            "The object's error bars as it holds them: an ErrorBar whose ends are None or one value\n"
+            "per point (all None, any() False: none). Pass it back to set_*_errorbar() or err=.";
+        constexpr const char* set_errorbar_doc =
+            "Add, replace or remove (None, or an ErrorBar with no ends) the error bars, keeping the\n"
+            "data. Each given end must hold one value per point; their look is the options' errorbar.";
+        constexpr const char* options_doc =
+            "The object's options as a dict of keyword names, as stored (the color the call took from\n"
+            "the cycle filled in). Each one is a keyword set_*_options() and the plotting call take.";
+        constexpr const char* set_options_text =
+            "Change the object's options: the keywords given replace those fields, the rest keep their\n"
+            "current values. Checked as the plotting call checks them; the data and the id stay.";
+
         // The plot kinds, read-back and updates Axes and Plane2D share. `T` is
         // sextant::Axes or sextant::Plane2D, whose methods have the same names.
         template <class T>
@@ -494,22 +510,33 @@ namespace sextant_py {
 
                 // --- updating plotted data ------------------------------------
                 .def("set_line_data",
-                     [](Self self, std::int64_t i, const PyLineData& d) {
+                     [](Self self, std::int64_t i, const PyLineData& d, const PyErrorBar* err) {
                          const auto x = as_array<1>(d.x, "LineData.x"), y = as_array<1>(d.y, "LineData.y");
-                         return chain(self, [&](T& t) { t.set_line_data(index(i, t.line_count()), x.span(), y.span()); });
+                         return chain(self, [&](T& t) {
+                             const std::size_t k = index(i, t.line_count());
+                             if (err)
+                                 t.set_line_data(k, sextant::LineData{{x.span().begin(), x.span().end()},
+                                                                      {y.span().begin(), y.span().end()}},
+                                                 err->spans());
+                             else t.set_line_data(k, x.span(), y.span());
+                         });
                      },
-                     "i"_a, "data"_a)
+                     "i"_a, "data"_a, nb::kw_only(), "err"_a.none() = nb::none(), set_data_err_doc)
                 .def("set_line_data",
                      [](Self self, std::int64_t i, const Vec& x, const Vec& y) {
                          return chain(self, [&](T& t) { t.set_line_data(index(i, t.line_count()), x.span(), y.span()); });
                      },
                      "i"_a, "x"_a, "y"_a)
                 .def("set_scatter_data",
-                     [](Self self, std::int64_t i, const PyScatterData& d) {
+                     [](Self self, std::int64_t i, const PyScatterData& d, const PyErrorBar* err) {
                          const sextant::ScatterData cd = d.to_cpp();
-                         return chain(self, [&](T& t) { t.set_scatter_data(index(i, t.scatter_count()), cd); });
+                         return chain(self, [&](T& t) {
+                             const std::size_t k = index(i, t.scatter_count());
+                             if (err) t.set_scatter_data(k, cd, err->spans());
+                             else t.set_scatter_data(k, cd);
+                         });
                      },
-                     "i"_a, "data"_a)
+                     "i"_a, "data"_a, nb::kw_only(), "err"_a.none() = nb::none(), set_data_err_doc)
                 .def("set_scatter_data",
                      [](Self self, std::int64_t i, const Vec& x, const Vec& y) {
                          return chain(self, [&](T& t) {
@@ -518,11 +545,15 @@ namespace sextant_py {
                      },
                      "i"_a, "x"_a, "y"_a)
                 .def("set_scatter_z_data",
-                     [](Self self, std::int64_t i, const PyScatterZData& d) {
+                     [](Self self, std::int64_t i, const PyScatterZData& d, const PyErrorBar* err) {
                          const sextant::ScatterZData cd = d.to_cpp();
-                         return chain(self, [&](T& t) { t.set_scatter_z_data(index(i, t.scatter_z_count()), cd); });
+                         return chain(self, [&](T& t) {
+                             const std::size_t k = index(i, t.scatter_z_count());
+                             if (err) t.set_scatter_z_data(k, cd, err->spans());
+                             else t.set_scatter_z_data(k, cd);
+                         });
                      },
-                     "i"_a, "data"_a)
+                     "i"_a, "data"_a, nb::kw_only(), "err"_a.none() = nb::none(), set_data_err_doc)
                 .def("set_scatter_z_data",
                      [](Self self, std::int64_t i, const Vec& x, const Vec& y, const Vec& z) {
                          return chain(self, [&](T& t) {
@@ -531,11 +562,15 @@ namespace sextant_py {
                      },
                      "i"_a, "x"_a, "y"_a, "z"_a)
                 .def("set_bar_data",
-                     [](Self self, std::int64_t i, const PyBarData& d) {
+                     [](Self self, std::int64_t i, const PyBarData& d, const PyErrorBar* err) {
                          const sextant::BarData cd = d.to_cpp();
-                         return chain(self, [&](T& t) { t.set_bar_data(index(i, t.bar_count()), cd); });
+                         return chain(self, [&](T& t) {
+                             const std::size_t k = index(i, t.bar_count());
+                             if (err) t.set_bar_data(k, cd, err->spans());
+                             else t.set_bar_data(k, cd);
+                         });
                      },
-                     "i"_a, "data"_a)
+                     "i"_a, "data"_a, nb::kw_only(), "err"_a.none() = nb::none(), set_data_err_doc)
                 .def("set_bar_data",
                      [](Self self, std::int64_t i, const Vec& x, const Vec& height) {
                          return chain(self, [&](T& t) {
@@ -577,7 +612,8 @@ namespace sextant_py {
                          });
                      },
                      "i"_a, "x"_a, "y"_a, "values"_a,
-                     "Replace the vertices and values, keeping the triangles (the count must hold).")
+                     "Replace the vertices and values: the triangles are kept while x and y are unchanged\n"
+                     "(only values moved), else the points are triangulated again, as heatmap_tri() does.")
                 .def("set_contour_data",
                      [](Self self, std::int64_t i, const PyContourData& d) {
                          const sextant::ContourData cd = d.to_cpp();
@@ -592,6 +628,130 @@ namespace sextant_py {
                          });
                      },
                      "i"_a, "x"_a, "y"_a, "z"_a, "Replace the grid, keeping the levels and filled.")
+                .def("line_errorbar",
+                     [](W& w, std::int64_t i) {
+                         return to_python(read(w, [&](T& t) { return t.line_errorbar(index(i, t.line_count())); }));
+                     },
+                     "i"_a, errorbar_doc)
+                .def("set_line_errorbar",
+                     [](Self self, std::int64_t i, const PyErrorBar* err) {
+                         return chain(self, [&](T& t) { t.set_line_errorbar(index(i, t.line_count()), spans(err)); });
+                     },
+                     "i"_a, "err"_a.none(), set_errorbar_doc)
+                .def("scatter_errorbar",
+                     [](W& w, std::int64_t i) {
+                         return to_python(read(w, [&](T& t) { return t.scatter_errorbar(index(i, t.scatter_count())); }));
+                     },
+                     "i"_a, errorbar_doc)
+                .def("set_scatter_errorbar",
+                     [](Self self, std::int64_t i, const PyErrorBar* err) {
+                         return chain(self, [&](T& t) { t.set_scatter_errorbar(index(i, t.scatter_count()), spans(err)); });
+                     },
+                     "i"_a, "err"_a.none(), set_errorbar_doc)
+                .def("scatter_z_errorbar",
+                     [](W& w, std::int64_t i) {
+                         return to_python(read(w, [&](T& t) { return t.scatter_z_errorbar(index(i, t.scatter_z_count())); }));
+                     },
+                     "i"_a, errorbar_doc)
+                .def("set_scatter_z_errorbar",
+                     [](Self self, std::int64_t i, const PyErrorBar* err) {
+                         return chain(self, [&](T& t) { t.set_scatter_z_errorbar(index(i, t.scatter_z_count()), spans(err)); });
+                     },
+                     "i"_a, "err"_a.none(), set_errorbar_doc)
+                .def("bar_errorbar",
+                     [](W& w, std::int64_t i) {
+                         return to_python(read(w, [&](T& t) { return t.bar_errorbar(index(i, t.bar_count())); }));
+                     },
+                     "i"_a, errorbar_doc)
+                .def("set_bar_errorbar",
+                     [](Self self, std::int64_t i, const PyErrorBar* err) {
+                         return chain(self, [&](T& t) { t.set_bar_errorbar(index(i, t.bar_count()), spans(err)); });
+                     },
+                     "i"_a, "err"_a.none(), set_errorbar_doc)
+                .def("line_options",
+                     [](W& w, std::int64_t i) {
+                         return to_dict(read(w, [&](T& t) { return t.line_options(index(i, t.line_count())); }));
+                     },
+                     "i"_a, options_doc)
+                .def("set_line_options",
+                     [](Self self, std::int64_t i, const nb::kwargs& kw) {
+                         auto o = read(*self.p, [&](T& t) { return t.line_options(index(i, t.line_count())); });
+                         apply(o, kw, "set_line_options()");
+                         return chain(self, [&](T& t) { t.set_line_options(index(i, t.line_count()), std::move(o)); });
+                     },
+                     "i"_a, "opts"_a, opts_doc<sextant::LineOptions>("set_line_options(i, **opts)", set_options_text).c_str())
+                .def("scatter_options",
+                     [](W& w, std::int64_t i) {
+                         return to_dict(read(w, [&](T& t) { return t.scatter_options(index(i, t.scatter_count())); }));
+                     },
+                     "i"_a, options_doc)
+                .def("set_scatter_options",
+                     [](Self self, std::int64_t i, const nb::kwargs& kw) {
+                         auto o = read(*self.p, [&](T& t) { return t.scatter_options(index(i, t.scatter_count())); });
+                         apply(o, kw, "set_scatter_options()");
+                         return chain(self, [&](T& t) { t.set_scatter_options(index(i, t.scatter_count()), std::move(o)); });
+                     },
+                     "i"_a, "opts"_a, opts_doc<sextant::ScatterOptions>("set_scatter_options(i, **opts)", set_options_text).c_str())
+                .def("scatter_z_options",
+                     [](W& w, std::int64_t i) {
+                         return to_dict(read(w, [&](T& t) { return t.scatter_z_options(index(i, t.scatter_z_count())); }));
+                     },
+                     "i"_a, options_doc)
+                .def("set_scatter_z_options",
+                     [](Self self, std::int64_t i, const nb::kwargs& kw) {
+                         auto o = read(*self.p, [&](T& t) { return t.scatter_z_options(index(i, t.scatter_z_count())); });
+                         apply(o, kw, "set_scatter_z_options()");
+                         return chain(self, [&](T& t) { t.set_scatter_z_options(index(i, t.scatter_z_count()), std::move(o)); });
+                     },
+                     "i"_a, "opts"_a, opts_doc<sextant::ScatterZOptions>("set_scatter_z_options(i, **opts)", set_options_text).c_str())
+                .def("bar_options",
+                     [](W& w, std::int64_t i) {
+                         return to_dict(read(w, [&](T& t) { return t.bar_options(index(i, t.bar_count())); }));
+                     },
+                     "i"_a, options_doc)
+                .def("set_bar_options",
+                     [](Self self, std::int64_t i, const nb::kwargs& kw) {
+                         auto o = read(*self.p, [&](T& t) { return t.bar_options(index(i, t.bar_count())); });
+                         apply(o, kw, "set_bar_options()");
+                         return chain(self, [&](T& t) { t.set_bar_options(index(i, t.bar_count()), std::move(o)); });
+                     },
+                     "i"_a, "opts"_a, opts_doc<sextant::BarOptions>("set_bar_options(i, **opts)", set_options_text).c_str())
+                .def("heatmap_options",
+                     [](W& w, std::int64_t i) {
+                         return to_dict(read(w, [&](T& t) { return t.heatmap_options(index(i, t.heatmap_count())); }));
+                     },
+                     "i"_a, options_doc)
+                .def("set_heatmap_options",
+                     [](Self self, std::int64_t i, const nb::kwargs& kw) {
+                         auto o = read(*self.p, [&](T& t) { return t.heatmap_options(index(i, t.heatmap_count())); });
+                         apply(o, kw, "set_heatmap_options()");
+                         return chain(self, [&](T& t) { t.set_heatmap_options(index(i, t.heatmap_count()), std::move(o)); });
+                     },
+                     "i"_a, "opts"_a, opts_doc<sextant::HeatmapOptions>("set_heatmap_options(i, **opts)", set_options_text).c_str())
+                .def("heatmap_tri_options",
+                     [](W& w, std::int64_t i) {
+                         return to_dict(read(w, [&](T& t) { return t.heatmap_tri_options(index(i, t.heatmap_tri_count())); }));
+                     },
+                     "i"_a, options_doc)
+                .def("set_heatmap_tri_options",
+                     [](Self self, std::int64_t i, const nb::kwargs& kw) {
+                         auto o = read(*self.p, [&](T& t) { return t.heatmap_tri_options(index(i, t.heatmap_tri_count())); });
+                         apply(o, kw, "set_heatmap_tri_options()");
+                         return chain(self, [&](T& t) { t.set_heatmap_tri_options(index(i, t.heatmap_tri_count()), std::move(o)); });
+                     },
+                     "i"_a, "opts"_a, opts_doc<sextant::HeatmapTriOptions>("set_heatmap_tri_options(i, **opts)", set_options_text).c_str())
+                .def("contour_options",
+                     [](W& w, std::int64_t i) {
+                         return to_dict(read(w, [&](T& t) { return t.contour_options(index(i, t.contour_count())); }));
+                     },
+                     "i"_a, options_doc)
+                .def("set_contour_options",
+                     [](Self self, std::int64_t i, const nb::kwargs& kw) {
+                         auto o = read(*self.p, [&](T& t) { return t.contour_options(index(i, t.contour_count())); });
+                         apply(o, kw, "set_contour_options()");
+                         return chain(self, [&](T& t) { t.set_contour_options(index(i, t.contour_count()), std::move(o)); });
+                     },
+                     "i"_a, "opts"_a, opts_doc<sextant::ContourOptions>("set_contour_options(i, **opts)", set_options_text).c_str())
                 .def("set_fill_data",
                      [](Self self, std::int64_t i, const PyFillData& d) {
                          const sextant::FillData cd = d.to_cpp();
