@@ -57,6 +57,11 @@ def plots() -> None:
     text: str = svg
     saved: sextant.SvgSaveReport | None = fig.savefig("out.svg", max_tests=100)
     fig.savefig("out.png", peel_layers=8)
+    style_text: str = fig.style_yaml("state")
+    skipped: list[str] = fig.apply_style_yaml(style_text)
+    fig.save_style("s.yaml", "style")
+    skipped = fig.load_style("s.yaml")
+    fig.load_style(3)  # type: ignore[arg-type]
 
     def on_event(ev: sextant.Event) -> None:
         where: sextant.Axes | sextant.Axes3D | sextant.PolarAxes | None = ev.inaxes

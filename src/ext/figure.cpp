@@ -15,6 +15,7 @@ namespace sextant_py {
     namespace {
         // savefig(): a path or a file object in; the SVG report, or None, out.
         using PathOrFile = nb::typed<nb::object, Named<"str | os.PathLike[str] | typing.IO[typing.Any]">>;
+        using PathLike = nb::typed<nb::object, Named<"str | os.PathLike[str]">>;
         using SaveResult = nb::typed<nb::object, std::optional<sextant::SvgSaveReport>>;
 
         // Where show() should not block: a REPL, `python -i`, IPython/Jupyter.
@@ -64,6 +65,21 @@ namespace sextant_py {
             if (f == "png") return Format::Png;
             if (f == "svg") return Format::Svg;
             throw nb::value_error(("unknown format '" + f + "'; sextant writes 'png' and 'svg'").c_str());
+        }
+
+        sextant::Figure::StyleDetail parse_style_detail(std::string d) {
+            std::string low = d;
+            for (char& c : low) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            if (low == "style") return sextant::Figure::StyleDetail::Style;
+            if (low == "state") return sextant::Figure::StyleDetail::State;
+            throw nb::value_error(("unknown detail '" + d + "'; a style file holds 'style' or 'state'").c_str());
+        }
+
+        std::string fspath_of(nb::handle fname, const char* who) {
+            nb::object fs = nb::module_::import_("os").attr("fspath")(fname);
+            if (!nb::isinstance<nb::str>(fs))
+                throw nb::type_error((std::string(who) + ": a str path or a text-named PathLike, please").c_str());
+            return nb::cast<std::string>(fs);
         }
 
         SaveResult write_rendered(nb::handle file, Format fmt, PyFigure& self, int width, int height,
@@ -332,6 +348,46 @@ namespace sextant_py {
             .def("refresh", [](PyFigure& self) { call(self, [](Figure& f) { f.refresh(); }); },
                  "Publish changes to an open window.")
             .def("frame_stats", [](PyFigure& self) { return self.st->fig->frame_stats(); })
+
+            // --- style files -------------------------------------------------------
+            .def("style_yaml",
+                 [](PyFigure& self, const std::string& detail) {
+                     const auto d = parse_style_detail(detail);
+                     return call(self, [&](Figure& f) { return f.style_yaml(d); });
+                 },
+                 "detail"_a = "style",
+                 "style_yaml(detail='style') -> str\n\n"
+                 "The figure's looks as a YAML style file. detail='style' holds the looks (options, grid,\n"
+                 "legend, scales, camera, ...); 'state' adds titles, limits, tick overrides, the suptitle\n"
+                 "and the figure size. Plot data is never in it.")
+            .def("apply_style_yaml",
+                 [](PyFigure& self, const std::string& text) {
+                     return call(self, [&](Figure& f) { return f.apply_style_yaml(text); });
+                 },
+                 "text"_a,
+                 "apply_style_yaml(text) -> list[str]\n\n"
+                 "Apply a style file's text. Axes and plots are matched by cell, kind and order; what does\n"
+                 "not match, or a bad value, is skipped and described in the returned list ([] when all\n"
+                 "applied). ValueError for text that is not YAML, not a style file, or newer than this\n"
+                 "library reads. A shown figure is updated.")
+            .def("save_style",
+                 [](PyFigure& self, PathLike fname, const std::string& detail) {
+                     const std::string path = fspath_of(fname, "save_style()");
+                     const auto d = parse_style_detail(detail);
+                     call(self, [&](Figure& f) { f.save_style(path, d); });
+                 },
+                 "fname"_a, "detail"_a = "style",
+                 "save_style(fname, detail='style') -> None\n\n"
+                 "style_yaml(detail) written to a file. OSError when it cannot be written.")
+            .def("load_style",
+                 [](PyFigure& self, PathLike fname) {
+                     const std::string path = fspath_of(fname, "load_style()");
+                     return call(self, [&](Figure& f) { return f.load_style(path); });
+                 },
+                 "fname"_a,
+                 "load_style(fname) -> list[str]\n\n"
+                 "apply_style_yaml() of a file's text. OSError (FileNotFoundError, ...) when it cannot be\n"
+                 "read.")
 
             // --- output ----------------------------------------------------------
             .def("savefig",

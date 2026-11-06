@@ -4644,6 +4644,40 @@ class Figure:
 
     def frame_stats(self) -> FrameStats: ...
 
+    def style_yaml(self, detail: str = 'style') -> str:
+        """
+        style_yaml(detail='style') -> str
+
+        The figure's looks as a YAML style file. detail='style' holds the looks (options, grid,
+        legend, scales, camera, ...); 'state' adds titles, limits, tick overrides, the suptitle
+        and the figure size. Plot data is never in it.
+        """
+
+    def apply_style_yaml(self, text: str) -> list[str]:
+        """
+        apply_style_yaml(text) -> list[str]
+
+        Apply a style file's text. Axes and plots are matched by cell, kind and order; what does
+        not match, or a bad value, is skipped and described in the returned list ([] when all
+        applied). ValueError for text that is not YAML, not a style file, or newer than this
+        library reads. A shown figure is updated.
+        """
+
+    def save_style(self, fname: str | os.PathLike[str], detail: str = 'style') -> None:
+        """
+        save_style(fname, detail='style') -> None
+
+        style_yaml(detail) written to a file. OSError when it cannot be written.
+        """
+
+    def load_style(self, fname: str | os.PathLike[str]) -> list[str]:
+        """
+        load_style(fname) -> list[str]
+
+        apply_style_yaml() of a file's text. OSError (FileNotFoundError, ...) when it cannot be
+        read.
+        """
+
     def savefig(self, fname: str | os.PathLike[str] | IO[Any], *, format: str | None = None, width: int = 0, height: int = 0, **opts: Unpack[ExportOptions]) -> SvgSaveReport | None:
         """
         savefig(fname, *, format=None, width=0, height=0, **opts)
